@@ -25,8 +25,3 @@ export const Route = createFileRoute("/")({
   }),
   component: App,
 });
-
-function App_() {
-  return null;
-}
-export { App_ };
