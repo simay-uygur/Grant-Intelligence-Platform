@@ -4,6 +4,7 @@ import { useConversations } from "@/hooks/useConversations";
 import { grantService, isMockMode } from "@/services";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
+  ApplicationStage,
   ChatBlock,
   ChatMessage,
   Grant,
@@ -14,6 +15,14 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import type { BlockCallbacks } from "@/components/chat/BlockRenderer";
+
+const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
+  welcome: "Describe your organisation and funding needs…",
+  collecting_information: "Add any details that may help refine your profile…",
+  researching: "Research is in progress…",
+  results: "Ask about one of these grants…",
+  application: "Ask to revise, expand, or improve this application…",
+};
 
 const RESEARCH_STEPS = [
   "Understanding organisation profile",
@@ -326,9 +335,12 @@ export function App() {
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-background/80 px-6 py-3 backdrop-blur">
+        <header className="flex items-center justify-between gap-3 border-b border-border bg-background/80 px-6 py-3 backdrop-blur">
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold text-foreground">
+            <h1
+              className="truncate text-sm font-semibold text-foreground"
+              title={active?.title ?? "No conversation"}
+            >
               {active?.title ?? "No conversation"}
             </h1>
             <div className="mt-0.5 flex items-center gap-3 text-[11px] text-muted-foreground">
@@ -343,15 +355,17 @@ export function App() {
               )}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={runDemo}
-            disabled={demoRunning || busy}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-          >
-            <Play className="h-3.5 w-3.5" />
-            {demoRunning ? "Running demo…" : "Run demo"}
-          </button>
+          {active?.stage === "welcome" && (
+            <button
+              type="button"
+              onClick={runDemo}
+              disabled={demoRunning || busy}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            >
+              <Play className="h-3.5 w-3.5" />
+              {demoRunning ? "Running demo…" : "Run demo"}
+            </button>
+          )}
         </header>
 
         <div className="flex-1 overflow-y-auto">
@@ -369,6 +383,9 @@ export function App() {
         <Composer
           disabled={busy || !active}
           onSend={handleUserSend}
+          placeholder={
+            active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined
+          }
         />
       </main>
     </div>

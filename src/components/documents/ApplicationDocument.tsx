@@ -25,18 +25,18 @@ export function ApplicationDocumentView({
   return (
     <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
       <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-[11px] font-medium uppercase tracking-wider text-brand">
             Grant application draft
           </div>
-          <h3 className="mt-1 text-lg font-semibold text-foreground">
+          <h3 className="mt-1 break-words text-lg font-semibold text-foreground [overflow-wrap:anywhere]">
             {doc.grantTitle}
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Edit each section, rewrite with AI, then export.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"
             onClick={() => exportAsPdf(doc)}
@@ -126,10 +126,10 @@ function SectionEditor({
   return (
     <section className="rounded-xl border border-border bg-background p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-foreground">
+        <h4 className="min-w-0 break-words text-sm font-semibold text-foreground [overflow-wrap:anywhere]">
           {index}. {section.title}
         </h4>
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           {savedFlash && (
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600">
               <Check className="h-3 w-3" />
@@ -187,10 +187,10 @@ function SectionEditor({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={6}
-          className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-brand/60 focus:ring-2 focus:ring-brand/20"
+          className="min-h-[140px] w-full resize-y break-words rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none [overflow-wrap:anywhere] focus:border-brand/60 focus:ring-2 focus:ring-brand/20"
         />
       ) : (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">
           {section.content}
         </p>
       )}

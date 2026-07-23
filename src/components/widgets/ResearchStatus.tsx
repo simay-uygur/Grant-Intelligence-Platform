@@ -58,16 +58,18 @@ export function ResearchStatus({ state, onRetry }: Props) {
 
       {state.error && (
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-          <AlertCircle className="mt-0.5 h-4 w-4" />
-          <div className="flex-1">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="min-w-0 flex-1">
             <div className="font-medium">Research failed</div>
-            <div className="mt-0.5 opacity-90">{state.error}</div>
+            <div className="mt-0.5 break-words opacity-90 [overflow-wrap:anywhere]">
+              {state.error}
+            </div>
           </div>
           {onRetry && (
             <button
               type="button"
               onClick={onRetry}
-              className="rounded-md border border-destructive/40 px-2 py-1 text-[11px] font-medium hover:bg-destructive/10"
+              className="shrink-0 rounded-md border border-destructive/40 px-2 py-1 text-[11px] font-medium hover:bg-destructive/10"
             >
               Retry
             </button>

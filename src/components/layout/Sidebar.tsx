@@ -1,4 +1,4 @@
-import { Plus, Settings, Sparkles, Trash2 } from "lucide-react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
@@ -99,18 +99,11 @@ export function Sidebar({
         </ul>
       </nav>
 
-      <div className="mt-auto flex items-center justify-between border-t border-sidebar-border/60 px-4 py-3">
+      <div className="mt-auto flex items-center border-t border-sidebar-border/60 px-4 py-3">
         <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/60">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           Local / mock mode
         </div>
-        <button
-          type="button"
-          aria-label="Settings"
-          className="rounded-md p-1.5 text-sidebar-foreground/60 hover:bg-white/10 hover:text-white"
-        >
-          <Settings className="h-4 w-4" />
-        </button>
       </div>
     </aside>
   );

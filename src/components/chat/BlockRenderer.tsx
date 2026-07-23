@@ -32,13 +32,13 @@ export function BlockRenderer({
   switch (block.type) {
     case "text":
       return (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
           {block.text}
         </p>
       );
     case "question":
       return (
-        <p className="text-sm font-medium leading-relaxed text-foreground">
+        <p className="break-words text-sm font-medium leading-relaxed text-foreground [overflow-wrap:anywhere]">
           {block.text}
         </p>
       );
@@ -81,15 +81,19 @@ export function BlockRenderer({
     case "error":
       return (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          <AlertCircle className="mt-0.5 h-4 w-4" />
-          <span>{block.message}</span>
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+            {block.message}
+          </span>
         </div>
       );
     case "success":
       return (
         <div className="flex items-start gap-2 rounded-lg border border-emerald-300/50 bg-emerald-100/60 p-3 text-sm text-emerald-800">
-          <CheckCircle2 className="mt-0.5 h-4 w-4" />
-          <span>{block.message}</span>
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+            {block.message}
+          </span>
         </div>
       );
   }
