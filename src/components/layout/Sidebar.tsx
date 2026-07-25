@@ -2,6 +2,7 @@ import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   conversations: Conversation[];
@@ -33,14 +34,14 @@ export function Sidebar({
       </div>
 
       <div className="px-4 pb-3">
-        <button
+        <Button
           type="button"
           onClick={onNew}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand/50"
+          className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand/50"
         >
           <Plus className="h-4 w-4" />
           New conversation
-        </button>
+        </Button>
       </div>
 
       <div className="px-5 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
@@ -71,17 +72,18 @@ export function Sidebar({
                     })}
                   </div>
                 </button>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete(c.id);
                   }}
                   aria-label="Delete conversation"
-                  className="absolute right-2 top-2 rounded-md p-1 text-sidebar-foreground/40 opacity-0 transition-opacity hover:bg-white/10 hover:text-white group-hover:opacity-100 focus:opacity-100"
+                  className="absolute right-2 top-2 h-auto w-auto rounded-md p-1 text-sidebar-foreground/40 opacity-0 transition-opacity hover:bg-white/10 hover:text-white group-hover:opacity-100 focus:opacity-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </li>
             );
           })}

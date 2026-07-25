@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Paperclip, Send, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   onSend: (text: string) => void;
@@ -49,14 +50,15 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
                 processing requires backend integration.
               </p>
             </div>
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => setAttachedFile(null)}
               aria-label="Remove attached file"
-              className="shrink-0 rounded-md p-1 text-amber-800 hover:bg-amber-200/60"
+              className="h-auto w-auto shrink-0 rounded-md p-1 text-amber-800 hover:bg-amber-200/60"
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           </div>
         )}
 
@@ -71,16 +73,18 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
             aria-hidden="true"
             tabIndex={-1}
           />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => fileInputRef.current?.click()}
             aria-label="Attach a file (PDF, DOC, DOCX, TXT, MD, PNG, JPG, JPEG). Selected locally only, not uploaded."
             title="Attach a file — selected locally only, not uploaded"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 rounded-lg text-muted-foreground hover:bg-muted"
             disabled={disabled}
           >
             <Paperclip className="h-4 w-4" />
-          </button>
+          </Button>
           <label htmlFor="composer-textarea" className="sr-only">
             Message
           </label>
@@ -102,15 +106,16 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
             disabled={disabled}
             className="min-w-0 max-h-40 min-h-[36px] flex-1 resize-none bg-transparent px-2 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60"
           />
-          <button
+          <Button
             type="button"
+            size="icon"
             onClick={submit}
             disabled={disabled || !value.trim()}
             aria-label="Send message"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-white shadow-sm transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="shrink-0 rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 disabled:opacity-40"
           >
             <Send className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
         <div className="mt-2 px-1 text-[11px] text-muted-foreground">
           Mock mode • Responses use local demo data. Not legal or financial
