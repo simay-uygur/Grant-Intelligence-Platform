@@ -7,8 +7,21 @@ interface Props {
 }
 
 export function ResearchStatus({ state, onRetry }: Props) {
+  const activeIndex = state.steps.findIndex((s) => s.status === "active");
+  const allDone = state.steps.every((s) => s.status === "done");
+  const progressAnnouncement = state.error
+    ? `Research failed: ${state.error}`
+    : activeIndex >= 0
+      ? `Step ${activeIndex + 1} of ${state.steps.length}: ${state.steps[activeIndex].label}`
+      : allDone
+        ? "Research complete."
+        : "";
+
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div aria-live="polite" role="status" className="sr-only">
+        {progressAnnouncement}
+      </div>
       <div className="mb-3 flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-brand">
           <Loader2 className="h-4 w-4 animate-spin" />

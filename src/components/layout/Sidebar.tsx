@@ -53,18 +53,12 @@ export function Sidebar({
             const active = c.id === activeId;
             return (
               <li key={c.id} className="group relative">
-                <div
-                  role="button"
-                  tabIndex={0}
+                <button
+                  type="button"
+                  aria-current={active ? "true" : undefined}
                   onClick={() => onSelect(c.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onSelect(c.id);
-                    }
-                  }}
                   className={cn(
-                    "cursor-pointer rounded-lg px-3 py-2 pr-9 text-sm transition-colors",
+                    "block w-full cursor-pointer rounded-lg px-3 py-2 pr-9 text-left text-sm transition-colors",
                     active
                       ? "bg-sidebar-accent text-white"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-white",
@@ -76,7 +70,7 @@ export function Sidebar({
                       addSuffix: true,
                     })}
                   </div>
-                </div>
+                </button>
                 <button
                   type="button"
                   onClick={(e) => {

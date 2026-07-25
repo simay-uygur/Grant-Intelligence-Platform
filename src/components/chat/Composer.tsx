@@ -81,7 +81,11 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
           >
             <Paperclip className="h-4 w-4" />
           </button>
+          <label htmlFor="composer-textarea" className="sr-only">
+            Message
+          </label>
           <textarea
+            id="composer-textarea"
             ref={ref}
             rows={1}
             value={value}

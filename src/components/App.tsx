@@ -326,6 +326,12 @@ export function App() {
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Skip to conversation
+      </a>
       <Sidebar
         conversations={c.conversations}
         activeId={c.activeId}
@@ -334,7 +340,7 @@ export function App() {
         onDelete={c.deleteConversation}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 border-b border-border bg-background/80 px-6 py-3 backdrop-blur">
           <div className="min-w-0">
             <h1

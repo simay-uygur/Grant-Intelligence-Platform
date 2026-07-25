@@ -4,7 +4,7 @@ import { App } from "@/components/App";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Grant Intelligence — European grant discovery, intelligently matched" },
+      { title: "Grant Navigator — European grant discovery, intelligently matched" },
       {
         name: "description",
         content:
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/")({
       },
       {
         property: "og:title",
-        content: "Grant Intelligence — European grant discovery",
+        content: "Grant Navigator — European grant discovery",
       },
       {
         property: "og:description",
