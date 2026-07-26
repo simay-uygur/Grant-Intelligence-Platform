@@ -182,7 +182,7 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
   };
 
   return (
-    <Card ref={cardRef} className="rounded-2xl p-5 shadow-sm">
+    <Card ref={cardRef} className="rounded-2xl p-4 shadow-sm sm:p-5">
       <CardHeader className="mb-4 flex flex-col gap-3 space-y-0 p-0">
         <StepIndicator step={step} />
         <div>

@@ -134,7 +134,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
               </div>
             </div>
 
-            <SheetFooter className="shrink-0 flex-row flex-wrap gap-2 border-t border-border px-5 py-4 sm:justify-start">
+            <SheetFooter className="shrink-0 flex-col gap-2 border-t border-border px-5 py-4 sm:flex-row sm:flex-wrap sm:justify-start sm:space-x-0">
               <Button
                 type="button"
                 variant="outline"
@@ -142,7 +142,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                   onAsk(grant);
                   onOpenChange(false);
                 }}
-                className="rounded-lg hover:bg-muted"
+                className="w-full rounded-lg hover:bg-muted sm:w-auto"
               >
                 <MessageSquare className="h-3.5 w-3.5" />
                 Ask about this grant
@@ -153,7 +153,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                   onStart(grant);
                   onOpenChange(false);
                 }}
-                className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+                className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 sm:w-auto"
               >
                 Start application
               </Button>
@@ -161,7 +161,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                 <Button
                   type="button"
                   variant="ghost"
-                  className="rounded-lg hover:bg-muted sm:ml-auto"
+                  className="w-full rounded-lg hover:bg-muted sm:ml-auto sm:w-auto"
                 >
                   Close
                 </Button>

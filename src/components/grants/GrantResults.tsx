@@ -234,7 +234,7 @@ function GrantCard({
   const compareId = `compare-${grant.id}`;
 
   return (
-    <article className="rounded-2xl border bg-card p-5 text-card-foreground shadow-sm transition-shadow hover:shadow-md">
+    <article className="rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-5">
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 p-0">
         <div className="min-w-0 flex-1">
           <div className="break-words text-[11px] font-medium uppercase tracking-wider text-brand [overflow-wrap:anywhere]">

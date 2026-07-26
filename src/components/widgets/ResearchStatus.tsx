@@ -39,7 +39,7 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
         {progressAnnouncement}
       </div>
 
-      <CardHeader className="flex-row items-center gap-3 space-y-0 p-0">
+      <CardHeader className="flex-row flex-wrap items-center gap-3 space-y-0 p-0">
         <div
           className={cn(
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
