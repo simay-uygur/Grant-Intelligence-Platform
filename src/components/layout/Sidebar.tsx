@@ -3,8 +3,15 @@ import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
-interface Props {
+interface SidebarProps {
   conversations: Conversation[];
   activeId: string | null;
   onSelect: (id: string) => void;
@@ -12,15 +19,16 @@ interface Props {
   onDelete: (id: string) => void;
 }
 
-export function Sidebar({
+function SidebarContent({
   conversations,
   activeId,
   onSelect,
   onNew,
   onDelete,
-}: Props) {
+  onNavigate,
+}: SidebarProps & { onNavigate?: () => void }) {
   return (
-    <aside className="flex h-screen w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-5 py-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white shadow-sm">
           <Sparkles className="h-5 w-5" />
@@ -36,7 +44,10 @@ export function Sidebar({
       <div className="px-4 pb-3">
         <Button
           type="button"
-          onClick={onNew}
+          onClick={() => {
+            onNew();
+            onNavigate?.();
+          }}
           className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand/50"
         >
           <Plus className="h-4 w-4" />
@@ -48,7 +59,7 @@ export function Sidebar({
         Conversations
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2">
         <ul className="space-y-1">
           {conversations.map((c) => {
             const active = c.id === activeId;
@@ -57,7 +68,10 @@ export function Sidebar({
                 <button
                   type="button"
                   aria-current={active ? "true" : undefined}
-                  onClick={() => onSelect(c.id)}
+                  onClick={() => {
+                    onSelect(c.id);
+                    onNavigate?.();
+                  }}
                   className={cn(
                     "block w-full cursor-pointer rounded-lg px-3 py-2 pr-9 text-left text-sm transition-colors",
                     active
@@ -88,9 +102,7 @@ export function Sidebar({
             );
           })}
           {conversations.length === 0 && (
-            <li className="px-3 py-4 text-xs text-sidebar-foreground/50">
-              No conversations yet.
-            </li>
+            <li className="px-3 py-4 text-xs text-sidebar-foreground/50">No conversations yet.</li>
           )}
         </ul>
       </nav>
@@ -101,6 +113,39 @@ export function Sidebar({
           Local / mock mode
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Desktop sidebar: always in the layout at md+ widths, hidden below that. */
+export function Sidebar(props: SidebarProps) {
+  return (
+    <aside className="hidden h-screen w-72 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:block">
+      <SidebarContent {...props} />
     </aside>
+  );
+}
+
+/** Mobile/small-tablet sidebar: off-canvas Sheet, opened via a header trigger. */
+export function MobileSidebar({
+  open,
+  onOpenChange,
+  ...props
+}: SidebarProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="left"
+        className="w-72 max-w-[85vw] border-sidebar-border bg-sidebar p-0 text-sidebar-foreground [&>button]:text-sidebar-foreground/70 [&>button]:hover:bg-white/10 [&>button]:hover:text-white [&>button]:focus:ring-brand md:hidden"
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>Conversations</SheetTitle>
+          <SheetDescription>
+            Browse, start, or delete grant research conversations.
+          </SheetDescription>
+        </SheetHeader>
+        <SidebarContent {...props} onNavigate={() => onOpenChange(false)} />
+      </SheetContent>
+    </Sheet>
   );
 }

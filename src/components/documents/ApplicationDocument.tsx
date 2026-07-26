@@ -21,19 +21,19 @@ interface Props {
 export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }: Props) {
   return (
     <Card className="rounded-2xl p-6 shadow-sm">
-      <CardHeader className="mb-5 flex-row flex-wrap items-start justify-between gap-3 space-y-0 border-b border-border p-0 pb-4">
-        <div className="min-w-0 flex-1">
+      <CardHeader className="mb-5 flex-col gap-3 space-y-0 border-b border-border p-0 pb-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0 sm:flex-1">
           <div className="text-[11px] font-medium uppercase tracking-wider text-brand">
             Grant application draft
           </div>
-          <h3 className="mt-1 break-words text-lg font-semibold text-foreground [overflow-wrap:anywhere]">
+          <h3 className="mt-1 break-words text-lg font-semibold text-foreground">
             {doc.grantTitle}
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Edit each section, rewrite with AI, then export.
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 sm:shrink-0">
           <Button
             type="button"
             variant="outline"
@@ -126,11 +126,11 @@ function SectionEditor({
 
   return (
     <Card className="rounded-xl bg-background p-4 shadow-none">
-      <CardHeader className="mb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0 p-0">
-        <h4 className="min-w-0 break-words text-sm font-semibold text-foreground [overflow-wrap:anywhere]">
+      <CardHeader className="mb-2 flex-col items-start gap-2 space-y-0 p-0 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h4 className="min-w-0 break-words text-sm font-semibold text-foreground">
           {index}. {section.title}
         </h4>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
           {savedFlash && (
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600">
               <Check className="h-3 w-3" />

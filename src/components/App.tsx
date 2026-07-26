@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import { Play } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Menu, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { grantService, isMockMode } from "@/services";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
@@ -11,9 +12,10 @@ import type {
   OrganisationProfile,
   ResearchState,
 } from "@/types";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { Sidebar, MobileSidebar } from "@/components/layout/Sidebar";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
+import { Button } from "@/components/ui/button";
 import type { BlockCallbacks } from "@/components/chat/BlockRenderer";
 
 const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
@@ -55,7 +57,15 @@ export function App() {
   const c = useConversations();
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const researchInFlight = useRef(false);
+  const isMobile = useIsMobile();
+
+  // If the viewport grows past the mobile breakpoint while the sheet is open
+  // (resize/rotate), close it so it can't sit open over the now-visible desktop sidebar.
+  useEffect(() => {
+    if (!isMobile) setMobileSidebarOpen(false);
+  }, [isMobile]);
 
   const setBlocks = c.updateMessageBlocks;
   const appendMessage = c.appendMessage;
@@ -104,9 +114,7 @@ export function App() {
           status: i === 0 ? "active" : "pending",
         })),
       };
-      const messageId = askAssistant([
-        { type: "research_status", state },
-      ]);
+      const messageId = askAssistant([{ type: "research_status", state }]);
 
       try {
         for (let i = 0; i < RESEARCH_STEPS.length; i++) {
@@ -200,10 +208,7 @@ export function App() {
       if (!c.activeConversation?.profile) return;
       setBusy(true);
       try {
-        const doc = await grantService.startApplication(
-          grant,
-          c.activeConversation.profile,
-        );
+        const doc = await grantService.startApplication(grant, c.activeConversation.profile);
         c.setDocument(doc, grant.id);
         c.setStage("application");
         askAssistant([
@@ -302,16 +307,22 @@ export function App() {
       onStartApplication: handleStartApplication,
       onSectionChange: c.updateDocumentSection,
       getDocument: (id) =>
-        c.activeConversation?.document?.id === id
-          ? c.activeConversation.document
-          : undefined,
+        c.activeConversation?.document?.id === id ? c.activeConversation.document : undefined,
       getProfile: () => c.activeConversation?.profile,
       getGrantById: (id) =>
         c.activeConversation?.grants?.find((g) => g.id === id) ??
         MOCK_GRANTS.find((g) => g.id === id),
       formDisabled: busy,
     }),
-    [busy, c.activeConversation, c.updateDocumentSection, handleAskGrant, handleRetryResearch, handleStartApplication, handleSubmitProfile],
+    [
+      busy,
+      c.activeConversation,
+      c.updateDocumentSection,
+      handleAskGrant,
+      handleRetryResearch,
+      handleStartApplication,
+      handleSubmitProfile,
+    ],
   );
 
   if (!c.hydrated) {
@@ -325,7 +336,7 @@ export function App() {
   const active = c.activeConversation;
 
   return (
-    <div className="flex h-screen w-full bg-background text-foreground">
+    <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
@@ -339,26 +350,49 @@ export function App() {
         onNew={c.newConversation}
         onDelete={c.deleteConversation}
       />
+      <MobileSidebar
+        open={mobileSidebarOpen}
+        onOpenChange={setMobileSidebarOpen}
+        conversations={c.conversations}
+        activeId={c.activeId}
+        onSelect={c.selectConversation}
+        onNew={c.newConversation}
+        onDelete={c.deleteConversation}
+      />
 
-      <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-border bg-background/80 px-6 py-3 backdrop-blur">
-          <div className="min-w-0">
-            <h1
-              className="truncate text-sm font-semibold text-foreground"
-              title={active?.title ?? "No conversation"}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-w-0 flex-1 flex-col overflow-hidden"
+      >
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open conversation menu"
+              className="shrink-0 rounded-lg md:hidden"
             >
-              {active?.title ?? "No conversation"}
-            </h1>
-            <div className="mt-0.5 flex items-center gap-3 text-[11px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Connected · {isMockMode ? "Mock mode" : "API mode"}
-              </span>
-              {active && (
-                <span className="capitalize">
-                  Stage: {active.stage.replace(/_/g, " ")}
+              <Menu className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <h1
+                className="truncate text-sm font-semibold text-foreground"
+                title={active?.title ?? "No conversation"}
+              >
+                {active?.title ?? "No conversation"}
+              </h1>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Connected · {isMockMode ? "Mock mode" : "API mode"}
                 </span>
-              )}
+                {active && (
+                  <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
+                )}
+              </div>
             </div>
           </div>
           {active?.stage === "welcome" && (
@@ -374,7 +408,7 @@ export function App() {
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {active ? (
             <MessageList messages={active.messages} callbacks={callbacks} />
           ) : (
@@ -389,9 +423,7 @@ export function App() {
         <Composer
           disabled={busy || !active}
           onSend={handleUserSend}
-          placeholder={
-            active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined
-          }
+          placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
         />
       </main>
     </div>

@@ -149,3 +149,22 @@
     color: var(--color-foreground);
   }
 }
+
+@layer utilities {
+  /*
+   * Same intent as h-screen (100vh), but avoids mobile browsers where 100vh
+   * is taller than the address-bar-adjusted visible viewport. Uses
+   * @supports rather than a same-property fallback pair, because CSS
+   * minifiers collapse two same-property declarations in one rule down to
+   * the last one, which would silently drop the 100vh fallback at build time.
+   */
+  .h-dvh-safe {
+    height: 100vh;
+  }
+
+  @supports (height: 100dvh) {
+    .h-dvh-safe {
+      height: 100dvh;
+    }
+  }
+}

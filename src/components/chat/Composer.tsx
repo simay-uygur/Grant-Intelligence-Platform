@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -11,11 +11,27 @@ interface Props {
 const ACCEPTED_FILE_TYPES =
   ".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,image/png,image/jpeg";
 
+// Matches the textarea's max-h-40 (10rem) Tailwind class below.
+const MAX_TEXTAREA_HEIGHT = 160;
+
 export function Composer({ onSend, disabled, placeholder }: Props) {
   const [value, setValue] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const autoResize = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const next = Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+  }, []);
+
+  useEffect(() => {
+    autoResize();
+  }, [value, autoResize]);
 
   useEffect(() => {
     if (!disabled) ref.current?.focus();
@@ -36,7 +52,7 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
   };
 
   return (
-    <div className="border-t border-border bg-background/80 backdrop-blur">
+    <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur">
       <div className="mx-auto w-full max-w-3xl px-4 py-4">
         {attachedFile && (
           <div className="mb-2 flex items-start gap-2 rounded-lg border border-amber-300/50 bg-amber-100/60 px-3 py-2 text-xs text-amber-900">
@@ -46,8 +62,8 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
                 {attachedFile.name}
               </span>
               <p className="mt-0.5 text-amber-800/90">
-                Selected locally only — not uploaded or analysed. Document
-                processing requires backend integration.
+                Selected locally only — not uploaded or analysed. Document processing requires
+                backend integration.
               </p>
             </div>
             <Button
@@ -100,11 +116,9 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
                 submit();
               }
             }}
-            placeholder={
-              placeholder ?? "Describe your organisation and funding needs…"
-            }
+            placeholder={placeholder ?? "Describe your organisation and funding needs…"}
             disabled={disabled}
-            className="min-w-0 max-h-40 min-h-[36px] flex-1 resize-none bg-transparent px-2 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60"
+            className="min-h-[44px] max-h-40 min-w-0 flex-1 resize-none overflow-hidden bg-transparent px-2 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground placeholder:leading-snug disabled:opacity-60"
           />
           <Button
             type="button"
@@ -118,8 +132,7 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
           </Button>
         </div>
         <div className="mt-2 px-1 text-[11px] text-muted-foreground">
-          Mock mode • Responses use local demo data. Not legal or financial
-          advice.
+          Mock mode • Responses use local demo data. Not legal or financial advice.
         </div>
       </div>
     </div>

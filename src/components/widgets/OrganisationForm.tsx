@@ -352,13 +352,13 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
         )}
       </CardContent>
 
-      <CardFooter className="mt-4 flex items-center justify-between p-0">
+      <CardFooter className="mt-4 flex flex-col gap-2 p-0 sm:flex-row sm:items-center sm:justify-between">
         <Button
           type="button"
           variant="outline"
           onClick={goBack}
           disabled={disabled || step === 1}
-          className="rounded-lg hover:bg-muted"
+          className="w-full rounded-lg hover:bg-muted sm:w-auto"
         >
           Back
         </Button>
@@ -366,7 +366,7 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
           type="button"
           onClick={goNext}
           disabled={disabled || !stepValid || (step === 3 && !allValid)}
-          className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground"
+          className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground sm:w-auto"
         >
           {step < 3 ? "Continue" : "Research matching grants"}
         </Button>
