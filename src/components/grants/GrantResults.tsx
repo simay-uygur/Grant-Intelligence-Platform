@@ -3,6 +3,7 @@ import {
   Bookmark,
   BookmarkCheck,
   CalendarClock,
+  ChevronRight,
   ExternalLink,
   Globe2,
   MessageSquare,
@@ -10,7 +11,6 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
 import type { Grant } from "@/types";
 import { cn } from "@/lib/utils";
 import { CardHeader, CardContent, CardFooter } from "@/components/ui/card";
@@ -24,6 +24,15 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { GrantDetailsSheet } from "./GrantDetailsSheet";
+import {
+  MATCH_TIER_CLASSES,
+  MATCH_TIER_LABEL,
+  type MatchTier,
+  deadlineUrgency,
+  formatDeadline,
+  matchTierFor,
+} from "./grantPresentation";
 
 interface Props {
   grants: Grant[];
@@ -37,6 +46,15 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
+  // Kept separate from `detailsOpen` so the sheet's exit animation still has
+  // a grant to render while it closes, instead of unmounting mid-slide.
+  const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const openDetails = (grant: Grant) => {
+    setSelectedGrant(grant);
+    setDetailsOpen(true);
+  };
 
   const toggleSaved = (id: string) => {
     setSavedIds((prev) => {
@@ -95,6 +113,7 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
             grant={g}
             onAsk={onAsk}
             onStart={onStart}
+            onViewDetails={openDetails}
             saved={savedIds.has(g.id)}
             onToggleSaved={() => toggleSaved(g.id)}
             compareChecked={compareIds.has(g.id)}
@@ -162,6 +181,14 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <GrantDetailsSheet
+        grant={selectedGrant}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        onAsk={onAsk}
+        onStart={onStart}
+      />
     </div>
   );
 }
@@ -183,6 +210,7 @@ function GrantCard({
   grant,
   onAsk,
   onStart,
+  onViewDetails,
   saved,
   onToggleSaved,
   compareChecked,
@@ -192,6 +220,7 @@ function GrantCard({
   grant: Grant;
   onAsk: (g: Grant) => void;
   onStart: (g: Grant) => void;
+  onViewDetails: (g: Grant) => void;
   saved: boolean;
   onToggleSaved: () => void;
   compareChecked: boolean;
@@ -209,12 +238,17 @@ function GrantCard({
           <div className="break-words text-[11px] font-medium uppercase tracking-wider text-brand [overflow-wrap:anywhere]">
             {grant.programme}
           </div>
-          <h4
-            className="mt-1 line-clamp-2 break-words text-base font-semibold text-foreground [overflow-wrap:anywhere]"
+          <button
+            type="button"
+            onClick={() => onViewDetails(grant)}
             title={grant.title}
+            className="group mt-1 flex w-full items-start gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           >
-            {grant.title}
-          </h4>
+            <h4 className="line-clamp-2 min-w-0 flex-1 break-words text-base font-semibold text-foreground group-hover:underline [overflow-wrap:anywhere]">
+              {grant.title}
+            </h4>
+            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
+          </button>
         </div>
 
         <div className="flex shrink-0 items-start gap-2">
@@ -366,29 +400,6 @@ function Fact({
   );
 }
 
-type MatchTier = "excellent" | "strong" | "good" | "partial";
-
-function matchTierFor(percentage: number): MatchTier {
-  if (percentage >= 85) return "excellent";
-  if (percentage >= 70) return "strong";
-  if (percentage >= 50) return "good";
-  return "partial";
-}
-
-const MATCH_TIER_LABEL: Record<MatchTier, string> = {
-  excellent: "Excellent match",
-  strong: "Strong match",
-  good: "Good match",
-  partial: "Partial match",
-};
-
-const MATCH_TIER_CLASSES: Record<MatchTier, { text: string; bar: string; ring: string }> = {
-  excellent: { text: "text-success", bar: "bg-success", ring: "ring-success/25" },
-  strong: { text: "text-brand", bar: "bg-brand", ring: "ring-brand/25" },
-  good: { text: "text-warning", bar: "bg-warning", ring: "ring-warning/25" },
-  partial: { text: "text-muted-foreground", bar: "bg-muted-foreground", ring: "ring-border" },
-};
-
 function MatchMeter({ percentage, tier }: { percentage: number; tier: MatchTier }) {
   const cls = MATCH_TIER_CLASSES[tier];
   const clamped = Math.min(100, Math.max(0, percentage));
@@ -409,25 +420,4 @@ function MatchMeter({ percentage, tier }: { percentage: number; tier: MatchTier 
       </span>
     </div>
   );
-}
-
-function parseDeadline(value: string): Date | null {
-  const parsed = parseISO(value);
-  return isValid(parsed) ? parsed : null;
-}
-
-function formatDeadline(value: string): string {
-  const date = parseDeadline(value);
-  return date ? format(date, "d MMM yyyy") : value;
-}
-
-const URGENT_WITHIN_DAYS = 21;
-
-function deadlineUrgency(value: string): "expired" | "urgent" | null {
-  const date = parseDeadline(value);
-  if (!date) return null;
-  const days = differenceInCalendarDays(date, new Date());
-  if (days < 0) return "expired";
-  if (days <= URGENT_WITHIN_DAYS) return "urgent";
-  return null;
 }
