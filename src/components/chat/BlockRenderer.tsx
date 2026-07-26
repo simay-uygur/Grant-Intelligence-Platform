@@ -32,13 +32,13 @@ export function BlockRenderer({
   switch (block.type) {
     case "text":
       return (
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
+        <p className="max-w-prose whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
           {block.text}
         </p>
       );
     case "question":
       return (
-        <p className="break-words text-sm font-medium leading-relaxed text-foreground [overflow-wrap:anywhere]">
+        <p className="max-w-prose break-words text-sm font-medium leading-relaxed text-foreground [overflow-wrap:anywhere]">
           {block.text}
         </p>
       );

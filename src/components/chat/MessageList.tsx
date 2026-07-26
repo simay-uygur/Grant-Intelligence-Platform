@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Compass, User } from "lucide-react";
 import type { ChatBlock, ChatMessage } from "@/types";
-import { BlockRenderer, type BlockCallbacks } from "./BlockRenderer";
+import type { BlockCallbacks } from "./BlockRenderer";
+import { ChatMessageItem } from "./ChatMessageItem";
 
 interface Props {
   messages: ChatMessage[];
@@ -59,29 +59,7 @@ export function MessageList({ messages, callbacks }: Props) {
       </div>
       <ul className="space-y-6">
         {messages.map((m) => (
-          <li key={m.id} className="flex gap-3">
-            <div
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                m.role === "assistant"
-                  ? "bg-brand/10 text-brand"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {m.role === "assistant" ? (
-                <Compass className="h-4 w-4" />
-              ) : (
-                <User className="h-4 w-4" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1 space-y-3">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                {m.role === "assistant" ? "Grant Intelligence" : "You"}
-              </div>
-              {m.blocks.map((b, i) => (
-                <BlockRenderer key={i} block={b} callbacks={callbacks} />
-              ))}
-            </div>
-          </li>
+          <ChatMessageItem key={m.id} message={m} callbacks={callbacks} />
         ))}
       </ul>
       <div ref={bottomRef} />
