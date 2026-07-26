@@ -94,7 +94,7 @@ function SidebarContent({
                     onDelete(c.id);
                   }}
                   aria-label="Delete conversation"
-                  className="absolute right-2 top-2 h-auto w-auto rounded-md p-1 text-sidebar-foreground/40 opacity-0 transition-opacity hover:bg-white/10 hover:text-white group-hover:opacity-100 focus:opacity-100"
+                  className="absolute right-2 top-2 h-auto w-auto rounded-md p-1 text-sidebar-foreground/40 opacity-100 transition-opacity hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
