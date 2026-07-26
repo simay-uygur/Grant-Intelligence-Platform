@@ -4,6 +4,7 @@ import type { Grant } from "@/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { InlineNotice } from "@/components/common/InlineNotice";
 import {
   Sheet,
   SheetClose,
@@ -36,6 +37,28 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
         side="right"
         className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
       >
+        {!grant && (
+          <>
+            <SheetHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
+              <SheetTitle>Grant details unavailable</SheetTitle>
+              <SheetDescription>This grant&apos;s details couldn&apos;t be found.</SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 px-5 py-4">
+              <InlineNotice tone="empty">
+                This grant&apos;s details aren&apos;t available right now. Close this panel and try
+                opening it again from the grant&apos;s card.
+              </InlineNotice>
+            </div>
+            <SheetFooter className="shrink-0 border-t border-border px-5 py-4">
+              <SheetClose asChild>
+                <Button type="button" variant="outline" className="rounded-lg hover:bg-muted">
+                  Close
+                </Button>
+              </SheetClose>
+            </SheetFooter>
+          </>
+        )}
+
         {grant && (
           <>
             <SheetHeader className="shrink-0 border-b border-border px-5 py-4 text-left">

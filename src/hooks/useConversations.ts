@@ -43,6 +43,9 @@ export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  // Reflects the most recent write attempt only — a later successful write
+  // (once storage is available again) clears it automatically.
+  const [persistenceOk, setPersistenceOk] = useState(true);
   const bootstrappedRef = useRef(false);
 
   // Idempotent bootstrap: run once, in-effect, guarded against StrictMode.
@@ -60,19 +63,17 @@ export function useConversations() {
       setConversations(existing);
       const savedActive = storage.loadActiveId();
       setActiveId(
-        savedActive && existing.some((c) => c.id === savedActive)
-          ? savedActive
-          : existing[0].id,
+        savedActive && existing.some((c) => c.id === savedActive) ? savedActive : existing[0].id,
       );
     }
     setHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (hydrated) storage.saveConversations(conversations);
+    if (hydrated) setPersistenceOk(storage.saveConversations(conversations));
   }, [conversations, hydrated]);
   useEffect(() => {
-    if (hydrated) storage.saveActiveId(activeId);
+    if (hydrated) setPersistenceOk(storage.saveActiveId(activeId));
   }, [activeId, hydrated]);
 
   const activeConversation = useMemo(
@@ -84,9 +85,7 @@ export function useConversations() {
     (updater: (c: Conversation) => Conversation) => {
       setConversations((prev) =>
         prev.map((c) =>
-          c.id === activeId
-            ? { ...updater(c), updatedAt: new Date().toISOString() }
-            : c,
+          c.id === activeId ? { ...updater(c), updatedAt: new Date().toISOString() } : c,
         ),
       );
     },
@@ -119,9 +118,7 @@ export function useConversations() {
   const appendMessage = useCallback(
     (message: ChatMessage) => {
       updateActive((c) => {
-        const isFirstUser =
-          message.role === "user" &&
-          !c.messages.some((m) => m.role === "user");
+        const isFirstUser = message.role === "user" && !c.messages.some((m) => m.role === "user");
         const newTitle =
           isFirstUser && c.title === "New conversation"
             ? firstUserText(message).slice(0, 60) || c.title
@@ -180,9 +177,7 @@ export function useConversations() {
           ...c,
           document: {
             ...c.document,
-            sections: c.document.sections.map((s) =>
-              s.id === sectionId ? { ...s, content } : s,
-            ),
+            sections: c.document.sections.map((s) => (s.id === sectionId ? { ...s, content } : s)),
             updatedAt: new Date().toISOString(),
           },
         };
@@ -193,6 +188,7 @@ export function useConversations() {
 
   return {
     hydrated,
+    persistenceOk,
     conversations,
     activeConversation,
     activeId,

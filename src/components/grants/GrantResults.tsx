@@ -25,6 +25,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
+import { InlineNotice } from "@/components/common/InlineNotice";
 import {
   MATCH_TIER_CLASSES,
   MATCH_TIER_LABEL,
@@ -84,9 +85,10 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
   // Grant[] contract, so it deserves a clear message rather than a blank grid.
   if (grants.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-        No matching grants were found for this profile.
-      </div>
+      <InlineNotice tone="empty">
+        No matching grants were found for this profile. Try adjusting your project details, or ask
+        to run the research again.
+      </InlineNotice>
     );
   }
 

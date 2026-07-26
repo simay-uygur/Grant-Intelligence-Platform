@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { InlineNotice } from "@/components/common/InlineNotice";
 
 interface Props {
   doc: ApplicationDocument;
@@ -73,6 +74,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
   const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
   const [pendingRewriteId, setPendingRewriteId] = useState<string | null>(null);
   const [lastRewrite, setLastRewrite] = useState<LastRewrite | null>(null);
+  const [exportError, setExportError] = useState<"pdf" | "word" | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeIndex = Math.max(
@@ -173,6 +175,13 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     setLastRewrite(null);
   };
 
+  const handleExportPdf = () => {
+    setExportError(exportAsPdf(doc) ? null : "pdf");
+  };
+  const handleExportWord = () => {
+    setExportError(exportAsWord(doc) ? null : "word");
+  };
+
   const goToSection = (id: string) => setActiveId(id);
   const prevSection = doc.sections[activeIndex - 1];
   const nextSection = doc.sections[activeIndex + 1];
@@ -200,7 +209,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => exportAsPdf(doc)}
+                onClick={handleExportPdf}
                 className="rounded-lg hover:bg-muted"
               >
                 <FileDown className="h-3.5 w-3.5" />
@@ -210,7 +219,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => exportAsWord(doc)}
+                onClick={handleExportWord}
                 className="rounded-lg hover:bg-muted"
               >
                 <FileDown className="h-3.5 w-3.5" />
@@ -218,6 +227,28 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
               </Button>
             </div>
           </div>
+
+          {exportError && (
+            <InlineNotice tone="error">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {exportError === "pdf"
+                    ? "Couldn't open the PDF preview — your browser may have blocked the pop-up window."
+                    : "Couldn't create the Word file — your browser may have blocked the download."}{" "}
+                  Allow pop-ups or downloads for this site, then try again.
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={exportError === "pdf" ? handleExportPdf : handleExportWord}
+                  className="h-auto shrink-0 rounded-md border-destructive/40 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+                >
+                  Retry
+                </Button>
+              </div>
+            </InlineNotice>
+          )}
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
             <span

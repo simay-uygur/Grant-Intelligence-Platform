@@ -3,6 +3,7 @@ import { OrganisationForm } from "@/components/widgets/OrganisationForm";
 import { ResearchStatus } from "@/components/widgets/ResearchStatus";
 import { GrantResults } from "@/components/grants/GrantResults";
 import { ApplicationDocumentView } from "@/components/documents/ApplicationDocument";
+import { InlineNotice } from "@/components/common/InlineNotice";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 export interface BlockCallbacks {
@@ -64,7 +65,15 @@ export function BlockRenderer({
       );
     case "document": {
       const doc = callbacks.getDocument(block.documentId);
-      if (!doc) return null;
+      if (!doc) {
+        return (
+          <InlineNotice tone="empty">
+            This application draft isn&apos;t available anymore — it may belong to a different
+            application started later in this conversation. Open the most recent application draft,
+            or start a new one from a grant&apos;s "Start application" button.
+          </InlineNotice>
+        );
+      }
       const grant = callbacks.getGrantById(doc.grantId);
       return (
         <ApplicationDocumentView

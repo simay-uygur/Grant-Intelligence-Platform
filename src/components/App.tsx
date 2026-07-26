@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Menu, Play } from "lucide-react";
+import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { grantService, isMockMode } from "@/services";
@@ -549,6 +549,18 @@ export function App() {
           )}
         </header>
 
+        {!c.persistenceOk && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="shrink-0 border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning sm:px-6"
+          >
+            Changes aren&apos;t being saved to this browser right now — local storage may be full or
+            unavailable (for example, in private browsing). Keep this tab open so you don&apos;t
+            lose your work.
+          </div>
+        )}
+
         <div className="relative min-h-0 flex-1">
           <div ref={scrollContainerRef} className="h-full overflow-y-auto">
             {active ? (
@@ -562,8 +574,24 @@ export function App() {
                 />
               )
             ) : (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Start a new conversation from the sidebar.
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <MessageSquarePlus className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">No conversation selected</p>
+                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                    Start a new conversation to research grants for your organisation.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={c.newConversation}
+                  className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+                >
+                  <MessageSquarePlus className="h-4 w-4" />
+                  New conversation
+                </Button>
               </div>
             )}
             {/* bottom spacer so composer never hides content, and scroll anchor */}

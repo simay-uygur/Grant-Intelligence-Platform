@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useSpeechRecognition, type SpeechRecognitionState } from "@/hooks/useSpeechRecognition";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { InlineNotice } from "@/components/common/InlineNotice";
 
 interface Props {
   value: string;
@@ -19,6 +20,11 @@ interface Props {
 
 const ACCEPTED_FILE_TYPES =
   ".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,image/png,image/jpeg";
+
+// The `accept` attribute above is only a hint to the OS file picker — most
+// pickers still let the user choose "All files", so this is genuinely
+// reachable and worth validating rather than trusting the browser alone.
+const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt", ".md", ".png", ".jpg", ".jpeg"];
 
 // Matches the textarea's max-h-40 (10rem) Tailwind class below.
 const MAX_TEXTAREA_HEIGHT = 160;
@@ -73,6 +79,7 @@ export function Composer({
   onClearGrantContext,
 }: Props) {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -109,12 +116,24 @@ export function Composer({
     onSend(text);
     onValueChange("");
     setAttachedFile(null);
+    setAttachmentError(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setAttachedFile(file);
     e.target.value = "";
+    if (!file) return;
+
+    const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
+    if (!ACCEPTED_EXTENSIONS.includes(extension)) {
+      setAttachedFile(null);
+      setAttachmentError(
+        `"${file.name}" isn't a supported file type. Choose a PDF, Word, text, or image file instead.`,
+      );
+      return;
+    }
+    setAttachmentError(null);
+    setAttachedFile(file);
   };
 
   const askSuggested = (question: string) => {
@@ -218,6 +237,12 @@ export function Composer({
                 </button>
               )}
             </div>
+          )}
+
+          {attachmentError && (
+            <InlineNotice tone="error" className="mb-2">
+              {attachmentError}
+            </InlineNotice>
           )}
 
           {attachedFile && (

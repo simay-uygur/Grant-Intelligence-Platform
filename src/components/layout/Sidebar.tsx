@@ -102,7 +102,9 @@ function SidebarContent({
             );
           })}
           {conversations.length === 0 && (
-            <li className="px-3 py-4 text-xs text-sidebar-foreground/50">No conversations yet.</li>
+            <li className="px-3 py-4 text-xs text-sidebar-foreground/50">
+              You don&apos;t have any conversations yet. Use the button above to start one.
+            </li>
           )}
         </ul>
       </nav>

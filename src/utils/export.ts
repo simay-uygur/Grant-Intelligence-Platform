@@ -33,31 +33,44 @@ ${body}
 </body></html>`;
 }
 
-export function exportAsPdf(doc: ApplicationDocument) {
+/** Returns whether the export actually succeeded, so the caller can show a status if not. */
+export function exportAsPdf(doc: ApplicationDocument): boolean {
   const html = renderDocumentHtml(doc);
+  // A common, real failure mode: the browser's pop-up blocker silently
+  // returns null instead of opening the preview window.
   const win = window.open("", "_blank", "width=900,height=1000");
-  if (!win) return;
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 350);
+  if (!win) return false;
+  try {
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 350);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-export function exportAsWord(doc: ApplicationDocument) {
-  const html = renderDocumentHtml(doc);
-  const wordHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+export function exportAsWord(doc: ApplicationDocument): boolean {
+  try {
+    const html = renderDocumentHtml(doc);
+    const wordHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
     ${html}</html>`;
-  const blob = new Blob(["\ufeff", wordHtml], {
-    type: "application/msword",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${doc.grantTitle.replace(/[^a-z0-9]+/gi, "_")}.doc`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+    const blob = new Blob(["\ufeff", wordHtml], {
+      type: "application/msword",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${doc.grantTitle.replace(/[^a-z0-9]+/gi, "_")}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
+  } catch {
+    return false;
+  }
 }
