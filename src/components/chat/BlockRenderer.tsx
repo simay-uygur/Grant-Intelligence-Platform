@@ -89,7 +89,7 @@ export function BlockRenderer({
       );
     case "success":
       return (
-        <div className="flex items-start gap-2 rounded-lg border border-emerald-300/50 bg-emerald-100/60 p-3 text-sm text-emerald-800">
+        <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">
             {block.message}

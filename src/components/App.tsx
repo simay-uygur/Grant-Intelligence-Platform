@@ -386,7 +386,7 @@ export function App() {
               </h1>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
                   Connected · {isMockMode ? "Mock mode" : "API mode"}
                 </span>
                 {active && (

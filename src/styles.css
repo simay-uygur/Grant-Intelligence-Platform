@@ -46,6 +46,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -65,14 +69,22 @@
 }
 
 :root {
-  --radius: 0.75rem;
+  /*
+   * Restrained, institutional palette: a single lower-chroma brand blue used
+   * only for primary actions, active navigation, in-progress states, and
+   * focus rings (never as decoration). Semantic status colours (success,
+   * warning, destructive) are separate tokens rather than raw Tailwind
+   * palette literals, so every "this succeeded / this needs attention /
+   * this failed" surface in the app stays visually consistent.
+   */
+  --radius: 0.5rem;
   --background: oklch(0.985 0.005 250);
   --foreground: oklch(0.2 0.03 260);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.2 0.03 260);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.2 0.03 260);
-  --primary: oklch(0.5 0.18 265);
+  --primary: oklch(0.4 0.08 235);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.96 0.008 260);
   --secondary-foreground: oklch(0.25 0.04 260);
@@ -82,10 +94,14 @@
   --accent-foreground: oklch(0.25 0.04 260);
   --destructive: oklch(0.58 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.48 0.1 155);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.55 0.13 75);
+  --warning-foreground: oklch(0.99 0 0);
   --border: oklch(0.91 0.01 260);
   --input: oklch(0.91 0.01 260);
-  --ring: oklch(0.5 0.18 265);
-  --brand: oklch(0.5 0.18 265);
+  --ring: oklch(0.4 0.08 235);
+  --brand: oklch(0.4 0.08 235);
   --brand-foreground: oklch(0.99 0 0);
   --chart-1: oklch(0.5 0.18 265);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -94,12 +110,12 @@
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.22 0.04 260);
   --sidebar-foreground: oklch(0.96 0.008 260);
-  --sidebar-primary: oklch(0.5 0.18 265);
+  --sidebar-primary: oklch(0.4 0.08 235);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.3 0.05 262);
+  --sidebar-accent: oklch(0.3 0.05 235);
   --sidebar-accent-foreground: oklch(0.99 0 0);
   --sidebar-border: oklch(0.3 0.04 260);
-  --sidebar-ring: oklch(0.5 0.18 265);
+  --sidebar-ring: oklch(0.4 0.08 235);
 }
 
 .dark {
@@ -119,6 +135,10 @@
   --accent-foreground: oklch(0.984 0.003 247.858);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
+  --success: oklch(0.72 0.13 155);
+  --success-foreground: oklch(0.129 0.042 264.695);
+  --warning: oklch(0.78 0.14 80);
+  --warning-foreground: oklch(0.129 0.042 264.695);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);

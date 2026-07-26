@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, User } from "lucide-react";
+import { Compass, User } from "lucide-react";
 import type { ChatBlock, ChatMessage } from "@/types";
 import { BlockRenderer, type BlockCallbacks } from "./BlockRenderer";
 
@@ -68,7 +68,7 @@ export function MessageList({ messages, callbacks }: Props) {
               }`}
             >
               {m.role === "assistant" ? (
-                <Sparkles className="h-4 w-4" />
+                <Compass className="h-4 w-4" />
               ) : (
                 <User className="h-4 w-4" />
               )}

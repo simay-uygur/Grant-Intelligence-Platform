@@ -1,4 +1,4 @@
-import { Plus, Sparkles, Trash2 } from "lucide-react";
+import { Landmark, Plus, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
@@ -30,13 +30,13 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white shadow-sm">
-          <Sparkles className="h-5 w-5" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white">
+          <Landmark className="h-5 w-5" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">Grant Intelligence</div>
           <div className="truncate text-xs text-sidebar-foreground/60">
-            Funding, intelligently matched
+            Research &amp; application workspace
           </div>
         </div>
       </div>
@@ -108,8 +108,8 @@ function SidebarContent({
       </nav>
 
       <div className="mt-auto flex items-center border-t border-sidebar-border/60 px-4 py-3">
-        <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/60">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/50">
+          <span className="h-1.5 w-1.5 rounded-full bg-success/70" />
           Local / mock mode
         </div>
       </div>

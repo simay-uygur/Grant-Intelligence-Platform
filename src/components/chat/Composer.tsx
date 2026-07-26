@@ -55,13 +55,13 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
     <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur">
       <div className="mx-auto w-full max-w-3xl px-4 py-4">
         {attachedFile && (
-          <div className="mb-2 flex items-start gap-2 rounded-lg border border-amber-300/50 bg-amber-100/60 px-3 py-2 text-xs text-amber-900">
+          <div className="mb-2 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
             <Paperclip className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div className="min-w-0 flex-1">
               <span className="break-words font-medium [overflow-wrap:anywhere]">
                 {attachedFile.name}
               </span>
-              <p className="mt-0.5 text-amber-800/90">
+              <p className="mt-0.5 text-warning/90">
                 Selected locally only — not uploaded or analysed. Document processing requires
                 backend integration.
               </p>
@@ -71,14 +71,14 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
               variant="ghost"
               onClick={() => setAttachedFile(null)}
               aria-label="Remove attached file"
-              className="h-auto w-auto shrink-0 rounded-md p-1 text-amber-800 hover:bg-amber-200/60"
+              className="h-auto w-auto shrink-0 rounded-md p-1 text-warning hover:bg-warning/15"
             >
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         )}
 
-        <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/20">
+        <div className="flex items-end gap-2 rounded-xl border border-border bg-card p-2 shadow-sm focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/20">
           <input
             ref={fileInputRef}
             type="file"
