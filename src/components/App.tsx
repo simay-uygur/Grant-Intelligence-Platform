@@ -102,7 +102,7 @@ const DEMO_PROFILE: OrganisationProfile = {
   projectDescription:
     "Pilot deployment of an explainable computer-vision platform across three EU factories to reduce defect rates and energy waste.",
   fundingAmount: "€500,000 – €1,000,000",
-  projectStartDate: "2026-06-01",
+  projectStartDate: "2027-06-01",
   projectDuration: "24 months",
   sector: "Digital & AI",
   eligibilityConstraints: "SME status must be maintained throughout the project.",
