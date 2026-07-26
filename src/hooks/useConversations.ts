@@ -39,6 +39,13 @@ function initialConversation(): Conversation {
   };
 }
 
+// TODO(api): this hook is entirely local (React state + localStorage). Once
+// a backend exists, conversations/messages would sync through it instead —
+// see docs/api-contract.md ("Conversations" and "Chat") for the proposed
+// POST /conversations and POST /conversations/{id}/messages endpoints. That
+// would mean this hook (or a service it calls into) fetching/pushing
+// through grantService-style calls rather than storage directly; not done
+// now since no backend exists yet.
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);

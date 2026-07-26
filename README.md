@@ -32,12 +32,13 @@ src/
     ui/          shadcn primitives
     App.tsx      Orchestrator (single screen)
   hooks/         useConversations
-  services/      GrantIntelligenceService (interface + Mock + Api impls)
+  services/      GrantIntelligenceService (interface + Mock + Api impls), apiClient (fetch boundary)
   storage/       localStorage adapter
   types/         Strict domain models
   data/          Mock grant catalogue
   utils/         PDF / Word export
   routes/        TanStack Start file routes
+docs/            api-contract.md — draft backend integration proposal
 ```
 
 ## Install & run
@@ -59,23 +60,29 @@ TXT, MD, PNG, JPG, JPEG). The selected file is shown as a chip for the user's
 own reference only — it is **not uploaded, parsed, or analysed**; there is no
 backend to send it to yet.
 
-Environment variables:
+Environment variables (see `.env.example`):
 
-- `VITE_API_MODE` — `mock` (default) or `api`. When set to `api`, the app uses `ApiGrantIntelligenceService`, which points at a **future, not-yet-built** FastAPI backend.
+- `VITE_API_MODE` — `mock` (default) or `api`. When set to `api`, the app uses `ApiGrantIntelligenceService`, which points at a **future, not-yet-built** FastAPI backend. Mock mode never makes a network request.
+- `VITE_API_URL` — base URL for that future backend (e.g. `http://localhost:8000`). Only read when `VITE_API_MODE=api`.
 
 ## Planned backend and agent integration (not yet implemented)
 
-`ApiGrantIntelligenceService` is stubbed for the following endpoints, none of which exist yet:
+`ApiGrantIntelligenceService` (in `src/services/`) is a stub implementing the
+same `GrantIntelligenceService` interface as the mock, built on a small
+shared fetch boundary (`src/services/apiClient.ts`) so a real backend only
+needs to be wired in one place. None of its endpoints exist yet:
 
-- `POST /api/conversations`
-- `POST /api/conversations/{conversationId}/messages`
-- `POST /api/grants/search`
-- `POST /api/grants/{grantId}/start-application`
-- `PATCH /api/documents/{documentId}/sections/{sectionId}`
-- `GET  /api/documents/{documentId}/export`
+- `POST /grants/search`
+- `POST /grants/{grantId}/start-application`
+- `POST /documents/{documentId}/sections/{sectionId}/rewrite` (not yet stubbed — currently throws)
+
+See **`docs/api-contract.md`** for the fuller, still-draft proposal covering
+conversations, chat, research, grant results, applications, file upload, and
+voice transcription — including which parts are already partly stubbed and
+which need new endpoints entirely.
 
 Once a real backend exists, switch to it by setting `VITE_API_MODE=api` and
-pointing the fetch base URL at the deployed backend. Until then, setting
+`VITE_API_URL` to the deployed backend's base URL. Until then, setting
 `VITE_API_MODE=api` will point the app at endpoints that do not exist.
 
 ## Current limitations

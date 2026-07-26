@@ -34,6 +34,13 @@ const RUNNING_STATES: SpeechRecognitionState[] = [
  * webkitSpeechRecognition). Feature detection only happens client-side, in
  * an effect, so server-rendered and first-client-render markup match —
  * mirrors the pattern used by useIsMobile in this codebase.
+ *
+ * TODO(api): if the team later replaces browser speech recognition with a
+ * server-side transcription service (see docs/api-contract.md, "Voice
+ * transcription"), that's a different hook — recording audio and POSTing
+ * it, awaiting a transcript — not a drop-in swap here. Composer only
+ * depends on this hook's returned `state`/`start`/`stop`/`onResult` shape,
+ * so a replacement hook with the same shape could substitute cleanly.
  */
 export function useSpeechRecognition({ onResult }: UseSpeechRecognitionOptions) {
   const [state, setState] = useState<SpeechRecognitionState>("idle");

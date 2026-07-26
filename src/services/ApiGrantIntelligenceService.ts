@@ -1,48 +1,44 @@
-import type {
-  ApplicationDocument,
-  Grant,
-  OrganisationProfile,
-} from "@/types";
+import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
 import type { GrantIntelligenceService } from "./GrantIntelligenceService";
+import { ApiClient } from "./apiClient";
 
 /**
- * Stub for the future FastAPI backend. Endpoints (not yet implemented):
- *   POST   /api/conversations
- *   POST   /api/conversations/{conversationId}/messages
- *   POST   /api/grants/search
- *   POST   /api/grants/{grantId}/start-application
- *   PATCH  /api/documents/{documentId}/sections/{sectionId}
- *   GET    /api/documents/{documentId}/export
+ * Stub for the future FastAPI backend. None of these endpoints exist yet —
+ * see docs/api-contract.md for the fuller proposed shapes. Each method below
+ * is a TODO(api) integration point: the request/response shapes here are a
+ * reasonable starting guess, not a finalised contract with the backend team.
+ *
+ *   POST   /grants/search                          — TODO(api): confirm request/response shape with backend team
+ *   POST   /grants/{grantId}/start-application      — TODO(api): confirm request/response shape with backend team
+ *   PATCH  /documents/{documentId}/sections/{id}    — not yet called from the frontend (see useConversations)
+ *   POST   /documents/{documentId}/sections/{id}/rewrite — TODO(api): rewrite endpoint not implemented yet
  */
 export class ApiGrantIntelligenceService implements GrantIntelligenceService {
-  constructor(private readonly baseUrl: string = "/api") {}
+  private readonly client: ApiClient;
 
+  constructor(baseUrl?: string) {
+    this.client = new ApiClient(baseUrl);
+  }
+
+  // TODO(api): backend team to confirm the exact request/response contract.
   async searchGrants(profile: OrganisationProfile): Promise<Grant[]> {
-    const res = await fetch(`${this.baseUrl}/grants/search`, {
+    return this.client.request<Grant[]>("/grants/search", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ profile }),
     });
-    if (!res.ok) throw new Error(`Grant search failed (${res.status})`);
-    return (await res.json()) as Grant[];
   }
 
-  async startApplication(
-    grant: Grant,
-    profile: OrganisationProfile,
-  ): Promise<ApplicationDocument> {
-    const res = await fetch(
-      `${this.baseUrl}/grants/${grant.id}/start-application`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile }),
-      },
-    );
-    if (!res.ok) throw new Error(`Start application failed (${res.status})`);
-    return (await res.json()) as ApplicationDocument;
+  // TODO(api): backend team to confirm the exact request/response contract.
+  async startApplication(grant: Grant, profile: OrganisationProfile): Promise<ApplicationDocument> {
+    return this.client.request<ApplicationDocument>(`/grants/${grant.id}/start-application`, {
+      method: "POST",
+      body: JSON.stringify({ profile }),
+    });
   }
 
+  // TODO(api): no rewrite endpoint exists yet — this mirrors the interface
+  // so switching VITE_API_MODE=api doesn't silently drop the feature; it
+  // fails loudly instead of pretending to work.
   async rewriteSection(): Promise<string> {
     throw new Error("Rewrite is not yet available on the API backend");
   }

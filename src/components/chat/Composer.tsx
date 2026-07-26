@@ -119,6 +119,11 @@ export function Composer({
     setAttachmentError(null);
   };
 
+  // TODO(api): the selected File stays local only — see docs/api-contract.md
+  // ("File upload") for the proposed POST /conversations/{id}/attachments
+  // endpoint. Once that exists, a successful selection here would call it
+  // through grantService (or a sibling service) and store the resulting
+  // Attachment (src/types) rather than the raw File.
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";

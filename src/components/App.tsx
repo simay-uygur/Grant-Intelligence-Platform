@@ -361,6 +361,10 @@ export function App() {
       ]);
       await runResearch(DEMO_PROFILE);
       await new Promise((r) => setTimeout(r, 400));
+      // Deliberately reaches into the mock catalogue directly rather than
+      // grantService: this is the scripted demo choosing a specific,
+      // known grant for its narrative, not a lookup a service should
+      // provide — searchGrants() has no "get grant by index" contract.
       await handleStartApplication(MOCK_GRANTS[0]);
     } finally {
       setDemoRunning(false);
@@ -377,6 +381,14 @@ export function App() {
       getDocument: (id) =>
         c.activeConversation?.document?.id === id ? c.activeConversation.document : undefined,
       getProfile: () => c.activeConversation?.profile,
+      // Falls back to the mock catalogue when a document references a grant
+      // that's no longer in this conversation's current grants (e.g. after
+      // a second research pass replaced it). This lookup is synchronous
+      // because it runs during render (BlockRenderer -> ApplicationDocumentView).
+      // TODO(api): once a real backend exists, replace this fallback with
+      // GET /grants/{id} — that will require getGrantById to become async
+      // and the render path here to move to a loading-aware pattern; not
+      // done now since it's a real behavioural change, not just a data-source swap.
       getGrantById: (id) =>
         c.activeConversation?.grants?.find((g) => g.id === id) ??
         MOCK_GRANTS.find((g) => g.id === id),
