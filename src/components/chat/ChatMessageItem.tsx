@@ -97,7 +97,7 @@ export function ChatMessageItem({ message, callbacks }: Props) {
                       variant="ghost"
                       onClick={handleCopy}
                       aria-label={copied ? "Copied to clipboard" : "Copy message"}
-                      className="h-auto w-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="h-auto w-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
                       {copied ? (
                         <Check className="h-3.5 w-3.5" />
@@ -117,7 +117,7 @@ export function ChatMessageItem({ message, callbacks }: Props) {
                       variant="ghost"
                       onClick={callbacks.onRetryResearch}
                       aria-label="Retry research"
-                      className="h-auto w-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="h-auto w-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
                     </Button>

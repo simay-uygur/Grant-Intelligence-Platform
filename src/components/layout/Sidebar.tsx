@@ -73,7 +73,7 @@ function SidebarContent({
                     onNavigate?.();
                   }}
                   className={cn(
-                    "block w-full cursor-pointer rounded-lg px-3 py-2 pr-9 text-left text-sm transition-colors",
+                    "block w-full cursor-pointer rounded-lg px-3 py-2 pr-9 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                     active
                       ? "bg-sidebar-accent text-white"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-white",
@@ -94,7 +94,7 @@ function SidebarContent({
                     onDelete(c.id);
                   }}
                   aria-label="Delete conversation"
-                  className="absolute right-2 top-2 h-auto w-auto rounded-md p-1 text-sidebar-foreground/40 opacity-100 transition-opacity hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+                  className="absolute right-2 top-2 h-auto w-auto rounded-md p-1.5 text-sidebar-foreground/70 opacity-100 transition-opacity hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

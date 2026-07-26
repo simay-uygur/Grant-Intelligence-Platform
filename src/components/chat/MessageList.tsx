@@ -60,6 +60,11 @@ export function MessageList({ messages, callbacks, showProcessingIndicator }: Pr
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
+      {/* Gives the message blocks' own h3 titles (research status, grant
+          results, application draft) a non-skipped ancestor under the
+          page's h1 — otherwise a screen reader's heading list jumps from
+          h1 straight to h3. */}
+      <h2 className="sr-only">Conversation</h2>
       <div aria-live="polite" role="status" className="sr-only">
         {announcement}
       </div>

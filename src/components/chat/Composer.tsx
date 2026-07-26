@@ -182,7 +182,7 @@ export function Composer({
                       variant="ghost"
                       onClick={onClearGrantContext}
                       aria-label={`Stop asking about ${grantContext.title}`}
-                      className="h-auto w-auto shrink-0 rounded-md p-1 text-brand hover:bg-brand/15"
+                      className="h-auto w-auto shrink-0 rounded-md p-1.5 text-brand hover:bg-brand/15"
                     >
                       <X className="h-3.5 w-3.5" />
                     </Button>
@@ -198,7 +198,7 @@ export function Composer({
                     type="button"
                     onClick={() => askSuggested(q)}
                     disabled={disabled}
-                    className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {q}
                   </button>
@@ -231,7 +231,7 @@ export function Composer({
                 <button
                   type="button"
                   onClick={speech.stop}
-                  className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/10"
+                  className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                 >
                   Stop
                 </button>
@@ -264,7 +264,7 @@ export function Composer({
                     variant="ghost"
                     onClick={() => setAttachedFile(null)}
                     aria-label="Remove attached file"
-                    className="h-auto w-auto shrink-0 rounded-md p-1 text-warning hover:bg-warning/15"
+                    className="h-auto w-auto shrink-0 rounded-md p-1.5 text-warning hover:bg-warning/15"
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>

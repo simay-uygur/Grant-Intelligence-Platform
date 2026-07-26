@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   Check,
   ChevronLeft,
@@ -65,6 +65,7 @@ interface LastRewrite {
 }
 
 export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }: Props) {
+  const sectionSelectId = useId();
   const [activeId, setActiveId] = useState(doc.sections[0]?.id ?? "");
   // sectionId -> in-progress text. A section is "in edit mode" iff it has a
   // key here — this map lives above the active-section view, so switching
@@ -283,7 +284,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                     onClick={() => goToSection(s.id)}
                     aria-current={s.id === activeSection.id ? "true" : undefined}
                     className={cn(
-                      "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors",
+                      "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                       s.id === activeSection.id
                         ? "bg-brand/10 font-medium text-brand"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -315,11 +316,11 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
+            <label htmlFor={sectionSelectId} className="sr-only">
+              Jump to section
+            </label>
             <Select value={activeSection?.id} onValueChange={goToSection}>
-              <SelectTrigger
-                aria-label="Jump to section"
-                className="w-full rounded-lg text-left text-sm"
-              >
+              <SelectTrigger id={sectionSelectId} className="w-full rounded-lg text-left text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

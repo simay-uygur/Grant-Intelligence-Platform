@@ -541,7 +541,7 @@ export function App() {
               type="button"
               onClick={runDemo}
               disabled={demoRunning || busy}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               <Play className="h-3.5 w-3.5" />
               {demoRunning ? "Running demo…" : "Run demo"}

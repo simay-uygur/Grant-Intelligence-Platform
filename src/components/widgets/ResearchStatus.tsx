@@ -59,9 +59,9 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-foreground">
+          <h3 className="text-sm font-semibold text-foreground">
             {hasError ? "Research failed" : allDone ? "Research complete" : "Researching grants…"}
-          </div>
+          </h3>
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
             {hasError
               ? "The simulated search hit a problem — you can retry below."
