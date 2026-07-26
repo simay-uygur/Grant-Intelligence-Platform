@@ -1,12 +1,4 @@
-import {
-  cloneElement,
-  isValidElement,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactElement,
-} from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import type { OrganisationProfile } from "@/types";
 import { cn } from "@/lib/utils";
@@ -15,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Props {
   initial?: Partial<OrganisationProfile>;
@@ -113,16 +112,22 @@ const ALL_REQUIRED = [...STEP_REQUIRED[1], ...STEP_REQUIRED[2], ...STEP_REQUIRED
 const STEP_COPY: Record<Step, { title: string; subtitle: string }> = {
   1: {
     title: "Tell me about your organisation",
-    subtitle: "Step 1 of 3 · Organisation basics",
+    subtitle: "Organisation basics",
   },
   2: {
     title: "Now, tell me about the project",
-    subtitle: "Step 2 of 3 · Project details",
+    subtitle: "Project details",
   },
   3: {
     title: "Funding and timeline",
-    subtitle: "Step 3 of 3 · Budget and schedule",
+    subtitle: "Budget and schedule",
   },
+};
+
+const STEP_LABELS: Record<Step, string> = {
+  1: "Organisation",
+  2: "Project",
+  3: "Funding",
 };
 
 export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
@@ -132,10 +137,15 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
   });
   const [step, setStep] = useState<Step>(1);
   const [touched, setTouched] = useState(false);
-  const stepRef = useRef<HTMLDivElement>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const cardRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const idPrefix = useId();
 
   useEffect(() => {
-    stepRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    headingRef.current?.focus();
+    setAnnouncement(`Step ${step} of 3: ${STEP_LABELS[step]}. ${STEP_COPY[step].title}`);
   }, [step]);
 
   const set = <K extends keyof OrganisationProfile>(k: K, v: OrganisationProfile[K]) =>
@@ -147,6 +157,11 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
 
   const invalid = (k: keyof OrganisationProfile) =>
     touched && STEP_REQUIRED[step].includes(k) && !profile[k].trim();
+
+  const fieldError = (k: keyof OrganisationProfile) =>
+    invalid(k) ? "This field is required." : undefined;
+
+  const fieldId = (key: string) => `${idPrefix}-${key}`;
 
   const goBack = () => {
     if (step === 1) return;
@@ -166,63 +181,112 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
     onSubmit(profile);
   };
 
-  const missing = missingForStep(step);
-
   return (
-    <Card ref={stepRef} className="rounded-2xl p-5 shadow-sm">
-      <CardHeader className="mb-4 flex-row items-start justify-between gap-3 space-y-0 p-0">
+    <Card ref={cardRef} className="rounded-2xl p-5 shadow-sm">
+      <CardHeader className="mb-4 flex flex-col gap-3 space-y-0 p-0">
+        <StepIndicator step={step} />
         <div>
-          <h3 className="text-sm font-semibold text-foreground">{STEP_COPY[step].title}</h3>
+          <h3
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-sm font-semibold text-foreground outline-none"
+          >
+            {STEP_COPY[step].title}
+          </h3>
           <p className="mt-1 text-xs text-muted-foreground">{STEP_COPY[step].subtitle}</p>
         </div>
-        <StepDots step={step} />
       </CardHeader>
 
+      <div aria-live="polite" role="status" className="sr-only">
+        {announcement}
+      </div>
+
       <CardContent className="p-0">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {step === 1 && (
             <>
-              <Field label="Organisation name *" invalid={invalid("organisationName")}>
+              <Field
+                id={fieldId("organisationName")}
+                label="Organisation name"
+                required
+                error={fieldError("organisationName")}
+              >
                 <Input
+                  id={fieldId("organisationName")}
                   className={fieldOverrideCls}
                   value={profile.organisationName}
                   onChange={(e) => set("organisationName", e.target.value)}
                   disabled={disabled}
+                  aria-invalid={invalid("organisationName") || undefined}
+                  aria-describedby={
+                    invalid("organisationName") ? `${fieldId("organisationName")}-error` : undefined
+                  }
                   autoFocus
                 />
               </Field>
-              <Field label="Organisation type *" invalid={invalid("organisationType")}>
-                <select
-                  className={fieldOverrideCls}
+              <Field
+                id={fieldId("organisationType")}
+                label="Organisation type"
+                required
+                error={fieldError("organisationType")}
+              >
+                <Select
                   value={profile.organisationType}
-                  onChange={(e) => set("organisationType", e.target.value)}
+                  onValueChange={(v) => set("organisationType", v)}
                   disabled={disabled}
                 >
-                  <option value="">Select…</option>
-                  {ORG_TYPES.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    id={fieldId("organisationType")}
+                    className={cn(
+                      selectTriggerCls,
+                      invalid("organisationType") && "border-destructive",
+                    )}
+                    aria-invalid={invalid("organisationType") || undefined}
+                    aria-describedby={
+                      invalid("organisationType")
+                        ? `${fieldId("organisationType")}-error`
+                        : undefined
+                    }
+                  >
+                    <SelectValue placeholder="Select…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORG_TYPES.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
-              <Field label="Country *" invalid={invalid("country")}>
-                <select
-                  className={fieldOverrideCls}
+              <Field id={fieldId("country")} label="Country" required error={fieldError("country")}>
+                <Select
                   value={profile.country}
-                  onChange={(e) => set("country", e.target.value)}
+                  onValueChange={(v) => set("country", v)}
                   disabled={disabled}
                 >
-                  <option value="">Select…</option>
-                  {COUNTRIES.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    id={fieldId("country")}
+                    className={cn(selectTriggerCls, invalid("country") && "border-destructive")}
+                    aria-invalid={invalid("country") || undefined}
+                    aria-describedby={
+                      invalid("country") ? `${fieldId("country")}-error` : undefined
+                    }
+                  >
+                    <SelectValue placeholder="Select…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
-              <Field label="Region / city">
+              <Field id={fieldId("region")} label="Region / city">
                 <Input
+                  id={fieldId("region")}
                   className={fieldOverrideCls}
                   value={profile.region}
                   onChange={(e) => set("region", e.target.value)}
@@ -234,38 +298,61 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
 
           {step === 2 && (
             <>
-              <div className="grid grid-cols-1 gap-3 md:col-span-2 md:grid-cols-3">
-                <Field label="Sector *" invalid={invalid("sector")}>
-                  <select
-                    className={fieldOverrideCls}
+              <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+                <Field id={fieldId("sector")} label="Sector" required error={fieldError("sector")}>
+                  <Select
                     value={profile.sector}
-                    onChange={(e) => set("sector", e.target.value)}
+                    onValueChange={(v) => set("sector", v)}
                     disabled={disabled}
                   >
-                    <option value="">Select…</option>
-                    {SECTORS.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger
+                      id={fieldId("sector")}
+                      className={cn(selectTriggerCls, invalid("sector") && "border-destructive")}
+                      aria-invalid={invalid("sector") || undefined}
+                      aria-describedby={
+                        invalid("sector") ? `${fieldId("sector")}-error` : undefined
+                      }
+                    >
+                      <SelectValue placeholder="Select…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SECTORS.map((o) => (
+                        <SelectItem key={o} value={o}>
+                          {o}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <Field
-                  label="Project title *"
-                  invalid={invalid("projectTitle")}
+                  id={fieldId("projectTitle")}
+                  label="Project title"
+                  required
+                  error={fieldError("projectTitle")}
                   className="md:col-span-2"
                 >
                   <Input
+                    id={fieldId("projectTitle")}
                     className={fieldOverrideCls}
                     value={profile.projectTitle}
                     onChange={(e) => set("projectTitle", e.target.value)}
                     disabled={disabled}
+                    aria-invalid={invalid("projectTitle") || undefined}
+                    aria-describedby={
+                      invalid("projectTitle") ? `${fieldId("projectTitle")}-error` : undefined
+                    }
                     autoFocus
                   />
                 </Field>
               </div>
-              <Field label="Organisation description" className="md:col-span-2">
+              <Field
+                id={fieldId("organisationDescription")}
+                label="Organisation description"
+                helper="Optional — a short overview of what your organisation does."
+                className="md:col-span-2"
+              >
                 <Textarea
+                  id={fieldId("organisationDescription")}
                   rows={3}
                   className={textareaOverrideCls}
                   value={profile.organisationDescription}
@@ -274,16 +361,25 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
                 />
               </Field>
               <Field
-                label="Project description *"
-                invalid={invalid("projectDescription")}
+                id={fieldId("projectDescription")}
+                label="Project description"
+                required
+                error={fieldError("projectDescription")}
                 className="md:col-span-2"
               >
                 <Textarea
+                  id={fieldId("projectDescription")}
                   rows={4}
-                  className={textareaOverrideCls}
+                  className={cn(textareaOverrideCls, "min-h-[110px]")}
                   value={profile.projectDescription}
                   onChange={(e) => set("projectDescription", e.target.value)}
                   disabled={disabled}
+                  aria-invalid={invalid("projectDescription") || undefined}
+                  aria-describedby={
+                    invalid("projectDescription")
+                      ? `${fieldId("projectDescription")}-error`
+                      : undefined
+                  }
                 />
               </Field>
             </>
@@ -291,24 +387,47 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
 
           {step === 3 && (
             <>
-              <Field label="Required budget *" invalid={invalid("fundingAmount")}>
-                <select
-                  className={fieldOverrideCls}
+              <Field
+                id={fieldId("fundingAmount")}
+                label="Required budget"
+                required
+                error={fieldError("fundingAmount")}
+              >
+                <Select
                   value={profile.fundingAmount}
-                  onChange={(e) => set("fundingAmount", e.target.value)}
+                  onValueChange={(v) => set("fundingAmount", v)}
                   disabled={disabled}
-                  autoFocus
                 >
-                  <option value="">Select…</option>
-                  {BUDGETS.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    id={fieldId("fundingAmount")}
+                    className={cn(
+                      selectTriggerCls,
+                      invalid("fundingAmount") && "border-destructive",
+                    )}
+                    aria-invalid={invalid("fundingAmount") || undefined}
+                    aria-describedby={
+                      invalid("fundingAmount") ? `${fieldId("fundingAmount")}-error` : undefined
+                    }
+                    autoFocus
+                  >
+                    <SelectValue placeholder="Select…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BUDGETS.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
-              <Field label="Preferred project start">
+              <Field
+                id={fieldId("projectStartDate")}
+                label="Preferred project start"
+                helper="Optional — leave blank if your timeline is flexible."
+              >
                 <Input
+                  id={fieldId("projectStartDate")}
                   type="date"
                   className={fieldOverrideCls}
                   value={profile.projectStartDate}
@@ -316,38 +435,73 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
                   disabled={disabled}
                 />
               </Field>
-              <Field label="Project duration *" invalid={invalid("projectDuration")}>
-                <select
-                  className={fieldOverrideCls}
+              <Field
+                id={fieldId("projectDuration")}
+                label="Project duration"
+                required
+                error={fieldError("projectDuration")}
+              >
+                <Select
                   value={profile.projectDuration}
-                  onChange={(e) => set("projectDuration", e.target.value)}
+                  onValueChange={(v) => set("projectDuration", v)}
                   disabled={disabled}
                 >
-                  <option value="">Select…</option>
-                  {DURATIONS.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    id={fieldId("projectDuration")}
+                    className={cn(
+                      selectTriggerCls,
+                      invalid("projectDuration") && "border-destructive",
+                    )}
+                    aria-invalid={invalid("projectDuration") || undefined}
+                    aria-describedby={
+                      invalid("projectDuration") ? `${fieldId("projectDuration")}-error` : undefined
+                    }
+                  >
+                    <SelectValue placeholder="Select…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DURATIONS.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
-              <Field label="Known eligibility constraints" className="md:col-span-2">
+              <Field
+                id={fieldId("eligibilityConstraints")}
+                label="Known eligibility constraints"
+                helper="Optional — e.g. must be a consortium of 3+ EU partners."
+                className="md:col-span-2"
+              >
                 <Textarea
-                  rows={2}
-                  className={textareaOverrideCls}
+                  id={fieldId("eligibilityConstraints")}
+                  rows={3}
+                  className={cn(textareaOverrideCls, "min-h-[80px]")}
                   value={profile.eligibilityConstraints}
                   onChange={(e) => set("eligibilityConstraints", e.target.value)}
                   disabled={disabled}
-                  placeholder="e.g. must be a consortium of 3+ EU partners"
                 />
               </Field>
             </>
           )}
         </div>
 
-        {touched && missing.length > 0 && (
-          <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            Please complete the required fields before continuing.
+        {step === 3 && (
+          <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Review
+            </p>
+            <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-2">
+              <ReviewRow label="Organisation" value={profile.organisationName} />
+              <ReviewRow label="Type" value={profile.organisationType} />
+              <ReviewRow
+                label="Location"
+                value={[profile.country, profile.region].filter(Boolean).join(", ")}
+              />
+              <ReviewRow label="Sector" value={profile.sector} />
+              <ReviewRow label="Project" value={profile.projectTitle} />
+            </dl>
           </div>
         )}
       </CardContent>
@@ -375,23 +529,62 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
   );
 }
 
-function StepDots({ step }: { step: Step }) {
+function StepIndicator({ step }: { step: Step }) {
+  const steps = ([1, 2, 3] as Step[]).map((n) => ({ n, label: STEP_LABELS[n] }));
+
   return (
-    <div className="flex shrink-0 items-center gap-1.5 pt-1">
-      {([1, 2, 3] as Step[]).map((s) => (
-        <span
-          key={s}
-          className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-medium ${
-            s < step
-              ? "bg-emerald-500 text-white"
-              : s === step
-                ? "bg-brand text-white"
-                : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {s < step ? <Check className="h-3 w-3" /> : s}
-        </span>
-      ))}
+    <ol aria-label="Onboarding steps" className="flex items-start">
+      {steps.map(({ n, label }, i) => {
+        const status = n < step ? "complete" : n === step ? "current" : "upcoming";
+        return (
+          <li
+            key={n}
+            className={cn("flex items-center", i < steps.length - 1 ? "flex-1" : "shrink-0")}
+          >
+            <div className="flex flex-col items-center gap-1">
+              <span
+                aria-current={status === "current" ? "step" : undefined}
+                className={cn(
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium transition-colors",
+                  status === "complete" && "bg-brand text-white",
+                  status === "current" && "bg-brand text-white ring-4 ring-brand/15",
+                  status === "upcoming" && "bg-muted text-muted-foreground",
+                )}
+              >
+                {status === "complete" ? <Check className="h-3.5 w-3.5" /> : n}
+              </span>
+              <span
+                className={cn(
+                  "hidden text-[10px] font-medium sm:block",
+                  status === "upcoming" ? "text-muted-foreground" : "text-foreground",
+                )}
+              >
+                {label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "mx-1.5 mt-3 h-px flex-1 sm:mx-2",
+                  status === "complete" ? "bg-brand" : "bg-border",
+                )}
+              />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 sm:block">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="truncate font-medium text-foreground" title={value || undefined}>
+        {value || "—"}
+      </dd>
     </div>
   );
 }
@@ -399,39 +592,42 @@ function StepDots({ step }: { step: Step }) {
 const fieldOverrideCls =
   "w-full rounded-lg bg-background px-3 py-2 text-sm text-foreground transition-colors focus-visible:border-brand/60 focus-visible:ring-2 focus-visible:ring-brand/20 disabled:opacity-60";
 
-const textareaOverrideCls = cn(
-  fieldOverrideCls,
-  "min-h-[72px] resize-y [overflow-wrap:anywhere] break-words",
-);
+const selectTriggerCls =
+  "w-full justify-between rounded-lg bg-background px-3 py-2 text-sm text-foreground transition-colors focus:border-brand/60 focus:ring-2 focus:ring-brand/20 disabled:opacity-60";
+
+const textareaOverrideCls = cn(fieldOverrideCls, "resize-y [overflow-wrap:anywhere] break-words");
 
 function Field({
+  id,
   label,
-  invalid,
+  required,
+  helper,
+  error,
   className,
   children,
 }: {
+  id: string;
   label: string;
-  invalid?: boolean;
+  required?: boolean;
+  helper?: string;
+  error?: string;
   className?: string;
-  children: ReactElement;
+  children: ReactNode;
 }) {
-  const id = useId();
-  const control = isValidElement(children)
-    ? cloneElement(children, { id } as { id: string })
-    : children;
-
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
-      <Label
-        htmlFor={id}
-        className={cn(
-          "text-[11px] font-medium",
-          invalid ? "text-destructive" : "text-muted-foreground",
-        )}
-      >
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <Label htmlFor={id} className="text-xs font-medium text-foreground">
         {label}
+        {required && <span className="text-destructive"> *</span>}
       </Label>
-      {control}
+      {children}
+      {error ? (
+        <p id={`${id}-error`} role="alert" className="text-[11px] font-medium text-destructive">
+          {error}
+        </p>
+      ) : helper ? (
+        <p className="text-[11px] text-muted-foreground">{helper}</p>
+      ) : null}
     </div>
   );
 }

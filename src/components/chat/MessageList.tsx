@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type { ChatBlock, ChatMessage } from "@/types";
 import type { BlockCallbacks } from "./BlockRenderer";
 import { ChatMessageItem } from "./ChatMessageItem";
+import { ProcessingIndicator } from "./ProcessingIndicator";
 
 interface Props {
   messages: ChatMessage[];
   callbacks: BlockCallbacks;
+  showProcessingIndicator?: boolean;
 }
 
 function summariseForAnnouncement(blocks: ChatBlock[]): string {
@@ -18,9 +20,7 @@ function summariseForAnnouncement(blocks: ChatBlock[]): string {
         case "structured_form":
           return "Please complete the organisation profile form.";
         case "research_status":
-          return b.state.error
-            ? `Research failed: ${b.state.error}`
-            : "Researching grants.";
+          return b.state.error ? `Research failed: ${b.state.error}` : "Researching grants.";
         case "grant_results":
           return `${b.grants.length} matching grants found.`;
         case "document":
@@ -35,14 +35,10 @@ function summariseForAnnouncement(blocks: ChatBlock[]): string {
     .join(" ");
 }
 
-export function MessageList({ messages, callbacks }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+export function MessageList({ messages, callbacks, showProcessingIndicator }: Props) {
   const lastAnnouncedId = useRef<string | null>(null);
+  const wasProcessing = useRef(false);
   const [announcement, setAnnouncement] = useState("");
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages]);
 
   useEffect(() => {
     const last = messages[messages.length - 1];
@@ -51,6 +47,16 @@ export function MessageList({ messages, callbacks }: Props) {
     lastAnnouncedId.current = last.id;
     setAnnouncement(summariseForAnnouncement(last.blocks));
   }, [messages]);
+
+  // Announce the start of assistant work once, without repeating on every
+  // subsequent render while it stays true — the real summary above takes
+  // over as soon as the response lands.
+  useEffect(() => {
+    if (showProcessingIndicator && !wasProcessing.current) {
+      setAnnouncement("Grant Intelligence is working on a response.");
+    }
+    wasProcessing.current = Boolean(showProcessingIndicator);
+  }, [showProcessingIndicator]);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
@@ -61,8 +67,8 @@ export function MessageList({ messages, callbacks }: Props) {
         {messages.map((m) => (
           <ChatMessageItem key={m.id} message={m} callbacks={callbacks} />
         ))}
+        {showProcessingIndicator && <ProcessingIndicator />}
       </ul>
-      <div ref={bottomRef} />
     </div>
   );
 }
