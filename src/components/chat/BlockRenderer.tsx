@@ -1,9 +1,4 @@
-import type {
-  ApplicationDocument,
-  ChatBlock,
-  Grant,
-  OrganisationProfile,
-} from "@/types";
+import type { ApplicationDocument, ChatBlock, Grant, OrganisationProfile } from "@/types";
 import { OrganisationForm } from "@/components/widgets/OrganisationForm";
 import { ResearchStatus } from "@/components/widgets/ResearchStatus";
 import { GrantResults } from "@/components/grants/GrantResults";
@@ -20,6 +15,7 @@ export interface BlockCallbacks {
   getProfile: () => OrganisationProfile | undefined;
   getGrantById: (id: string) => Grant | undefined;
   formDisabled?: boolean;
+  hasGrantResults?: boolean;
 }
 
 export function BlockRenderer({
@@ -55,6 +51,7 @@ export function BlockRenderer({
         <ResearchStatus
           state={block.state}
           onRetry={block.state.error ? callbacks.onRetryResearch : undefined}
+          hasResults={callbacks.hasGrantResults}
         />
       );
     case "grant_results":
@@ -82,18 +79,14 @@ export function BlockRenderer({
       return (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-            {block.message}
-          </span>
+          <span className="min-w-0 break-words [overflow-wrap:anywhere]">{block.message}</span>
         </div>
       );
     case "success":
       return (
         <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-            {block.message}
-          </span>
+          <span className="min-w-0 break-words [overflow-wrap:anywhere]">{block.message}</span>
         </div>
       );
   }

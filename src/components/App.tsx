@@ -331,6 +331,7 @@ export function App() {
         c.activeConversation?.grants?.find((g) => g.id === id) ??
         MOCK_GRANTS.find((g) => g.id === id),
       formDisabled: busy,
+      hasGrantResults: Boolean(c.activeConversation?.grants?.length),
     }),
     [
       busy,
@@ -347,16 +348,17 @@ export function App() {
 
   // Show a lightweight "assistant is working" indicator for gaps where busy
   // work is happening but no research_status block (which has its own
-  // step-by-step progress UI) is already covering that role.
+  // step-by-step progress and recommendation-skeleton UI) is already
+  // covering that role — that card owns the loading story from the first
+  // step through to grant results actually landing.
   const showProcessingIndicator = useMemo(() => {
     if (!active || !busy) return false;
     const last = active.messages[active.messages.length - 1];
     const lastBlock = last?.blocks[last.blocks.length - 1];
-    const researchInProgress =
-      lastBlock?.type === "research_status" &&
-      !lastBlock.state.error &&
-      !lastBlock.state.steps.every((s) => s.status === "done");
-    return !researchInProgress;
+    const hasGrantResults = Boolean(active.grants?.length);
+    const researchCoveringIndicator =
+      lastBlock?.type === "research_status" && !lastBlock.state.error && !hasGrantResults;
+    return !researchCoveringIndicator;
   }, [active, busy]);
 
   // Track whether the user is scrolled near the bottom of the message list,
