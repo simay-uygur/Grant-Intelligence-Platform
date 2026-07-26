@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircleQuestion, Mic, Paperclip, Send, X } from "lucide-react";
+import { Loader2, MessageCircleQuestion, Mic, Paperclip, Send, X } from "lucide-react";
 import type { Grant } from "@/types";
+import { cn } from "@/lib/utils";
+import { useSpeechRecognition, type SpeechRecognitionState } from "@/hooks/useSpeechRecognition";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -29,6 +31,38 @@ const SUGGESTED_QUESTIONS = [
   "Why does this match my project?",
 ];
 
+const MIC_LABEL: Record<SpeechRecognitionState, string> = {
+  idle: "Start voice input",
+  starting: "Starting voice input…",
+  listening: "Stop voice input — listening",
+  stopping: "Stopping voice input…",
+  processing: "Processing speech…",
+  unsupported: "Voice input isn't supported in this browser",
+  "permission-denied": "Microphone permission denied — click to try again",
+  error: "Voice input error — click to try again",
+};
+
+const MIC_TOOLTIP: Record<SpeechRecognitionState, string> = {
+  idle: "Voice input — uses your browser's built-in speech recognition, not a paid service",
+  starting: "Starting…",
+  listening: "Listening — click to stop",
+  stopping: "Stopping…",
+  processing: "Processing what you said…",
+  unsupported: "Not supported in this browser — try Chrome or Edge on desktop or Android",
+  "permission-denied": "Microphone access was denied — check your browser's site settings",
+  error: "Voice input couldn't start — click to try again",
+};
+
+const MIC_STATUS_TEXT: Partial<Record<SpeechRecognitionState, string>> = {
+  starting: "Starting microphone…",
+  listening: "Listening — tap the microphone to stop.",
+  stopping: "Stopping…",
+  processing: "Processing speech…",
+  "permission-denied":
+    "Microphone permission denied. Check your browser's site settings and try again.",
+  error: "Voice input couldn't start. Try again.",
+};
+
 export function Composer({
   value,
   onValueChange,
@@ -41,6 +75,16 @@ export function Composer({
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Append (never overwrite) the recognised transcript into whatever is
+  // already typed, with a separating space if needed.
+  const speech = useSpeechRecognition({
+    onResult: (transcript) => {
+      onValueChange(
+        value.trim().length > 0 ? `${value.replace(/\s+$/, "")} ${transcript}` : transcript,
+      );
+    },
+  });
 
   const autoResize = useCallback(() => {
     const el = ref.current;
@@ -77,6 +121,22 @@ export function Composer({
     if (disabled) return;
     onSend(question);
   };
+
+  const handleMicClick = () => {
+    if (disabled) return;
+    if (speech.state === "listening") {
+      speech.stop();
+    } else if (
+      speech.state === "idle" ||
+      speech.state === "error" ||
+      speech.state === "permission-denied"
+    ) {
+      speech.start();
+    }
+    // starting / stopping / processing / unsupported: ignore extra clicks.
+  };
+
+  const showSpeechStatus = speech.state !== "idle" && speech.state !== "unsupported";
 
   const effectivePlaceholder = grantContext
     ? `Ask about "${grantContext.title}"…`
@@ -125,6 +185,38 @@ export function Composer({
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {showSpeechStatus && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-foreground"
+            >
+              <span
+                className={cn(
+                  "h-2 w-2 shrink-0 rounded-full",
+                  speech.state === "listening" && "bg-destructive motion-safe:animate-pulse",
+                  (speech.state === "permission-denied" || speech.state === "error") &&
+                    "bg-destructive",
+                  (speech.state === "starting" ||
+                    speech.state === "stopping" ||
+                    speech.state === "processing") &&
+                    "bg-brand motion-safe:animate-pulse",
+                )}
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1">{MIC_STATUS_TEXT[speech.state]}</span>
+              {speech.state === "listening" && (
+                <button
+                  type="button"
+                  onClick={speech.stop}
+                  className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/10"
+                >
+                  Stop
+                </button>
+              )}
             </div>
           )}
 
@@ -209,13 +301,33 @@ export function Composer({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label="Voice input — not yet available"
-                  className="shrink-0 rounded-lg text-muted-foreground hover:bg-muted"
+                  onClick={handleMicClick}
+                  disabled={disabled}
+                  aria-pressed={speech.state === "listening"}
+                  aria-label={MIC_LABEL[speech.state]}
+                  className={cn(
+                    "relative shrink-0 rounded-lg text-muted-foreground hover:bg-muted",
+                    speech.state === "listening" &&
+                      "text-destructive hover:bg-destructive/10 hover:text-destructive",
+                    (speech.state === "permission-denied" || speech.state === "error") &&
+                      "text-destructive",
+                    speech.state === "unsupported" && "opacity-50",
+                  )}
                 >
-                  <Mic className="h-4 w-4" />
+                  {speech.state === "listening" && (
+                    <span
+                      className="absolute inset-1 rounded-full bg-destructive/25 motion-safe:animate-ping"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {speech.state === "starting" || speech.state === "processing" ? (
+                    <Loader2 className="relative h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mic className="relative h-4 w-4" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">Voice input — coming soon</TooltipContent>
+              <TooltipContent side="top">{MIC_TOOLTIP[speech.state]}</TooltipContent>
             </Tooltip>
             <div className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
             <Tooltip>
