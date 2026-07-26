@@ -40,6 +40,59 @@ const RESEARCH_STEPS = [
   "Ranking the strongest matches",
 ];
 
+// Grant Q&A is answered locally by matching simple keywords against the
+// question and quoting the matching Grant field(s) — never invented, never
+// a real AI call. "Fact" answers quote structured fields verbatim; the
+// "why it matches" answer is explicitly labelled as the mock assistant's
+// canned explanation, since it's interpretive rather than a raw field.
+function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
+  const q = question.toLowerCase();
+
+  if (/eligib/.test(q)) {
+    return [
+      {
+        type: "text",
+        text: `From this grant's record — organisation eligibility: ${grant.organisationEligibility.join(", ")}. Eligible countries / regions: ${grant.eligibleCountries.join(", ")}.`,
+      },
+    ];
+  }
+  if (/fund|amount|budget|money|€|much/.test(q)) {
+    return [
+      {
+        type: "text",
+        text: `From this grant's record — funding: ${grant.fundingAmount} (${grant.fundingType}).`,
+      },
+    ];
+  }
+  if (/deadline|when|due|close|date/.test(q)) {
+    return [
+      {
+        type: "text",
+        text: `From this grant's record — deadline: ${grant.deadline}.`,
+      },
+    ];
+  }
+  if (/match|why|fit|suit|align/.test(q)) {
+    return [
+      {
+        type: "text",
+        text: `Mock assistant explanation — ${grant.whyItMatches}`,
+      },
+    ];
+  }
+
+  return [
+    {
+      type: "text",
+      text: `From this grant's record, I can answer questions about eligibility, funding amount, the deadline, or why ${grant.title} matches your project.`,
+    },
+    {
+      type: "text",
+      text: "Mock assistant note — this is a simulated response using only the demo data shown for this grant, not a live AI model. Try one of the suggested questions below, or start the application when you're ready.",
+    },
+  ];
+}
+
 const DEMO_PROFILE: OrganisationProfile = {
   organisationName: "Northlight Robotics",
   organisationType: "SME",
@@ -63,6 +116,7 @@ export function App() {
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [composerValue, setComposerValue] = useState("");
+  const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
   const researchInFlight = useRef(false);
   const isMobile = useIsMobile();
 
@@ -71,6 +125,13 @@ export function App() {
   useEffect(() => {
     if (!isMobile) setMobileSidebarOpen(false);
   }, [isMobile]);
+
+  // Grant Q&A context is a local UI concern, not part of the stored
+  // conversation — drop it whenever the active conversation changes so it
+  // can't leak across conversations or survive a switch back and forth.
+  useEffect(() => {
+    setAskingAboutGrant(null);
+  }, [c.activeId]);
 
   // --- Stick-to-bottom scrolling for the message list ---
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -210,6 +271,7 @@ export function App() {
 
   const handleAskGrant = useCallback(
     (grant: Grant) => {
+      setAskingAboutGrant(grant);
       askUser([{ type: "text", text: `Tell me more about ${grant.title}.` }]);
       askAssistant([
         {
@@ -224,6 +286,7 @@ export function App() {
   const handleStartApplication = useCallback(
     async (grant: Grant) => {
       if (!c.activeConversation?.profile) return;
+      setAskingAboutGrant(null);
       setBusy(true);
       try {
         const doc = await grantService.startApplication(grant, c.activeConversation.profile);
@@ -247,7 +310,9 @@ export function App() {
     (text: string) => {
       askUser([{ type: "text", text }]);
       const stage = c.activeConversation?.stage ?? "welcome";
-      if (stage === "welcome") {
+      if (askingAboutGrant) {
+        askAssistant(answerAboutGrant(text, askingAboutGrant));
+      } else if (stage === "welcome") {
         c.setStage("collecting_information");
         askAssistant([
           {
@@ -272,7 +337,7 @@ export function App() {
         ]);
       }
     },
-    [askAssistant, askUser, c],
+    [askAssistant, askUser, askingAboutGrant, c],
   );
 
   const runDemo = useCallback(async () => {
@@ -527,6 +592,8 @@ export function App() {
           disabled={busy || !active}
           onSend={handleUserSend}
           placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
+          grantContext={askingAboutGrant}
+          onClearGrantContext={() => setAskingAboutGrant(null)}
         />
       </main>
     </div>
