@@ -14,13 +14,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  MATCH_TIER_CLASSES,
-  MATCH_TIER_LABEL,
-  deadlineUrgency,
-  formatDeadline,
-  matchTierFor,
-} from "./grantPresentation";
+import { DeadlineBadge } from "./DeadlineBadge";
+import { MATCH_TIER_CLASSES, MATCH_TIER_LABEL, matchTierFor } from "./grantPresentation";
+import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
   grant: Grant | null;
@@ -235,20 +231,10 @@ function MatchScoreRow({ percentage }: { percentage: number }) {
 }
 
 function DeadlineRow({ deadline }: { deadline: string }) {
-  const urgency = deadlineUrgency(deadline);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-medium text-foreground">{formatDeadline(deadline)}</span>
-      {urgency === "expired" && (
-        <Badge variant="outline" className="border-destructive/40 text-destructive">
-          Expired
-        </Badge>
-      )}
-      {urgency === "urgent" && (
-        <Badge variant="outline" className="border-warning/50 text-warning">
-          Closing soon
-        </Badge>
-      )}
+      <DeadlineBadge deadline={deadline} />
     </div>
   );
 }

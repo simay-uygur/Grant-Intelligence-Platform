@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineNotice } from "@/components/common/InlineNotice";
+import { wordCount } from "@/utils/text";
 
 interface Props {
   doc: ApplicationDocument;
@@ -52,10 +53,9 @@ interface Props {
 // amount — small tweaks (a typo fix, a comma) shouldn't trigger a prompt.
 const MANUAL_EDIT_CONFIRM_THRESHOLD = 40;
 
-function wordCount(text: string): number {
-  const trimmed = text.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
-}
+// Shared by the section toolbar's Undo/Rewrite/Edit/Cancel buttons — Save
+// uses its own (brand-coloured) variant since it isn't a plain outline action.
+const TOOLBAR_BUTTON_CLS = "h-auto rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted";
 
 interface LastRewrite {
   sectionId: string;
@@ -469,7 +469,7 @@ function SectionEditor({
                   type="button"
                   variant="outline"
                   onClick={onUndoRewrite}
-                  className="h-auto rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
+                  className={TOOLBAR_BUTTON_CLS}
                 >
                   <Undo2 className="h-3 w-3" />
                   Undo rewrite
@@ -487,7 +487,7 @@ function SectionEditor({
                 variant="outline"
                 onClick={onRewrite}
                 disabled={rewriting || !rewriteAvailable}
-                className="h-auto rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
+                className={TOOLBAR_BUTTON_CLS}
               >
                 {rewriting ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -506,7 +506,7 @@ function SectionEditor({
               type="button"
               variant="outline"
               onClick={onStartEdit}
-              className="h-auto rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
+              className={TOOLBAR_BUTTON_CLS}
             >
               <Pencil className="h-3 w-3" />
               Edit
@@ -517,7 +517,7 @@ function SectionEditor({
                 type="button"
                 variant="outline"
                 onClick={onCancel}
-                className="h-auto rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
+                className={TOOLBAR_BUTTON_CLS}
               >
                 <X className="h-3 w-3" />
                 Cancel

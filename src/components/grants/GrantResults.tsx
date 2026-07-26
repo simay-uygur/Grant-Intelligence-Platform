@@ -15,7 +15,6 @@ import type { Grant } from "@/types";
 import { cn } from "@/lib/utils";
 import { CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -25,15 +24,15 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
+import { DeadlineBadge } from "./DeadlineBadge";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import {
   MATCH_TIER_CLASSES,
   MATCH_TIER_LABEL,
   type MatchTier,
-  deadlineUrgency,
-  formatDeadline,
   matchTierFor,
 } from "./grantPresentation";
+import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
   grants: Grant[];
@@ -229,7 +228,6 @@ function GrantCard({
   onToggleCompare: () => void;
   compareDisabled: boolean;
 }) {
-  const urgency = deadlineUrgency(grant.deadline);
   const matchTier = matchTierFor(grant.matchPercentage);
   const compareId = `compare-${grant.id}`;
 
@@ -280,23 +278,7 @@ function GrantCard({
             label="Deadline"
             value={formatDeadline(grant.deadline)}
             icon={<CalendarClock className="h-3 w-3" />}
-            badge={
-              urgency === "expired" ? (
-                <Badge
-                  variant="outline"
-                  className="border-destructive/40 px-1.5 py-0 text-[10px] text-destructive"
-                >
-                  Expired
-                </Badge>
-              ) : urgency === "urgent" ? (
-                <Badge
-                  variant="outline"
-                  className="border-warning/50 px-1.5 py-0 text-[10px] text-warning"
-                >
-                  Closing soon
-                </Badge>
-              ) : null
-            }
+            badge={<DeadlineBadge deadline={grant.deadline} compact />}
           />
           <Fact label="Funding type" value={grant.fundingType} />
           <Fact

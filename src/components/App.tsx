@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { grantService, isMockMode } from "@/services";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
@@ -26,9 +27,6 @@ const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   results: "Ask about one of these grants…",
   application: "Ask to revise, expand, or improve this application…",
 };
-
-// How close to the bottom (in px) counts as "at the bottom" for stick-to-bottom scrolling.
-const NEAR_BOTTOM_THRESHOLD = 96;
 
 const RESEARCH_STEPS = [
   "Understanding organisation profile",
@@ -132,19 +130,6 @@ export function App() {
   useEffect(() => {
     setAskingAboutGrant(null);
   }, [c.activeId]);
-
-  // --- Stick-to-bottom scrolling for the message list ---
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollBottomRef = useRef<HTMLDivElement>(null);
-  const isNearBottomRef = useRef(true);
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const prevConversationId = useRef<string | null>(null);
-  const prevLastMessageId = useRef<string | null>(null);
-
-  const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
-    scrollBottomRef.current?.scrollIntoView({ behavior, block: "end" });
-    setShowScrollButton(false);
-  }, []);
 
   const setBlocks = c.updateMessageBlocks;
   const appendMessage = c.appendMessage;
@@ -426,43 +411,8 @@ export function App() {
     return !researchCoveringIndicator;
   }, [active, busy]);
 
-  // Track whether the user is scrolled near the bottom of the message list,
-  // so we know whether to stick new content to the bottom or leave it be.
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const handleScroll = () => {
-      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-      isNearBottomRef.current = distance < NEAR_BOTTOM_THRESHOLD;
-      if (isNearBottomRef.current) setShowScrollButton(false);
-    };
-    handleScroll();
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    return () => el.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Auto-scroll on new messages/blocks/research progress/processing state —
-  // but only force it to the bottom for the user's own message or a
-  // conversation switch. Otherwise respect an intentional upward scroll and
-  // surface the "scroll to latest" button instead.
-  useEffect(() => {
-    if (!active) return;
-    const last = active.messages[active.messages.length - 1];
-    const conversationChanged = prevConversationId.current !== active.id;
-    const isNewUserMessage =
-      !conversationChanged && last?.role === "user" && last.id !== prevLastMessageId.current;
-    prevConversationId.current = active.id;
-    prevLastMessageId.current = last?.id ?? null;
-
-    if (conversationChanged || isNewUserMessage) {
-      isNearBottomRef.current = true;
-      scrollToBottom(conversationChanged ? "auto" : "smooth");
-    } else if (isNearBottomRef.current) {
-      scrollToBottom("smooth");
-    } else {
-      setShowScrollButton(true);
-    }
-  }, [active, showProcessingIndicator, scrollToBottom]);
+  const { scrollContainerRef, scrollBottomRef, showScrollButton, scrollToBottom } =
+    useStickToBottomScroll(active, showProcessingIndicator);
 
   if (!c.hydrated) {
     return (
