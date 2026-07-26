@@ -3,6 +3,8 @@ import { Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Props {
+  value: string;
+  onValueChange: (value: string) => void;
   onSend: (text: string) => void;
   disabled?: boolean;
   placeholder?: string;
@@ -14,8 +16,7 @@ const ACCEPTED_FILE_TYPES =
 // Matches the textarea's max-h-40 (10rem) Tailwind class below.
 const MAX_TEXTAREA_HEIGHT = 160;
 
-export function Composer({ onSend, disabled, placeholder }: Props) {
-  const [value, setValue] = useState("");
+export function Composer({ value, onValueChange, onSend, disabled, placeholder }: Props) {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,7 +42,7 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
     const text = value.trim();
     if (!text || disabled) return;
     onSend(text);
-    setValue("");
+    onValueChange("");
     setAttachedFile(null);
   };
 
@@ -109,7 +110,7 @@ export function Composer({ onSend, disabled, placeholder }: Props) {
             ref={ref}
             rows={1}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => onValueChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();

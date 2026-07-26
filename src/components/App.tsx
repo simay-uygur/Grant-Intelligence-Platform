@@ -15,6 +15,7 @@ import type {
 import { Sidebar, MobileSidebar } from "@/components/layout/Sidebar";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
+import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { Button } from "@/components/ui/button";
 import type { BlockCallbacks } from "@/components/chat/BlockRenderer";
 
@@ -58,6 +59,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [composerValue, setComposerValue] = useState("");
   const researchInFlight = useRef(false);
   const isMobile = useIsMobile();
 
@@ -334,6 +336,9 @@ export function App() {
   }
 
   const active = c.activeConversation;
+  const isFreshWelcome = Boolean(
+    active && active.stage === "welcome" && active.messages.length <= 1 && !demoRunning,
+  );
 
   return (
     <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
@@ -410,7 +415,11 @@ export function App() {
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {active ? (
-            <MessageList messages={active.messages} callbacks={callbacks} />
+            isFreshWelcome ? (
+              <WelcomeScreen onQuickStart={handleUserSend} onFillComposer={setComposerValue} />
+            ) : (
+              <MessageList messages={active.messages} callbacks={callbacks} />
+            )
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Start a new conversation from the sidebar.
@@ -421,6 +430,8 @@ export function App() {
         </div>
 
         <Composer
+          value={composerValue}
+          onValueChange={setComposerValue}
           disabled={busy || !active}
           onSend={handleUserSend}
           placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
