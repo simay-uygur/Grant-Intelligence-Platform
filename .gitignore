@@ -31,3 +31,5 @@ htmlcov/
 # Local generated storage artifacts
 storage/generated/*
 !storage/generated/.gitkeep
+/.postman/
+/postman/

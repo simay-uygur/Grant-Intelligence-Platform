@@ -36,6 +36,11 @@ class ChatContext(BaseModel):
 
 
 class ChatMessageRequest(BaseModel):
+    conversation_id: str | None = Field(
+        default=None,
+        description="Optional backend conversation identifier. If omitted, a new conversation is created.",
+        examples=["4e159520-aeb5-440d-a390-0adf9df02a60"],
+    )
     session_id: str | None = Field(
         default=None,
         description="Optional frontend session identifier for grouping a conversation.",
@@ -54,6 +59,7 @@ class ChatMessageRequest(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
+                "conversation_id": "4e159520-aeb5-440d-a390-0adf9df02a60",
                 "session_id": "session-001",
                 "user_message": "We are looking for EU grants for an education technology project.",
                 "context": {
@@ -68,6 +74,10 @@ class ChatMessageRequest(BaseModel):
 
 
 class ChatMessageResponse(BaseModel):
+    conversation_id: str = Field(
+        description="Backend conversation identifier that the frontend should reuse on later messages.",
+        examples=["4e159520-aeb5-440d-a390-0adf9df02a60"],
+    )
     assistant_message: str = Field(
         description="Primary assistant reply returned to the frontend.",
         examples=["I can help narrow down suitable Horizon calls for your project."],
@@ -88,6 +98,7 @@ class ChatMessageResponse(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
+                "conversation_id": "4e159520-aeb5-440d-a390-0adf9df02a60",
                 "assistant_message": "I can help narrow down suitable Horizon calls for your project.",
                 "next_step": "collect_requirements",
                 "follow_up_questions": [
@@ -98,6 +109,28 @@ class ChatMessageResponse(BaseModel):
             }
         }
     }
+
+
+class ConversationResponse(BaseModel):
+    conversation_id: str = Field(
+        description="Stable conversation identifier returned by the backend.",
+        examples=["4e159520-aeb5-440d-a390-0adf9df02a60"],
+    )
+    created_at: str = Field(description="Conversation creation timestamp in ISO-8601 format.")
+    updated_at: str = Field(description="Conversation last update timestamp in ISO-8601 format.")
+
+
+class StoredChatMessage(BaseModel):
+    message_id: int = Field(description="Database message identifier.", examples=[1])
+    conversation_id: str = Field(description="Conversation identifier owning the message.")
+    role: str = Field(description="Message role such as user or assistant.", examples=["user"])
+    content: str = Field(description="Persisted message content.")
+    created_at: str = Field(description="Message creation timestamp in ISO-8601 format.")
+
+
+class ConversationMessagesResponse(BaseModel):
+    conversation_id: str = Field(description="Conversation identifier used for this lookup.")
+    messages: list[StoredChatMessage] = Field(default_factory=list)
 
 
 class ToolDefinitionPreview(BaseModel):

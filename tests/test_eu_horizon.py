@@ -154,3 +154,45 @@ def test_search_applies_open_and_budget_filters() -> None:
     )
 
     assert [result.id for result in results] == ["HORIZON-CL4-2026-OPEN-01"]
+
+
+def test_search_does_not_send_country_or_organization_type_upstream() -> None:
+    seen_requests: list[httpx.Request] = []
+    payload = {
+        "results": [
+            {
+                "url": (
+                    "https://ec.europa.eu/info/funding-tenders/opportunities/portal/"
+                    "screen/opportunities/topic-details/HORIZON-CL4-2026-OPEN-01"
+                ),
+                "summary": "Open topic",
+                "metadata": {
+                    "identifier": ["HORIZON-CL4-2026-OPEN-01"],
+                    "title": ["Open Topic"],
+                    "frameworkProgramme": ["43108390"],
+                },
+            }
+        ]
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_requests.append(request)
+        return httpx.Response(200, json=payload)
+
+    client = EUHorizonClient(transport=httpx.MockTransport(handler))
+
+    results = client.search(
+        GrantSearchRequest(
+            query="robotics",
+            country="Turkey",
+            organization_type="SME",
+        )
+    )
+
+    assert [result.id for result in results] == ["HORIZON-CL4-2026-OPEN-01"]
+    assert len(seen_requests) == 1
+    assert seen_requests[0].url.params["apiKey"] == "SEDIA"
+    assert seen_requests[0].url.params["text"] == "robotics"
+    assert seen_requests[0].url.params["language"] == "en"
+    assert "country" not in seen_requests[0].url.params
+    assert "organization_type" not in seen_requests[0].url.params

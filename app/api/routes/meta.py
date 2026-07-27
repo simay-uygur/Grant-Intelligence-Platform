@@ -30,10 +30,22 @@ def frontend_config() -> FrontendConfigResponse:
                 purpose="Backend health check for app boot and connectivity.",
             ),
             FrontendEndpointInfo(
+                name="chat_create_conversation",
+                method="POST",
+                path=f"{settings.api_prefix}/chat/conversations",
+                purpose="Create an anonymous conversation and receive the conversation_id for future chat requests.",
+            ),
+            FrontendEndpointInfo(
                 name="chat_message",
                 method="POST",
                 path=f"{settings.api_prefix}/chat/message",
                 purpose="Send user chat input and receive assistant guidance plus tool results.",
+            ),
+            FrontendEndpointInfo(
+                name="chat_messages",
+                method="GET",
+                path=f"{settings.api_prefix}/chat/conversations/{'{conversation_id}'}/messages",
+                purpose="Read stored user and assistant messages for one conversation.",
             ),
             FrontendEndpointInfo(
                 name="grant_search",

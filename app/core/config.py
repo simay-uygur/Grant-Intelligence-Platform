@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     api_prefix: str = "/api/v1"
     debug: bool = True
+    sqlite_db_path: str = "storage/app.db"
+    chat_history_window: int = 10
     frontend_cors_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",

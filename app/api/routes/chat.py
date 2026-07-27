@@ -1,10 +1,27 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from app.schemas.chat import ChatLoopPreviewResponse, ChatMessageRequest, ChatMessageResponse
+from app.schemas.chat import (
+    ChatLoopPreviewResponse,
+    ChatMessageRequest,
+    ChatMessageResponse,
+    ConversationMessagesResponse,
+    ConversationResponse,
+)
 from app.services.chat_service import ChatService
 
 router = APIRouter()
 chat_service = ChatService()
+
+
+@router.post(
+    "/conversations",
+    response_model=ConversationResponse,
+    summary="Create a conversation",
+    description="Create an anonymous backend conversation and return its identifier.",
+    response_description="Created conversation metadata.",
+)
+def create_conversation() -> ConversationResponse:
+    return chat_service.create_conversation()
 
 
 @router.post(
@@ -18,7 +35,24 @@ chat_service = ChatService()
     response_description="Assistant response with next-step guidance and tool output.",
 )
 def send_message(payload: ChatMessageRequest) -> ChatMessageResponse:
-    return chat_service.handle_message(payload)
+    try:
+        return chat_service.handle_message(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/conversations/{conversation_id}/messages",
+    response_model=ConversationMessagesResponse,
+    summary="List conversation messages",
+    description="Return the persisted user and assistant messages for one conversation.",
+    response_description="Stored messages for the requested conversation.",
+)
+def get_conversation_messages(conversation_id: str) -> ConversationMessagesResponse:
+    try:
+        return chat_service.get_messages(conversation_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get(
