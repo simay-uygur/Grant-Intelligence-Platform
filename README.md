@@ -64,6 +64,7 @@ bun run preview
 Serves the most recent production build locally, for a final check before
 deploying.
 
+
 ## TypeScript, lint, and test commands
 
 Based on the scripts defined in `package.json`:
@@ -243,3 +244,24 @@ Cloudflare (or other) deployment is configured or documented in this
 repository today — `bun run build` produces the Nitro/Cloudflare-targeted
 output locally, and `bun run preview` is the supported way to sanity-check it
 before any deployment step is set up.
+Don't forget to create the `.env` file right next to `.env.example`.
+
+
+# Grant Intelligence Backend
+
+## Local Setup
+
+1. Create a virtual environment.
+2. Install dependencies from `requirements.txt`.
+3. Copy `.env.example` to `.env`.
+4. Run:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+## First Endpoints
+
+- `GET /api/v1/health`
+- `POST /api/v1/chat/message`
+- `POST /api/v1/grants/search`

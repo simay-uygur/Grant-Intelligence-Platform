@@ -1,3 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files
 # Logs
 logs
 *.log
@@ -29,6 +41,16 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+# Tooling and test caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# OS files
 .DS_Store
 Thumbs.db
 *.suo
@@ -36,3 +58,10 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Local generated storage artifacts
+storage/generated/*
+!storage/generated/.gitkeep
+/.postman/
+/postman/
+/storage/app.db
