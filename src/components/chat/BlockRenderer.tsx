@@ -4,7 +4,7 @@ import { ResearchStatus } from "@/components/widgets/ResearchStatus";
 import { GrantResults } from "@/components/grants/GrantResults";
 import { ApplicationDocumentView } from "@/components/documents/ApplicationDocument";
 import { InlineNotice } from "@/components/common/InlineNotice";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Compass } from "lucide-react";
 
 export interface BlockCallbacks {
   onSubmitProfile: (profile: OrganisationProfile) => void;
@@ -22,16 +22,39 @@ export interface BlockCallbacks {
 export function BlockRenderer({
   block,
   callbacks,
+  isUser,
+  showHeader,
+  time,
 }: {
   block: ChatBlock;
   callbacks: BlockCallbacks;
+  /** Assistant text blocks render inside a subtle card; user text keeps the plain paragraph, since the bubble around it (in ChatMessageItem) already provides the container. */
+  isUser?: boolean;
+  /** When true (assistant text block only), renders the icon + "Grant Intelligence" + timestamp as a header row inside the card, instead of ChatMessageItem rendering that row separately above it. */
+  showHeader?: boolean;
+  time?: string | null;
 }) {
   switch (block.type) {
     case "text":
-      return (
+      return isUser ? (
         <p className="max-w-prose whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
           {block.text}
         </p>
+      ) : (
+        <div className="inline-block max-w-[78%] rounded-2xl border border-border bg-muted/30 px-3.5 py-2.5">
+          {showHeader && (
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+              <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
+                <Compass className="h-3.5 w-3.5" />
+              </span>
+              <span>Grant Intelligence</span>
+              {time && <span className="text-muted-foreground/70">{time}</span>}
+            </div>
+          )}
+          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
+            {block.text}
+          </p>
+        </div>
       );
     case "question":
       return (

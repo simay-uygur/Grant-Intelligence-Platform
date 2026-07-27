@@ -15,7 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { DeadlineBadge } from "./DeadlineBadge";
-import { MATCH_TIER_CLASSES, MATCH_TIER_LABEL, matchTierFor } from "./grantPresentation";
+import { MATCH_TIER_CLASSES, matchTierFor } from "./grantPresentation";
 import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
@@ -220,12 +220,20 @@ function ListField({ label, items }: { label: string; items: string[] }) {
 function MatchScoreRow({ percentage }: { percentage: number }) {
   const tier = matchTierFor(percentage);
   const cls = MATCH_TIER_CLASSES[tier];
+  const clamped = Math.min(100, Math.max(0, percentage));
   return (
-    <div className={cn("flex items-center gap-3 rounded-lg p-2.5 ring-1", cls.ring)}>
-      <div className={cn("text-2xl font-bold leading-none tabular-nums", cls.text)}>
-        {percentage}%
+    <div className="flex items-center gap-3">
+      <div className="shrink-0 text-right leading-none">
+        <span className={cn("text-lg font-medium tabular-nums", cls.text)}>{percentage}%</span>
+        <div className="mt-0.5 text-[10px] text-muted-foreground">match</div>
       </div>
-      <div className={cn("text-xs font-medium", cls.text)}>{MATCH_TIER_LABEL[tier]}</div>
+      <div
+        role="img"
+        aria-label={`${percentage}% match`}
+        className="h-1 flex-1 overflow-hidden rounded-full bg-muted"
+      >
+        <div className={cn("h-full rounded-full", cls.bar)} style={{ width: `${clamped}%` }} />
+      </div>
     </div>
   );
 }

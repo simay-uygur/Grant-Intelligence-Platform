@@ -11,6 +11,15 @@ interface Props {
   hasResults?: boolean;
 }
 
+// Faint border/background per row-card, distinct per step state — the active
+// row gets a subtle brand tint, pending stays close to transparent, done
+// settles into a plain card surface.
+const ROW_STATE_CLASSES: Record<ResearchStep["status"], string> = {
+  done: "border-border/60 bg-card",
+  active: "border-brand/30 bg-brand/5",
+  pending: "border-border/40 bg-transparent",
+};
+
 export function ResearchStatus({ state, onRetry, hasResults }: Props) {
   const total = state.steps.length;
   const doneCount = state.steps.filter((s) => s.status === "done").length;
@@ -87,16 +96,25 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
       <CardContent className="p-0">
         <ol className="mt-3 space-y-2 sm:mt-4">
           {state.steps.map((step, i) => (
-            <li key={i} className="flex items-center gap-2.5 text-sm sm:gap-3">
+            <li
+              key={i}
+              aria-current={step.status === "active" ? "step" : undefined}
+              className={cn(
+                "flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors sm:gap-3 sm:px-3.5 sm:py-2.5",
+                ROW_STATE_CLASSES[step.status],
+              )}
+            >
               <StepMarker status={step.status} index={i} />
               <span
                 className={cn(
+                  "min-w-0 flex-1 break-words",
                   step.status === "pending" ? "text-muted-foreground" : "text-foreground",
                   step.status === "active" && "font-medium",
                 )}
               >
                 {step.label}
               </span>
+              <StepStatusIndicator status={step.status} />
             </li>
           ))}
         </ol>
@@ -151,6 +169,24 @@ function StepMarker({ status, index }: { status: ResearchStep["status"]; index: 
     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
       {index + 1}
     </span>
+  );
+}
+
+/** Compact right-aligned status glyph for a step row — a quick "current state at a glance" signal, distinct from the numbered/check marker on the left. */
+function StepStatusIndicator({ status }: { status: ResearchStep["status"] }) {
+  if (status === "done") {
+    return <Check className="h-4 w-4 shrink-0 text-success" aria-hidden="true" />;
+  }
+  if (status === "active") {
+    return (
+      <span
+        className="h-2 w-2 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
+        aria-hidden="true"
+      />
+    );
+  }
+  return (
+    <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
   );
 }
 

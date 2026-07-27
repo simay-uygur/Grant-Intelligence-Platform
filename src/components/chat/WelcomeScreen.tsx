@@ -40,8 +40,9 @@ export function WelcomeScreen({ onQuickStart, onFillComposer }: Props) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand/10 text-brand">
-        <Compass className="h-5 w-5" />
+      {/* Same size/shape/tint as the assistant avatar in ChatMessageItem, so the compass icon reads as one consistent identity mark everywhere. */}
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10 text-brand">
+        <Compass className="h-4 w-4" />
       </div>
 
       <h2 className="mt-4 text-lg font-semibold text-foreground">
@@ -53,17 +54,19 @@ export function WelcomeScreen({ onQuickStart, onFillComposer }: Props) {
         conversation.
       </p>
 
-      <div className="mt-6 grid w-full max-w-md grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="mt-6 grid w-full max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
         {suggestions.map((s) => (
           <Button
             key={s.label}
             type="button"
             variant="outline"
             onClick={s.action}
-            className="h-auto w-full justify-start gap-2 rounded-lg px-3 py-2.5 hover:bg-muted"
+            className="h-auto w-full items-center justify-start gap-3 rounded-xl border-border px-3.5 py-3 text-left shadow-sm transition-colors hover:border-brand/40 hover:bg-brand/5 hover:shadow"
           >
-            <s.icon className="h-4 w-4 shrink-0 text-brand" />
-            <span className="min-w-0 whitespace-normal text-left text-sm font-medium">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
+              <s.icon className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 whitespace-normal text-sm font-medium text-foreground">
               {s.label}
             </span>
           </Button>

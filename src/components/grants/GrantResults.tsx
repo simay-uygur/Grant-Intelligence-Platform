@@ -26,12 +26,7 @@ import {
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { InlineNotice } from "@/components/common/InlineNotice";
-import {
-  MATCH_TIER_CLASSES,
-  MATCH_TIER_LABEL,
-  type MatchTier,
-  matchTierFor,
-} from "./grantPresentation";
+import { MATCH_TIER_CLASSES, type MatchTier, matchTierFor } from "./grantPresentation";
 import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
@@ -102,7 +97,7 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
             Ranked by fit with your organisation profile.
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-amber-300/50 bg-amber-100/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-800">
+        <span className="shrink-0 rounded-full border border-amber-300/50 bg-amber-100/60 px-2 py-0.5 text-[10px] font-medium text-amber-800">
           Demo data
         </span>
       </div>
@@ -235,7 +230,7 @@ function GrantCard({
     <article className="rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-5">
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 p-0">
         <div className="min-w-0 flex-1">
-          <div className="break-words text-[11px] font-medium uppercase tracking-wider text-brand [overflow-wrap:anywhere]">
+          <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
             {grant.programme}
           </div>
           <button
@@ -389,19 +384,18 @@ function MatchMeter({ percentage, tier }: { percentage: number; tier: MatchTier 
   const clamped = Math.min(100, Math.max(0, percentage));
 
   return (
-    <div className={cn("flex shrink-0 flex-col items-end gap-1 rounded-xl p-2 ring-1", cls.ring)}>
-      <div className="flex items-baseline gap-0.5">
-        <span className={cn("text-xl font-bold leading-none tabular-nums", cls.text)}>
-          {percentage}
-        </span>
-        <span className={cn("text-xs font-medium", cls.text)}>%</span>
+    <div className="flex w-16 shrink-0 flex-col items-end gap-1.5">
+      <div className="text-right leading-none">
+        <span className={cn("text-lg font-medium tabular-nums", cls.text)}>{percentage}%</span>
+        <div className="mt-0.5 text-[10px] text-muted-foreground">match</div>
       </div>
-      <div className="h-1 w-16 overflow-hidden rounded-full bg-muted">
+      <div
+        role="img"
+        aria-label={`${percentage}% match`}
+        className="h-1 w-full overflow-hidden rounded-full bg-muted"
+      >
         <div className={cn("h-full rounded-full", cls.bar)} style={{ width: `${clamped}%` }} />
       </div>
-      <span className={cn("text-[10px] font-medium leading-tight", cls.text)}>
-        {MATCH_TIER_LABEL[tier]}
-      </span>
     </div>
   );
 }

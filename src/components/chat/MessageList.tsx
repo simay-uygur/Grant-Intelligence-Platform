@@ -59,7 +59,7 @@ export function MessageList({ messages, callbacks, showProcessingIndicator }: Pr
   }, [showProcessingIndicator]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6">
+    <div className="mx-auto w-full max-w-4xl px-4 py-8">
       {/* Gives the message blocks' own h3 titles (research status, grant
           results, application draft) a non-skipped ancestor under the
           page's h1 — otherwise a screen reader's heading list jumps from

@@ -52,83 +52,81 @@ export function ChatMessageItem({ message, callbacks }: Props) {
   };
 
   return (
-    <li className={cn("flex gap-3", isUser && "flex-row-reverse")}>
+    <li className={cn("flex flex-col gap-1.5", isUser && "items-end")}>
+      {/* Slack/Discord-style header row above the bubble, identical for both
+          speakers on every screen size. DOM order is always [avatar, name,
+          time] so screen readers read the name then the time; the user side
+          is visually mirrored with flex-row-reverse to sit [time, name,
+          avatar] alongside its right-aligned bubble. */}
       <div
         className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-          isUser ? "bg-muted text-muted-foreground" : "bg-brand/10 text-brand",
+          "flex max-w-full items-center gap-1.5 text-[11px] font-medium text-muted-foreground",
+          isUser && "flex-row-reverse",
         )}
       >
-        {isUser ? <User className="h-4 w-4" /> : <Compass className="h-4 w-4" />}
+        <span
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
+            isUser ? "bg-muted text-muted-foreground" : "bg-brand/10 text-brand",
+          )}
+        >
+          {isUser ? <User className="h-3 w-3" /> : <Compass className="h-3 w-3" />}
+        </span>
+        <span className="truncate">{isUser ? "You" : "Grant Intelligence"}</span>
+        {time && <span className="shrink-0 text-muted-foreground/70">{time}</span>}
       </div>
 
-      <div className={cn("min-w-0 flex-1 space-y-1.5", isUser && "flex flex-col items-end")}>
-        <div
-          className={cn(
-            "flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
-            isUser && "flex-row-reverse",
-          )}
-        >
-          <span>{isUser ? "You" : "Grant Intelligence"}</span>
-          {time && (
-            <span className="normal-case tracking-normal text-muted-foreground/70">{time}</span>
-          )}
-        </div>
-
-        <div
-          className={cn(
-            "min-w-0 space-y-3",
-            isUser && "max-w-[85%] rounded-xl bg-muted px-3.5 py-2.5 sm:max-w-[75%]",
-          )}
-        >
+      <div
+        className={cn(
+          "min-w-0",
+          isUser && "max-w-[85%] rounded-xl bg-muted px-3.5 py-2.5 sm:max-w-[75%]",
+        )}
+      >
+        <div className="space-y-3">
           {message.blocks.map((b, i) => (
-            <BlockRenderer key={i} block={b} callbacks={callbacks} />
+            <BlockRenderer key={i} block={b} callbacks={callbacks} isUser={isUser} />
           ))}
         </div>
-
-        {!isUser && (copyText || canRetry) && (
-          <TooltipProvider delayDuration={300}>
-            <div className="flex items-center gap-1">
-              {copyText && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={handleCopy}
-                      aria-label={copied ? "Copied to clipboard" : "Copy message"}
-                      className="h-auto w-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      {copied ? (
-                        <Check className="h-3.5 w-3.5" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{copied ? "Copied" : "Copy"}</TooltipContent>
-                </Tooltip>
-              )}
-              {canRetry && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={callbacks.onRetryResearch}
-                      aria-label="Retry research"
-                      className="h-auto w-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Retry</TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          </TooltipProvider>
-        )}
       </div>
+
+      {!isUser && (copyText || canRetry) && (
+        <TooltipProvider delayDuration={300}>
+          <div className="flex items-center gap-1">
+            {copyText && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleCopy}
+                    aria-label={copied ? "Copied to clipboard" : "Copy message"}
+                    className="h-auto w-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{copied ? "Copied" : "Copy"}</TooltipContent>
+              </Tooltip>
+            )}
+            {canRetry && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={callbacks.onRetryResearch}
+                    aria-label="Retry research"
+                    className="h-auto w-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Retry</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </TooltipProvider>
+      )}
     </li>
   );
 }
