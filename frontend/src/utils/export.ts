@@ -1,4 +1,4 @@
-import type { ApplicationDocument } from "frontend/src/types";
+import type { ApplicationDocument } from "@/types";
 
 function escapeHtml(s: string) {
   return s

@@ -1,4 +1,4 @@
-import type { Grant } from "frontend/src/types";
+import type { Grant } from "@/types";
 
 export const MOCK_GRANTS: Grant[] = [
   {

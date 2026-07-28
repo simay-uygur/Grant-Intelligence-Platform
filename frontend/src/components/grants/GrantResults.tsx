@@ -11,23 +11,23 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import type { Grant } from "frontend/src/types";
-import { cn } from "frontend/src/lib/utils";
-import { CardHeader, CardContent, CardFooter } from "frontend/src/components/ui/card";
-import { Button } from "frontend/src/components/ui/button";
-import { Checkbox } from "frontend/src/components/ui/checkbox";
+import type { Grant } from "@/types";
+import { cn } from "@/lib/utils";
+import { CardHeader, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "frontend/src/components/ui/dialog";
+} from "@/components/ui/dialog";
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
-import { InlineNotice } from "frontend/src/components/common/InlineNotice";
+import { InlineNotice } from "@/components/common/InlineNotice";
 import { MATCH_TIER_CLASSES, type MatchTier, matchTierFor } from "./grantPresentation";
-import { formatDeadline } from "frontend/src/utils/deadline";
+import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
   grants: Grant[];

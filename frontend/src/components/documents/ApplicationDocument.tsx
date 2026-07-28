@@ -16,19 +16,19 @@ import type {
   DocumentSection as DocSection,
   Grant,
   OrganisationProfile,
-} from "frontend/src/types";
-import { exportAsPdf, exportAsWord } from "frontend/src/utils/export";
-import { grantService } from "frontend/src/services";
-import { cn } from "frontend/src/lib/utils";
-import { Card, CardHeader, CardContent } from "frontend/src/components/ui/card";
-import { Button } from "frontend/src/components/ui/button";
+} from "@/types";
+import { exportAsPdf, exportAsWord } from "@/utils/export";
+import { grantService } from "@/services";
+import { cn } from "@/lib/utils";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "frontend/src/components/ui/select";
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -36,10 +36,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "frontend/src/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "frontend/src/components/ui/tooltip";
-import { InlineNotice } from "frontend/src/components/common/InlineNotice";
-import { wordCount } from "frontend/src/utils/text";
+} from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { InlineNotice } from "@/components/common/InlineNotice";
+import { wordCount } from "@/utils/text";
 
 interface Props {
   doc: ApplicationDocument;

@@ -1,10 +1,10 @@
-import { MOCK_GRANTS } from "frontend/src/data/mockGrants";
+import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
   ApplicationDocument,
   DocumentSection,
   Grant,
   OrganisationProfile,
-} from "frontend/src/types";
+} from "@/types";
 import type { GrantIntelligenceService } from "./GrantIntelligenceService";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));

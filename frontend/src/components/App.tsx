@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
-import { useConversations } from "frontend/src/hooks/useConversations";
-import { useIsMobile } from "frontend/src/hooks/use-mobile";
-import { useStickToBottomScroll } from "frontend/src/hooks/useStickToBottomScroll";
-import { grantService, isMockMode } from "frontend/src/services";
-import { MOCK_GRANTS } from "frontend/src/data/mockGrants";
+import { useConversations } from "@/hooks/useConversations";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
+import { grantService, isMockMode } from "@/services";
+import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
   ApplicationStage,
   ChatBlock,
@@ -12,13 +12,13 @@ import type {
   Grant,
   OrganisationProfile,
   ResearchState,
-} from "frontend/src/types";
-import { Sidebar, MobileSidebar } from "frontend/src/components/layout/Sidebar";
-import { MessageList } from "frontend/src/components/chat/MessageList";
-import { Composer } from "frontend/src/components/chat/Composer";
-import { WelcomeScreen } from "frontend/src/components/chat/WelcomeScreen";
-import { Button } from "frontend/src/components/ui/button";
-import type { BlockCallbacks } from "frontend/src/components/chat/BlockRenderer";
+} from "@/types";
+import { Sidebar, MobileSidebar } from "@/components/layout/Sidebar";
+import { MessageList } from "@/components/chat/MessageList";
+import { Composer } from "@/components/chat/Composer";
+import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
+import { Button } from "@/components/ui/button";
+import type { BlockCallbacks } from "@/components/chat/BlockRenderer";
 
 const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   welcome: "Describe your organisation and funding needs…",

@@ -1,15 +1,15 @@
 import { Landmark, Plus, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import type { Conversation } from "frontend/src/types";
-import { cn } from "frontend/src/lib/utils";
-import { Button } from "frontend/src/components/ui/button";
+import type { Conversation } from "@/types";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "frontend/src/components/ui/sheet";
+} from "@/components/ui/sheet";
 
 interface SidebarProps {
   conversations: Conversation[];

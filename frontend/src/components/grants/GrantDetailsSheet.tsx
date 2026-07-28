@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { ExternalLink, MessageSquare } from "lucide-react";
-import type { Grant } from "frontend/src/types";
-import { cn } from "frontend/src/lib/utils";
-import { Button } from "frontend/src/components/ui/button";
-import { Badge } from "frontend/src/components/ui/badge";
-import { InlineNotice } from "frontend/src/components/common/InlineNotice";
+import type { Grant } from "@/types";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { InlineNotice } from "@/components/common/InlineNotice";
 import {
   Sheet,
   SheetClose,
@@ -13,10 +13,10 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "frontend/src/components/ui/sheet";
+} from "@/components/ui/sheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { MATCH_TIER_CLASSES, matchTierFor } from "./grantPresentation";
-import { formatDeadline } from "frontend/src/utils/deadline";
+import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
   grant: Grant | null;

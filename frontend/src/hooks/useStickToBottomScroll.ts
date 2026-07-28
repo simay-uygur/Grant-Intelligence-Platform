@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Conversation } from "frontend/src/types";
+import type { Conversation } from "@/types";
 
 // How close to the bottom (in px) counts as "at the bottom" for stick-to-bottom scrolling.
 const NEAR_BOTTOM_THRESHOLD = 96;

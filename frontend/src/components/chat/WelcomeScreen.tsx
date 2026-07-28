@@ -1,6 +1,6 @@
 import { Compass, FileText, Scale, Search, ShieldCheck } from "lucide-react";
 import type { ComponentType } from "react";
-import { Button } from "frontend/src/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 interface Suggestion {
   label: string;

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Check, Compass, Copy, RotateCcw, User } from "lucide-react";
 import { format } from "date-fns";
-import type { ChatBlock, ChatMessage } from "frontend/src/types";
-import { cn } from "frontend/src/lib/utils";
-import { Button } from "frontend/src/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "frontend/src/components/ui/tooltip";
+import type { ChatBlock, ChatMessage } from "@/types";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BlockRenderer, type BlockCallbacks } from "./BlockRenderer";
 
 interface Props {

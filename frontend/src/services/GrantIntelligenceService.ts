@@ -2,7 +2,7 @@ import type {
   ApplicationDocument,
   Grant,
   OrganisationProfile,
-} from "frontend/src/types";
+} from "@/types";
 
 export interface GrantIntelligenceService {
   searchGrants(profile: OrganisationProfile): Promise<Grant[]>;

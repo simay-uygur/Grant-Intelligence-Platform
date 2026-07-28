@@ -1,9 +1,9 @@
 import { AlertCircle, Check, Search } from "lucide-react";
-import type { ResearchState, ResearchStep } from "frontend/src/types";
-import { cn } from "frontend/src/lib/utils";
-import { Card, CardHeader, CardContent } from "frontend/src/components/ui/card";
-import { Button } from "frontend/src/components/ui/button";
-import { Progress } from "frontend/src/components/ui/progress";
+import type { ResearchState, ResearchStep } from "@/types";
+import { cn } from "@/lib/utils";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 interface Props {
   state: ResearchState;

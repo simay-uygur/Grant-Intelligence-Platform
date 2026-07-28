@@ -1,9 +1,9 @@
-import type { ApplicationDocument, ChatBlock, Grant, OrganisationProfile } from "frontend/src/types";
-import { OrganisationForm } from "frontend/src/components/widgets/OrganisationForm";
-import { ResearchStatus } from "frontend/src/components/widgets/ResearchStatus";
-import { GrantResults } from "frontend/src/components/grants/GrantResults";
-import { ApplicationDocumentView } from "frontend/src/components/documents/ApplicationDocument";
-import { InlineNotice } from "frontend/src/components/common/InlineNotice";
+import type { ApplicationDocument, ChatBlock, Grant, OrganisationProfile } from "@/types";
+import { OrganisationForm } from "@/components/widgets/OrganisationForm";
+import { ResearchStatus } from "@/components/widgets/ResearchStatus";
+import { GrantResults } from "@/components/grants/GrantResults";
+import { ApplicationDocumentView } from "@/components/documents/ApplicationDocument";
+import { InlineNotice } from "@/components/common/InlineNotice";
 import { AlertCircle, CheckCircle2, Compass } from "lucide-react";
 
 export interface BlockCallbacks {

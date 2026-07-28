@@ -1,19 +1,19 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
-import type { OrganisationProfile } from "frontend/src/types";
-import { cn } from "frontend/src/lib/utils";
-import { Card, CardHeader, CardContent, CardFooter } from "frontend/src/components/ui/card";
-import { Button } from "frontend/src/components/ui/button";
-import { Input } from "frontend/src/components/ui/input";
-import { Textarea } from "frontend/src/components/ui/textarea";
-import { Label } from "frontend/src/components/ui/label";
+import type { OrganisationProfile } from "@/types";
+import { cn } from "@/lib/utils";
+import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "frontend/src/components/ui/select";
+} from "@/components/ui/select";
 
 interface Props {
   initial?: Partial<OrganisationProfile>;

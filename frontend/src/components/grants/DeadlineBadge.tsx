@@ -1,6 +1,6 @@
-import { Badge } from "frontend/src/components/ui/badge";
-import { cn } from "frontend/src/lib/utils";
-import { deadlineUrgency } from "frontend/src/utils/deadline";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { deadlineUrgency } from "@/utils/deadline";
 
 interface Props {
   deadline: string;

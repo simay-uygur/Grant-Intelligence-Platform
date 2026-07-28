@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChatBlock, ChatMessage } from "frontend/src/types";
+import type { ChatBlock, ChatMessage } from "@/types";
 import type { BlockCallbacks } from "./BlockRenderer";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { ProcessingIndicator } from "./ProcessingIndicator";

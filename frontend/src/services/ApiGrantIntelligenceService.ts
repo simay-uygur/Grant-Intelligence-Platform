@@ -1,4 +1,4 @@
-import type { ApplicationDocument, Grant, OrganisationProfile } from "frontend/src/types";
+import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
 import type { GrantIntelligenceService } from "./GrantIntelligenceService";
 import { ApiClient } from "./apiClient";
 

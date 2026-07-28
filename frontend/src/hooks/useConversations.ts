@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { storage } from "frontend/src/storage/localStorage";
+import { storage } from "@/storage/localStorage";
 import type {
   ApplicationDocument,
   ChatBlock,
@@ -7,7 +7,7 @@ import type {
   Conversation,
   Grant,
   OrganisationProfile,
-} from "frontend/src/types";
+} from "@/types";
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto

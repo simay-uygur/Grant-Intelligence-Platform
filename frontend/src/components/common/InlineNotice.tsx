@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { AlertCircle, Info } from "lucide-react";
-import { cn } from "frontend/src/lib/utils";
+import { cn } from "@/lib/utils";
 
 export type NoticeTone = "error" | "warning" | "empty";
 

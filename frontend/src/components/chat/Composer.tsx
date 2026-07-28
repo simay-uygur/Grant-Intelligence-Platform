@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, MessageCircleQuestion, Mic, Paperclip, Send, X } from "lucide-react";
-import type { Grant } from "frontend/src/types";
-import { cn } from "frontend/src/lib/utils";
-import { useSpeechRecognition, type SpeechRecognitionState } from "frontend/src/hooks/useSpeechRecognition";
-import { Button } from "frontend/src/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "frontend/src/components/ui/tooltip";
-import { InlineNotice } from "frontend/src/components/common/InlineNotice";
+import type { Grant } from "@/types";
+import { cn } from "@/lib/utils";
+import { useSpeechRecognition, type SpeechRecognitionState } from "@/hooks/useSpeechRecognition";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { InlineNotice } from "@/components/common/InlineNotice";
 
 interface Props {
   value: string;

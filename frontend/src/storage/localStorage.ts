@@ -1,4 +1,4 @@
-import type { Conversation } from "frontend/src/types";
+import type { Conversation } from "@/types";
 
 const KEY_CONVERSATIONS = "gi.conversations.v1";
 const KEY_ACTIVE = "gi.activeConversationId.v1";
