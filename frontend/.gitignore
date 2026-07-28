@@ -1,0 +1,22 @@
+# Node/Bun build artifacts
+node_modules/
+.bun/
+dist/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Lockfiles
+bun.lockb
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
