@@ -3,7 +3,14 @@ import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
-import { grantService, isMockMode } from "@/services";
+import {
+  applicationService,
+  backendService,
+  chatService,
+  grantService,
+  isMockMode,
+} from "@/services";
+import type { ChatReply } from "@/services/ChatService";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
   ApplicationStage,
@@ -28,7 +35,7 @@ const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   application: "Ask to revise, expand, or improve this application…",
 };
 
-const RESEARCH_STEPS = [
+const MOCK_RESEARCH_STEPS = [
   "Understanding organisation profile",
   "Analysing funding requirements",
   "Checking geographical eligibility",
@@ -38,31 +45,67 @@ const RESEARCH_STEPS = [
   "Ranking the strongest matches",
 ];
 
-// Grant Q&A is answered locally by matching simple keywords against the
-// question and quoting the matching Grant field(s) — never invented, never
-// a real AI call. "Fact" answers quote structured fields verbatim; the
-// "why it matches" answer is explicitly labelled as the mock assistant's
-// canned explanation, since it's interpretive rather than a raw field.
+const LIVE_RESEARCH_STEPS = [
+  "Preparing search criteria",
+  "Searching live EU Horizon opportunities",
+];
+
+type BackendConnection =
+  | { status: "local" }
+  | { status: "checking" }
+  | { status: "connected"; appName: string; version: string }
+  | { status: "unavailable" };
+
+type BackendHistorySync =
+  | { status: "idle" }
+  | { status: "syncing"; conversationId: string }
+  | { status: "synced"; conversationId: string }
+  | { status: "error"; conversationId: string; message: string };
+
+function chatReplyBlocks(reply: ChatReply): ChatBlock[] {
+  return [
+    { type: "text", text: reply.assistantMessage },
+    ...reply.followUpQuestions.map(
+      (question): ChatBlock => ({ type: "question", text: question }),
+    ),
+  ];
+}
+
+const missingGrantFact = (grant: Grant, label: string): ChatBlock[] => [
+  {
+    type: "text",
+    text: `${label} was not supplied by ${grant.source || "this grant's source"} for this result. Open the official source when available for the authoritative call details.`,
+  },
+];
+
+// Grant Q&A remains local and only reports fields present on the record.
 function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
   const q = question.toLowerCase();
 
   if (/eligib/.test(q)) {
+    const organisation = grant.organisationEligibility?.join(", ");
+    const countries = grant.eligibleCountries?.join(", ");
+    if (!organisation && !countries) return missingGrantFact(grant, "Eligibility information");
     return [
       {
         type: "text",
-        text: `From this grant's record — organisation eligibility: ${grant.organisationEligibility.join(", ")}. Eligible countries / regions: ${grant.eligibleCountries.join(", ")}.`,
+        text: `From this grant's record — ${organisation ? `organisation eligibility: ${organisation}. ` : ""}${countries ? `Eligible countries / regions: ${countries}.` : ""}`.trim(),
       },
     ];
   }
   if (/fund|amount|budget|money|€|much/.test(q)) {
+    if (!grant.fundingAmount && !grant.fundingType) {
+      return missingGrantFact(grant, "Funding information");
+    }
     return [
       {
         type: "text",
-        text: `From this grant's record — funding: ${grant.fundingAmount} (${grant.fundingType}).`,
+        text: `From this grant's record — funding: ${[grant.fundingAmount, grant.fundingType].filter(Boolean).join(" · ")}.`,
       },
     ];
   }
   if (/deadline|when|due|close|date/.test(q)) {
+    if (!grant.deadline) return missingGrantFact(grant, "The deadline");
     return [
       {
         type: "text",
@@ -71,22 +114,34 @@ function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
     ];
   }
   if (/match|why|fit|suit|align/.test(q)) {
+    if (!grant.whyItMatches) return missingGrantFact(grant, "A match explanation");
     return [
       {
         type: "text",
-        text: `Mock assistant explanation — ${grant.whyItMatches}`,
+        text:
+          grant.provenance === "live"
+            ? `Source match explanation — ${grant.whyItMatches}`
+            : `Demo match explanation — ${grant.whyItMatches}`,
       },
     ];
   }
 
+  const availableTopics = [
+    (grant.organisationEligibility?.length || grant.eligibleCountries?.length) && "eligibility",
+    (grant.fundingAmount || grant.fundingType) && "funding",
+    grant.deadline && "the deadline",
+    grant.whyItMatches && "why it was returned",
+  ].filter(Boolean);
   return [
     {
       type: "text",
-      text: `From this grant's record, I can answer questions about eligibility, funding amount, the deadline, or why ${grant.title} matches your project.`,
+      text: availableTopics.length
+        ? `From this grant's record, I can answer questions about ${availableTopics.join(", ")}.`
+        : `This result includes a title and summary for ${grant.title}, but its source did not provide detailed eligibility, funding, deadline, or match fields.`,
     },
     {
       type: "text",
-      text: "Mock assistant note — this is a simulated response using only the demo data shown for this grant, not a live AI model. Try one of the suggested questions below, or start the application when you're ready.",
+      text: "This is a local, rule-based answer using only the grant fields shown here—not a live AI response.",
     },
   ];
 }
@@ -115,8 +170,41 @@ export function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
+  const [backendConnection, setBackendConnection] = useState<BackendConnection>(
+    isMockMode ? { status: "local" } : { status: "checking" },
+  );
+  const [backendHistorySync, setBackendHistorySync] = useState<BackendHistorySync>({
+    status: "idle",
+  });
   const researchInFlight = useRef(false);
+  const historySyncRequest = useRef(0);
   const isMobile = useIsMobile();
+
+  useEffect(() => {
+    if (!backendService) {
+      setBackendConnection({ status: "local" });
+      return;
+    }
+    let cancelled = false;
+    setBackendConnection({ status: "checking" });
+    backendService
+      .getInfo()
+      .then((info) => {
+        if (!cancelled) {
+          setBackendConnection({
+            status: "connected",
+            appName: info.appName,
+            version: info.version,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBackendConnection({ status: "unavailable" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // If the viewport grows past the mobile breakpoint while the sheet is open
   // (resize/rotate), close it so it can't sit open over the now-visible desktop sidebar.
@@ -165,48 +253,110 @@ export function App() {
     [appendMessage, uid],
   );
 
+  const synchronizeBackendHistory = useCallback(
+    async (conversationId: string, backendConversationId: string) => {
+      if (!chatService) return;
+      const requestId = ++historySyncRequest.current;
+      setBackendHistorySync({ status: "syncing", conversationId });
+      try {
+        const messages = await chatService.getMessages(backendConversationId);
+        if (historySyncRequest.current !== requestId) return;
+        c.synchronizeBackendMessages(conversationId, messages);
+        setBackendHistorySync({ status: "synced", conversationId });
+      } catch (error) {
+        if (historySyncRequest.current !== requestId) return;
+        setBackendHistorySync({
+          status: "error",
+          conversationId,
+          message:
+            error instanceof Error
+              ? error.message
+              : "The backend conversation history could not be loaded.",
+        });
+      }
+    },
+    [c.synchronizeBackendMessages],
+  );
+
+  useEffect(() => {
+    const conversationId = c.activeConversation?.id;
+    const backendConversationId = c.activeConversation?.backendConversationId;
+    if (!chatService || !conversationId || !backendConversationId) {
+      historySyncRequest.current += 1;
+      setBackendHistorySync({ status: "idle" });
+      return;
+    }
+    void synchronizeBackendHistory(conversationId, backendConversationId);
+  }, [
+    c.activeConversation?.backendConversationId,
+    c.activeConversation?.id,
+    synchronizeBackendHistory,
+  ]);
+
   const runResearch = useCallback(
-    async (profile: OrganisationProfile, initialError?: boolean) => {
+    async (profile: OrganisationProfile) => {
       if (researchInFlight.current) return;
       researchInFlight.current = true;
       setBusy(true);
       c.setStage("researching");
 
+      const researchSteps = isMockMode ? MOCK_RESEARCH_STEPS : LIVE_RESEARCH_STEPS;
       const state: ResearchState = {
-        steps: RESEARCH_STEPS.map((label, i) => ({
+        steps: researchSteps.map((label, i) => ({
           label,
-          status: i === 0 ? "active" : "pending",
+          status: isMockMode
+            ? i === 0
+              ? "active"
+              : "pending"
+            : i === 0
+              ? "done"
+              : "active",
         })),
       };
       const messageId = askAssistant([{ type: "research_status", state }]);
 
       try {
-        for (let i = 0; i < RESEARCH_STEPS.length; i++) {
-          await new Promise((r) => setTimeout(r, 450));
-          setBlocks(messageId, (blocks) =>
-            blocks.map((b) => {
-              if (b.type !== "research_status") return b;
-              const steps = b.state.steps.map((s, idx) => {
-                if (idx < i + 1) return { ...s, status: "done" as const };
-                if (idx === i + 1) return { ...s, status: "active" as const };
-                return { ...s, status: "pending" as const };
-              });
-              return { type: "research_status", state: { steps } };
-            }),
-          );
+        if (isMockMode) {
+          for (let i = 0; i < researchSteps.length; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 450));
+            setBlocks(messageId, (blocks) =>
+              blocks.map((block) => {
+                if (block.type !== "research_status") return block;
+                const steps = block.state.steps.map((step, idx) => {
+                  if (idx < i + 1) return { ...step, status: "done" as const };
+                  if (idx === i + 1) return { ...step, status: "active" as const };
+                  return { ...step, status: "pending" as const };
+                });
+                return { type: "research_status", state: { steps } };
+              }),
+            );
+          }
         }
 
-        if (initialError) throw new Error("Simulated network error");
-
-        const grants = await grantService.searchGrants(profile);
+        const result = await grantService.searchGrants(profile);
+        const grants = result.grants;
+        setBlocks(messageId, (blocks) =>
+          blocks.map((block) =>
+            block.type === "research_status"
+              ? {
+                  type: "research_status",
+                  state: {
+                    steps: block.state.steps.map((step) => ({ ...step, status: "done" as const })),
+                  },
+                }
+              : block,
+          ),
+        );
         c.setGrants(grants);
         c.setStage("results");
         askAssistant([
           {
             type: "text",
-            text: `I found ${grants.length} strong matches for ${profile.organisationName}. Here are the top three, ranked by fit:`,
+            text: isMockMode
+              ? `I found ${grants.length} demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
+              : `I found ${grants.length} live Horizon ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results come directly from the backend search; fields not supplied by the source are left blank.`,
           },
-          { type: "grant_results", grants },
+          { type: "grant_results", grants, sourceSummary: result.sourceSummary },
         ]);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Research failed";
@@ -240,7 +390,9 @@ export function App() {
       askAssistant([
         {
           type: "text",
-          text: "Thanks — that's enough to start. Let me research the best matches across European programmes.",
+          text: isMockMode
+            ? "Thanks — that's enough to start. Let me research the best demo matches across European programmes."
+            : "Thanks — that's enough to start. I’ll search the live Horizon opportunities available through the backend.",
         },
       ]);
       void runResearch(profile);
@@ -258,10 +410,20 @@ export function App() {
     (grant: Grant) => {
       setAskingAboutGrant(grant);
       askUser([{ type: "text", text: `Tell me more about ${grant.title}.` }]);
+      const facts = [
+        grant.programme && `Programme: ${grant.programme}`,
+        !grant.programme && grant.source && `Source: ${grant.source}`,
+        grant.fundingAmount && `Funding: ${grant.fundingAmount}`,
+        grant.fundingType && `Funding type: ${grant.fundingType}`,
+        grant.deadline && `Deadline: ${grant.deadline}`,
+      ].filter((fact): fact is string => Boolean(fact));
+      const requirements = grant.requirements?.length
+        ? `\n\nKey requirements:\n${grant.requirements.map((requirement) => `• ${requirement}`).join("\n")}`
+        : "";
       askAssistant([
         {
           type: "text",
-          text: `${grant.title} is part of the ${grant.programme}. It offers ${grant.fundingAmount} as ${grant.fundingType.toLowerCase()}, with a deadline on ${grant.deadline}.\n\nKey requirements:\n${grant.requirements.map((r) => `• ${r}`).join("\n")}\n\nOpen the source link on the card for the official call text, or start an application to draft your proposal here.`,
+          text: `${grant.title}\n\n${grant.description}${facts.length ? `\n\n${facts.join("\n")}` : ""}${requirements}\n\nOpen the official source when available, or start a local application draft here.`,
         },
       ]);
     },
@@ -274,13 +436,16 @@ export function App() {
       setAskingAboutGrant(null);
       setBusy(true);
       try {
-        const doc = await grantService.startApplication(grant, c.activeConversation.profile);
+        const doc = await applicationService.startApplication(
+          grant,
+          c.activeConversation.profile,
+        );
         c.setDocument(doc, grant.id);
         c.setStage("application");
         askAssistant([
           {
             type: "success",
-            message: `Application draft created for ${grant.title}. Edit any section, or use Rewrite with AI.`,
+            message: `Local application draft created for ${grant.title}. Edit any section, try the simulated local rewrite, or export it.`,
           },
           { type: "document", documentId: doc.id },
         ]);
@@ -291,6 +456,51 @@ export function App() {
     [askAssistant, c],
   );
 
+  const sendBackendChatMessage = useCallback(
+    async (text: string, includeProfileForm = false) => {
+      const activeConversation = c.activeConversation;
+      if (!chatService || !activeConversation) return;
+      setBusy(true);
+      try {
+        let backendConversationId = activeConversation.backendConversationId;
+        if (!backendConversationId) {
+          const backendConversation = await chatService.createConversation();
+          backendConversationId = backendConversation.conversationId;
+          c.setBackendConversationId(backendConversationId);
+        }
+
+        const reply = await chatService.sendMessage({
+          conversationId: backendConversationId,
+          sessionId: activeConversation.id,
+          userMessage: text,
+          profile: activeConversation.profile,
+        });
+        if (reply.conversationId !== backendConversationId) {
+          c.setBackendConversationId(reply.conversationId);
+        }
+        const blocks = chatReplyBlocks(reply);
+        if (includeProfileForm) blocks.push({ type: "structured_form" });
+        askAssistant(blocks);
+        void synchronizeBackendHistory(activeConversation.id, reply.conversationId);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "The backend chat request failed.";
+        const blocks: ChatBlock[] = [{ type: "error", message }];
+        if (includeProfileForm) {
+          blocks.push({
+            type: "text",
+            text: "You can still complete the local profile form and run grant search directly.",
+          });
+          blocks.push({ type: "structured_form" });
+        }
+        askAssistant(blocks);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [askAssistant, c, synchronizeBackendHistory],
+  );
+
   const handleUserSend = useCallback(
     (text: string) => {
       askUser([{ type: "text", text }]);
@@ -299,20 +509,26 @@ export function App() {
         askAssistant(answerAboutGrant(text, askingAboutGrant));
       } else if (stage === "welcome") {
         c.setStage("collecting_information");
-        askAssistant([
-          {
-            type: "text",
-            text: "Great — to match you to the strongest calls, please complete this short profile.",
-          },
-          { type: "structured_form" },
-        ]);
+        if (chatService) {
+          void sendBackendChatMessage(text, true);
+        } else {
+          askAssistant([
+            {
+              type: "text",
+              text: "Great — to match you to the strongest calls, please complete this short profile.",
+            },
+            { type: "structured_form" },
+          ]);
+        }
       } else if (stage === "application") {
         askAssistant([
           {
             type: "text",
-            text: "You can edit any section directly, click Rewrite with AI to regenerate it, or export the whole document as PDF or Word.",
+            text: "You can edit any section directly, try the simulated local rewrite, or export the whole document as PDF or Word.",
           },
         ]);
+      } else if (chatService) {
+        void sendBackendChatMessage(text);
       } else {
         askAssistant([
           {
@@ -322,7 +538,7 @@ export function App() {
         ]);
       }
     },
-    [askAssistant, askUser, askingAboutGrant, c],
+    [askAssistant, askUser, askingAboutGrant, c, sendBackendChatMessage],
   );
 
   const runDemo = useCallback(async () => {
@@ -385,7 +601,7 @@ export function App() {
       // that's no longer in this conversation's current grants (e.g. after
       // a second research pass replaced it). This lookup is synchronous
       // because it runs during render (BlockRenderer -> ApplicationDocumentView).
-      // TODO(api): once a real backend exists, replace this fallback with
+      // TODO(api): once a grant-details endpoint exists, replace this fallback with
       // GET /grants/{id} — that will require getGrantById to become async
       // and the render path here to move to a loading-aware pattern; not
       // done now since it's a real behavioural change, not just a data-source swap.
@@ -407,6 +623,25 @@ export function App() {
   );
 
   const active = c.activeConversation;
+  const connectionLabel =
+    backendConnection.status === "local"
+      ? "Connected · Mock mode"
+      : backendConnection.status === "checking"
+        ? "Checking backend… · API mode"
+        : backendConnection.status === "connected"
+          ? `Connected · Backend v${backendConnection.version}`
+          : "Backend unavailable · API mode";
+  const connectionDotClass =
+    backendConnection.status === "connected" || backendConnection.status === "local"
+      ? "bg-success"
+      : backendConnection.status === "checking"
+        ? "bg-warning"
+        : "bg-destructive";
+  const activeHistorySync =
+    backendHistorySync.status !== "idle" &&
+    backendHistorySync.conversationId === active?.id
+      ? backendHistorySync
+      : undefined;
 
   // Show a lightweight "assistant is working" indicator for gaps where busy
   // work is happening but no research_status block (which has its own
@@ -452,6 +687,7 @@ export function App() {
         onSelect={c.selectConversation}
         onNew={c.newConversation}
         onDelete={c.deleteConversation}
+        isMockMode={isMockMode}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
@@ -459,6 +695,7 @@ export function App() {
         conversations={c.conversations}
         activeId={c.activeId}
         onSelect={c.selectConversation}
+        isMockMode={isMockMode}
         onNew={c.newConversation}
         onDelete={c.deleteConversation}
       />
@@ -489,16 +726,31 @@ export function App() {
               </h1>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                  Connected · {isMockMode ? "Mock mode" : "API mode"}
+                  <span className={`h-1.5 w-1.5 rounded-full ${connectionDotClass}`} />
+                  {connectionLabel}
                 </span>
                 {active && (
                   <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
                 )}
+                {activeHistorySync?.status === "syncing" && (
+                  <span role="status">Syncing history…</span>
+                )}
+                {activeHistorySync?.status === "synced" && (
+                  <span role="status">History synced</span>
+                )}
+                {activeHistorySync?.status === "error" && (
+                  <span
+                    role="status"
+                    className="text-destructive"
+                    title={activeHistorySync.message}
+                  >
+                    History sync failed
+                  </span>
+                )}
               </div>
             </div>
           </div>
-          {active?.stage === "welcome" && (
+          {isMockMode && active?.stage === "welcome" && (
             <button
               type="button"
               onClick={runDemo}
@@ -527,7 +779,11 @@ export function App() {
           <div ref={scrollContainerRef} className="h-full overflow-y-auto">
             {active ? (
               isFreshWelcome ? (
-                <WelcomeScreen onQuickStart={handleUserSend} onFillComposer={setComposerValue} />
+                <WelcomeScreen
+                  onQuickStart={handleUserSend}
+                  onFillComposer={setComposerValue}
+                  isMockMode={isMockMode}
+                />
               ) : (
                 <MessageList
                   messages={active.messages}
@@ -582,6 +838,7 @@ export function App() {
           disabled={busy || !active}
           onSend={handleUserSend}
           placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
+          isMockMode={isMockMode}
           grantContext={askingAboutGrant}
           onClearGrantContext={() => setAskingAboutGrant(null)}
         />

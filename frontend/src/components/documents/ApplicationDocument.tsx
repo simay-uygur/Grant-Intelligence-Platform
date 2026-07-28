@@ -18,7 +18,7 @@ import type {
   OrganisationProfile,
 } from "@/types";
 import { exportAsPdf, exportAsWord } from "@/utils/export";
-import { grantService } from "@/services";
+import { applicationService } from "@/services";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -135,7 +135,12 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     const currentText = isEditingSection ? drafts[section.id] : section.content;
     setRewritingId(section.id);
     try {
-      const next = await grantService.rewriteSection(section.title, currentText, profile, grant);
+      const next = await applicationService.rewriteSection(
+        section.title,
+        currentText,
+        profile,
+        grant,
+      );
       setLastRewrite({
         sectionId: section.id,
         previousText: currentText,
@@ -199,8 +204,8 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                 {doc.grantTitle}
               </h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                A local writing workspace for this application — edit each section, try the mock
-                rewrite tool, then export.
+                A local writing workspace for this application — edit each section, try the
+                simulated local rewrite tool, then export.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 sm:shrink-0">
@@ -375,7 +380,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
             <DialogTitle>Replace your edits with a rewrite?</DialogTitle>
             <DialogDescription>
               {pendingRewriteSection
-                ? `"${pendingRewriteSection.title}" has manually edited text that hasn't been saved yet. Running the mock rewrite will replace it in the editor. You'll get one undo right after it runs.`
+                ? `"${pendingRewriteSection.title}" has manually edited text that hasn't been saved yet. Running the local rewrite will replace it in the editor. You'll get one undo right after it runs.`
                 : "This section has manually edited text that hasn't been saved yet."}
             </DialogDescription>
           </DialogHeader>
@@ -492,7 +497,7 @@ function SectionEditor({
                 ) : (
                   <Sparkles className="h-3 w-3" />
                 )}
-                Rewrite (mock AI)
+                Rewrite (local simulation)
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">

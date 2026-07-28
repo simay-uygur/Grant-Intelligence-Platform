@@ -2,6 +2,9 @@
 node_modules/
 .bun/
 dist/
+playwright-report/
+test-results/
+blob-report/
 
 # Env files
 .env

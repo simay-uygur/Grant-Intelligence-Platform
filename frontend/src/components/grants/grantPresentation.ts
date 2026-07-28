@@ -1,4 +1,13 @@
+import type { Grant } from "@/types";
+
 export type MatchTier = "excellent" | "strong" | "good" | "partial";
+export type GrantResultProvenance = "live" | "mock" | "saved";
+
+export function grantResultProvenance(grants: Grant[]): GrantResultProvenance {
+  if (grants.some((grant) => grant.provenance === "live")) return "live";
+  if (grants.length > 0 && grants.every((grant) => grant.provenance === "mock")) return "mock";
+  return "saved";
+}
 
 export function matchTierFor(percentage: number): MatchTier {
   if (percentage >= 85) return "excellent";

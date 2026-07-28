@@ -59,49 +59,75 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
           <>
             <SheetHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
               <div className="text-[11px] font-medium uppercase tracking-wider text-brand">
-                {grant.programme}
+                {grant.programme || grant.source || "Grant opportunity"}
               </div>
               <SheetTitle className="text-base leading-snug">{grant.title}</SheetTitle>
               <SheetDescription>
-                Full details for this grant, limited to what this demo has available.
+                {grant.provenance === "live"
+                  ? "Details returned by the live backend. Missing source fields are not inferred."
+                  : "Full details available in the local demo catalogue."}
               </SheetDescription>
             </SheetHeader>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <div className="space-y-5 text-sm">
                 <Section title="Overview">
-                  <MatchScoreRow percentage={grant.matchPercentage} />
+                  {grant.matchPercentage !== undefined && (
+                    <MatchScoreRow percentage={grant.matchPercentage} />
+                  )}
                   <Field label="Description" value={grant.description} />
+                  {grant.source && <Field label="Source" value={grant.source} />}
                 </Section>
 
-                <Section title="Funding">
-                  <Field label="Amount" value={grant.fundingAmount} />
-                  <Field label="Type" value={grant.fundingType} />
-                </Section>
+                {(grant.fundingAmount || grant.fundingType) && (
+                  <Section title="Funding">
+                    {grant.fundingAmount && <Field label="Amount" value={grant.fundingAmount} />}
+                    {grant.fundingType && <Field label="Type" value={grant.fundingType} />}
+                  </Section>
+                )}
 
-                <Section title="Deadline">
-                  <DeadlineRow deadline={grant.deadline} />
-                </Section>
+                {grant.deadline && (
+                  <Section title="Deadline">
+                    <DeadlineRow deadline={grant.deadline} />
+                  </Section>
+                )}
 
-                <Section title="Eligibility">
-                  <ListField
-                    label="Organisation eligibility"
-                    items={grant.organisationEligibility}
-                  />
-                  <ListField label="Requirements" items={grant.requirements} />
-                </Section>
+                {(grant.organisationEligibility?.length || grant.requirements?.length) && (
+                  <Section title="Eligibility">
+                    {grant.organisationEligibility?.length ? (
+                      <ListField
+                        label="Organisation eligibility"
+                        items={grant.organisationEligibility}
+                      />
+                    ) : null}
+                    {grant.requirements?.length ? (
+                      <ListField label="Requirements" items={grant.requirements} />
+                    ) : null}
+                  </Section>
+                )}
 
-                <Section title="Geographic scope">
-                  <ListField label="Eligible countries / regions" items={grant.eligibleCountries} />
-                </Section>
+                {grant.eligibleCountries?.length ? (
+                  <Section title="Geographic scope">
+                    <ListField
+                      label="Eligible countries / regions"
+                      items={grant.eligibleCountries}
+                    />
+                  </Section>
+                ) : null}
 
-                <Section title="Why it matches">
-                  <Field label="Summary" value={grant.whyItMatches} />
-                  <ListField label="Match reasons" items={grant.matchReasons} />
-                </Section>
+                {(grant.whyItMatches || grant.matchReasons?.length) && (
+                  <Section title="Why it was returned">
+                    {grant.whyItMatches && (
+                      <Field label="Summary" value={grant.whyItMatches} />
+                    )}
+                    {grant.matchReasons?.length ? (
+                      <ListField label="Match reasons" items={grant.matchReasons} />
+                    ) : null}
+                  </Section>
+                )}
 
-                <Section title="Source">
-                  {grant.sourceUrl.trim() ? (
+                {grant.sourceUrl && (
+                  <Section title="Official source">
                     <a
                       href={grant.sourceUrl}
                       target="_blank"
@@ -111,14 +137,10 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                       <ExternalLink className="h-3.5 w-3.5" />
                       Open official source
                     </a>
-                  ) : (
-                    <p className="text-xs italic text-muted-foreground">
-                      Not available in demo data.
-                    </p>
-                  )}
-                </Section>
+                  </Section>
+                )}
 
-                {grant.tags.length > 0 && (
+                {grant.tags?.length ? (
                   <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
                     {grant.tags.map((t) => (
                       <Badge key={t} variant="secondary" className="font-normal">
@@ -126,7 +148,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                       </Badge>
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
 

@@ -26,18 +26,24 @@ import {
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { InlineNotice } from "@/components/common/InlineNotice";
-import { MATCH_TIER_CLASSES, type MatchTier, matchTierFor } from "./grantPresentation";
+import {
+  grantResultProvenance,
+  MATCH_TIER_CLASSES,
+  type MatchTier,
+  matchTierFor,
+} from "./grantPresentation";
 import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
   grants: Grant[];
+  sourceSummary?: string;
   onAsk: (grant: Grant) => void;
   onStart: (grant: Grant) => void;
 }
 
 const MAX_COMPARE = 3;
 
-export function GrantResults({ grants, onAsk, onStart }: Props) {
+export function GrantResults({ grants, sourceSummary, onAsk, onStart }: Props) {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
@@ -73,6 +79,7 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
     () => grants.filter((g) => compareIds.has(g.id)),
     [grants, compareIds],
   );
+  const provenance = grantResultProvenance(grants);
 
   // Defensive empty state — grants is always populated by the mock service
   // today, but an empty array is a perfectly valid value of the existing
@@ -91,14 +98,31 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">
-            Top {grants.length} matched grant{grants.length === 1 ? "" : "s"}
+            {provenance === "mock" ? "Top " : ""}
+            {grants.length} grant{grants.length === 1 ? "" : "s"}
           </h3>
           <p className="text-xs text-muted-foreground">
-            Ranked by fit with your organisation profile.
+            {sourceSummary ??
+              (provenance === "mock"
+                ? "Demo results ranked by fit with your organisation profile."
+                : "Saved grant search results.")}
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-amber-300/50 bg-amber-100/60 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-          Demo data
+        <span
+          className={cn(
+            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+            provenance === "live"
+              ? "border-success/40 bg-success/10 text-success"
+              : provenance === "mock"
+                ? "border-amber-300/50 bg-amber-100/60 text-amber-800"
+                : "border-border bg-muted text-muted-foreground",
+          )}
+        >
+          {provenance === "live"
+            ? "Live EU Horizon"
+            : provenance === "mock"
+              ? "Demo data"
+              : "Saved results"}
         </span>
       </div>
 
@@ -156,22 +180,31 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
               <tbody>
                 <CompareRow
                   label="Match score"
-                  values={compareGrants.map((g) => `${g.matchPercentage}%`)}
+                  values={compareGrants.map((g) =>
+                    g.matchPercentage === undefined ? undefined : `${g.matchPercentage}%`,
+                  )}
                 />
                 <CompareRow label="Funding" values={compareGrants.map((g) => g.fundingAmount)} />
                 <CompareRow
                   label="Deadline"
-                  values={compareGrants.map((g) => formatDeadline(g.deadline))}
+                  values={compareGrants.map((g) =>
+                    g.deadline ? formatDeadline(g.deadline) : undefined,
+                  )}
                 />
                 <CompareRow
                   label="Eligible countries"
-                  values={compareGrants.map((g) => g.eligibleCountries.join(", "))}
+                  values={compareGrants.map((g) => g.eligibleCountries?.join(", "))}
                 />
                 <CompareRow
                   label="Org eligibility"
-                  values={compareGrants.map((g) => g.organisationEligibility.join(", "))}
+                  values={compareGrants.map((g) => g.organisationEligibility?.join(", "))}
                 />
-                <CompareRow label="Programme" values={compareGrants.map((g) => g.programme)} />
+                <CompareRow
+                  label="Programme / source"
+                  values={compareGrants.map(
+                    (g) => g.programme || g.source,
+                  )}
+                />
               </tbody>
             </table>
           </div>
@@ -189,13 +222,20 @@ export function GrantResults({ grants, onAsk, onStart }: Props) {
   );
 }
 
-function CompareRow({ label, values }: { label: string; values: string[] }) {
+function CompareRow({
+  label,
+  values,
+}: {
+  label: string;
+  values: Array<string | undefined>;
+}) {
+  if (values.every((value) => !value?.trim())) return null;
   return (
     <tr className="border-b border-border/60 align-top">
       <td className="py-2 pr-3 font-medium text-muted-foreground">{label}</td>
       {values.map((v, i) => (
         <td key={i} className="max-w-[160px] break-words py-2 pr-3 text-foreground">
-          {v}
+          {v?.trim() || "Not available"}
         </td>
       ))}
     </tr>
@@ -223,15 +263,23 @@ function GrantCard({
   onToggleCompare: () => void;
   compareDisabled: boolean;
 }) {
-  const matchTier = matchTierFor(grant.matchPercentage);
+  const matchTier =
+    grant.matchPercentage === undefined ? undefined : matchTierFor(grant.matchPercentage);
   const compareId = `compare-${grant.id}`;
+  const hasFacts = Boolean(
+    grant.fundingAmount ||
+      grant.deadline ||
+      grant.fundingType ||
+      grant.eligibleCountries?.length ||
+      grant.organisationEligibility?.length,
+  );
 
   return (
     <article className="rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-5">
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 p-0">
         <div className="min-w-0 flex-1">
           <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
-            {grant.programme}
+            {grant.programme || grant.source || "Grant opportunity"}
           </div>
           <button
             type="button"
@@ -247,7 +295,9 @@ function GrantCard({
         </div>
 
         <div className="flex shrink-0 items-start gap-2">
-          <MatchMeter percentage={grant.matchPercentage} tier={matchTier} />
+          {grant.matchPercentage !== undefined && matchTier && (
+            <MatchMeter percentage={grant.matchPercentage} tier={matchTier} />
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -267,46 +317,58 @@ function GrantCard({
       </CardHeader>
 
       <CardContent className="p-0">
-        <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-xs sm:grid-cols-3">
-          <Fact label="Funding" value={grant.fundingAmount} />
-          <Fact
-            label="Deadline"
-            value={formatDeadline(grant.deadline)}
-            icon={<CalendarClock className="h-3 w-3" />}
-            badge={<DeadlineBadge deadline={grant.deadline} compact />}
-          />
-          <Fact label="Funding type" value={grant.fundingType} />
-          <Fact
-            label="Eligible countries"
-            value={grant.eligibleCountries.join(", ")}
-            icon={<Globe2 className="h-3 w-3" />}
-          />
-          <Fact
-            label="Organisation eligibility"
-            value={grant.organisationEligibility.join(", ")}
-            icon={<Users className="h-3 w-3" />}
-            className="col-span-2 sm:col-span-1"
-          />
-        </dl>
+        {hasFacts && (
+          <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-xs sm:grid-cols-3">
+            {grant.fundingAmount && <Fact label="Funding" value={grant.fundingAmount} />}
+            {grant.deadline && (
+              <Fact
+                label="Deadline"
+                value={formatDeadline(grant.deadline)}
+                icon={<CalendarClock className="h-3 w-3" />}
+                badge={<DeadlineBadge deadline={grant.deadline} compact />}
+              />
+            )}
+            {grant.fundingType && <Fact label="Funding type" value={grant.fundingType} />}
+            {grant.eligibleCountries?.length ? (
+              <Fact
+                label="Eligible countries"
+                value={grant.eligibleCountries.join(", ")}
+                icon={<Globe2 className="h-3 w-3" />}
+              />
+            ) : null}
+            {grant.organisationEligibility?.length ? (
+              <Fact
+                label="Organisation eligibility"
+                value={grant.organisationEligibility.join(", ")}
+                icon={<Users className="h-3 w-3" />}
+                className="col-span-2 sm:col-span-1"
+              />
+            ) : null}
+          </dl>
+        )}
 
-        <div className="mt-4 rounded-lg bg-brand/5 p-3">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-brand">
-            <Sparkles className="h-3.5 w-3.5" />
-            Why it matches
+        {grant.whyItMatches && (
+          <div className="mt-4 rounded-lg bg-brand/5 p-3">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-brand">
+              <Sparkles className="h-3.5 w-3.5" />
+              Why it was returned
+            </div>
+            <p className="mt-1 line-clamp-3 break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
+              {grant.whyItMatches}
+            </p>
           </div>
-          <p className="mt-1 line-clamp-3 break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
-            {grant.whyItMatches}
-          </p>
-        </div>
+        )}
       </CardContent>
 
       <CardFooter className="mt-5 flex flex-wrap items-center gap-2 p-0">
-        <Button asChild variant="outline" size="sm" className="rounded-lg hover:bg-muted">
-          <a href={grant.sourceUrl} target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="h-3.5 w-3.5" />
-            Open source
-          </a>
-        </Button>
+        {grant.sourceUrl && (
+          <Button asChild variant="outline" size="sm" className="rounded-lg hover:bg-muted">
+            <a href={grant.sourceUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open source
+            </a>
+          </Button>
+        )}
         <Button
           type="button"
           variant="outline"

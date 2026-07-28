@@ -13,6 +13,7 @@ interface Props {
   onSend: (text: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  isMockMode: boolean;
   /** The grant the user is currently asking about, if any — shown as a removable context chip. */
   grantContext?: Grant | null;
   onClearGrantContext?: () => void;
@@ -75,6 +76,7 @@ export function Composer({
   onSend,
   disabled,
   placeholder,
+  isMockMode,
   grantContext,
   onClearGrantContext,
 }: Props) {
@@ -377,7 +379,10 @@ export function Composer({
             </Tooltip>
           </div>
           <div className="mt-2 px-1 text-[11px] text-muted-foreground">
-            Mock mode • Responses use local demo data. Not legal or financial advice.
+            {isMockMode
+              ? "Mock mode • Responses use local demo data."
+              : "Live grant search • Grant Q&A and application drafts remain local."}{" "}
+            Not legal or financial advice.
           </div>
         </div>
       </div>

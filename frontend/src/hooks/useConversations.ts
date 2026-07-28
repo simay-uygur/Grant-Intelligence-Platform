@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { storage } from "@/storage/localStorage";
+import { mergeBackendHistory } from "@/services/chatHistory";
+import type { ChatHistoryMessage } from "@/services/ChatService";
 import type {
   ApplicationDocument,
   ChatBlock,
@@ -39,13 +41,9 @@ function initialConversation(): Conversation {
   };
 }
 
-// TODO(api): this hook is entirely local (React state + localStorage). Once
-// a backend exists, conversations/messages would sync through it instead —
-// see docs/api-contract.md ("Conversations" and "Chat") for the proposed
-// POST /conversations and POST /conversations/{id}/messages endpoints. That
-// would mean this hook (or a service it calls into) fetching/pushing
-// through grantService-style calls rather than storage directly; not done
-// now since no backend exists yet.
+// Structured UI blocks remain local because backend message history stores
+// plain user/assistant text. In API mode, backendConversationId links this
+// local conversation to the corresponding backend chat session.
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -162,6 +160,34 @@ export function useConversations() {
     [updateActive],
   );
 
+  const setBackendConversationId = useCallback(
+    (backendConversationId: string) => {
+      updateActive((c) => ({ ...c, backendConversationId }));
+    },
+    [updateActive],
+  );
+
+  const synchronizeBackendMessages = useCallback(
+    (conversationId: string, messages: ChatHistoryMessage[]) => {
+      setConversations((previous) => {
+        let changed = false;
+        const next = previous.map((conversation) => {
+          if (conversation.id !== conversationId) return conversation;
+          const mergedMessages = mergeBackendHistory(conversation.messages, messages);
+          if (mergedMessages === conversation.messages) return conversation;
+          changed = true;
+          return {
+            ...conversation,
+            messages: mergedMessages,
+            updatedAt: new Date().toISOString(),
+          };
+        });
+        return changed ? next : previous;
+      });
+    },
+    [],
+  );
+
   const setGrants = useCallback(
     (grants: Grant[]) => {
       updateActive((c) => ({ ...c, grants }));
@@ -206,6 +232,8 @@ export function useConversations() {
     updateMessageBlocks,
     setStage,
     setProfile,
+    setBackendConversationId,
+    synchronizeBackendMessages,
     setGrants,
     setDocument,
     updateDocumentSection,

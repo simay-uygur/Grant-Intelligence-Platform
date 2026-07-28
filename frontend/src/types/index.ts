@@ -34,29 +34,40 @@ export interface OrganisationProfile {
   eligibilityConstraints: string;
 }
 
+export type GrantProvenance = "mock" | "live";
+
 /**
- * A matched grant, already carrying its own recommendation fields
- * (matchPercentage/whyItMatches/matchReasons) rather than a separate
- * "GrantRecommendation" wrapper — a search always returns grants in the
- * context of a profile, so the match is intrinsic to the result, not a
- * separate relationship to model.
+ * Frontend grant model. Live sources only guarantee identity, source, title,
+ * and description; richer recommendation and eligibility fields are optional
+ * because the backend must not invent values its upstream source did not send.
+ *
+ * `provenance` is optional for backwards compatibility with conversations
+ * already stored in localStorage before live API integration was introduced.
  */
 export interface Grant {
   id: string;
-  programme: string;
+  /** Present on newly fetched grants; optional for legacy locally stored grants. */
+  source?: string;
   title: string;
-  matchPercentage: number;
-  fundingAmount: string;
-  deadline: string;
-  eligibleCountries: string[];
-  organisationEligibility: string[];
-  fundingType: string;
   description: string;
-  whyItMatches: string;
-  matchReasons: string[];
-  requirements: string[];
-  tags: string[];
-  sourceUrl: string;
+  provenance?: GrantProvenance;
+  programme?: string;
+  matchPercentage?: number;
+  fundingAmount?: string;
+  deadline?: string;
+  eligibleCountries?: string[];
+  organisationEligibility?: string[];
+  fundingType?: string;
+  whyItMatches?: string;
+  matchReasons?: string[];
+  requirements?: string[];
+  tags?: string[];
+  sourceUrl?: string;
+}
+
+export interface GrantSearchResult {
+  grants: Grant[];
+  sourceSummary: string;
 }
 
 /** One section of an Application (see ApplicationDocument). */
@@ -107,13 +118,15 @@ export type ChatBlock =
   | { type: "question"; text: string }
   | { type: "structured_form"; profile?: Partial<OrganisationProfile> }
   | { type: "research_status"; state: ResearchState }
-  | { type: "grant_results"; grants: Grant[] }
+  | { type: "grant_results"; grants: Grant[]; sourceSummary?: string }
   | { type: "document"; documentId: string }
   | { type: "error"; message: string }
   | { type: "success"; message: string };
 
 export interface ChatMessage {
   id: string;
+  /** Persisted backend message identifier, assigned when chat history is synchronized. */
+  backendMessageId?: number;
   role: "user" | "assistant";
   createdAt: string;
   blocks: ChatBlock[];
@@ -121,6 +134,8 @@ export interface ChatMessage {
 
 export interface Conversation {
   id: string;
+  /** Backend chat identifier; absent for mock mode and legacy local conversations. */
+  backendConversationId?: string;
   title: string;
   createdAt: string;
   updatedAt: string;

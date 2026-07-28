@@ -1,11 +1,6 @@
-import type {
-  ApplicationDocument,
-  Grant,
-  OrganisationProfile,
-} from "@/types";
+import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
 
-export interface GrantIntelligenceService {
-  searchGrants(profile: OrganisationProfile): Promise<Grant[]>;
+export interface ApplicationService {
   startApplication(
     grant: Grant,
     profile: OrganisationProfile,

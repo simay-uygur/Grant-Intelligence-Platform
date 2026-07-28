@@ -73,7 +73,7 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
           </h3>
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
             {hasError
-              ? "The simulated search hit a problem — you can retry below."
+              ? "The grant search hit a problem — you can retry below."
               : preparingResults
                 ? "Preparing your recommendations…"
                 : (activeStep?.label ?? "Matching your profile against the local demo dataset.")}

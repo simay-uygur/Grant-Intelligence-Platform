@@ -11,9 +11,10 @@ interface Suggestion {
 interface Props {
   onQuickStart: (text: string) => void;
   onFillComposer: (text: string) => void;
+  isMockMode: boolean;
 }
 
-export function WelcomeScreen({ onQuickStart, onFillComposer }: Props) {
+export function WelcomeScreen({ onQuickStart, onFillComposer, isMockMode }: Props) {
   const suggestions: Suggestion[] = [
     {
       label: "Find grants for my organisation",
@@ -74,8 +75,9 @@ export function WelcomeScreen({ onQuickStart, onFillComposer }: Props) {
       </div>
 
       <p className="mt-6 max-w-md text-[11px] text-muted-foreground">
-        Mock mode — this demo uses local sample data only. No real grant databases or AI models are
-        connected.
+        {isMockMode
+          ? "Mock mode — this demo uses local sample data only. No real grant databases or AI models are connected."
+          : "Live grant search is connected. Application drafts and grant Q&A remain local in this version."}
       </p>
     </div>
   );

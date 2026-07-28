@@ -1,31 +1,72 @@
-const DEFAULT_BASE_URL = "/api";
-
 /**
- * Minimal fetch boundary for the future FastAPI backend. This is the single
- * seam where cross-cutting API concerns (auth headers, retries, response
- * envelope unwrapping, error normalisation) would be added once a real
- * backend exists — individual service methods should never call `fetch`
- * directly.
- *
- * Only ever constructed by ApiGrantIntelligenceService, which is only used
- * when VITE_API_MODE=api. Mock mode never imports this file, so it makes no
- * network requests.
- *
- * TODO(api): add an Authorization header here once auth is introduced —
- * out of scope for now (see requirements: no auth, no backend connection yet).
+ * Normalized API error used by every live service. `status` is undefined for
+ * transport failures where no HTTP response was received.
  */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export function joinApiUrl(baseUrl: string | undefined, path: string): string {
+  const normalizedBase = (baseUrl ?? "").trim().replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
+async function errorDetail(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    return typeof body.detail === "string" && body.detail.trim()
+      ? body.detail.trim()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class ApiClient {
-  constructor(private readonly baseUrl: string = DEFAULT_BASE_URL) {}
+  constructor(
+    private readonly baseUrl?: string,
+    private readonly fetchImpl: typeof fetch = fetch,
+  ) {}
 
   async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: { "Content-Type": "application/json", ...init?.headers },
-    });
-    if (!res.ok) {
-      throw new Error(`API request failed: ${init?.method ?? "GET"} ${path} (${res.status})`);
+    const url = joinApiUrl(this.baseUrl, path);
+    let res: Response;
+    try {
+      // Browser fetch is a Web API method with a Window/Worker receiver.
+      // Calling a captured fetch as `this.fetchImpl(...)` passes ApiClient as
+      // its receiver and Chrome rejects it with "Illegal invocation" before
+      // any network request is made.
+      res = await this.fetchImpl.call(globalThis, url, {
+        ...init,
+        headers: { "Content-Type": "application/json", ...init?.headers },
+      });
+    } catch {
+      throw new ApiError(
+        "Unable to reach the grant backend. Check that it is running and try again.",
+      );
     }
+
+    if (!res.ok) {
+      const detail = await errorDetail(res);
+      throw new ApiError(
+        detail ??
+          `Grant backend request failed (${res.status}). Please try again.`,
+        res.status,
+      );
+    }
+
     if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
+    try {
+      return (await res.json()) as T;
+    } catch {
+      throw new ApiError("The grant backend returned an invalid JSON response.", res.status);
+    }
   }
 }

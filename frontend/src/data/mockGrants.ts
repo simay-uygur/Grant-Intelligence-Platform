@@ -3,6 +3,8 @@ import type { Grant } from "@/types";
 export const MOCK_GRANTS: Grant[] = [
   {
     id: "digital-europe",
+    source: "local_mock_catalogue",
+    provenance: "mock",
     programme: "Digital Europe Programme",
     title: "Digital Transformation Accelerator for SMEs",
     matchPercentage: 94,
@@ -33,6 +35,8 @@ export const MOCK_GRANTS: Grant[] = [
   },
   {
     id: "eic-accelerator",
+    source: "local_mock_catalogue",
+    provenance: "mock",
     programme: "European Innovation Council",
     title: "EIC Accelerator — Breakthrough Innovation",
     matchPercentage: 88,
@@ -62,6 +66,8 @@ export const MOCK_GRANTS: Grant[] = [
   },
   {
     id: "life-cet",
+    source: "local_mock_catalogue",
+    provenance: "mock",
     programme: "LIFE Programme",
     title: "LIFE Clean Energy Transition",
     matchPercentage: 81,
