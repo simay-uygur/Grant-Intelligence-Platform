@@ -1,267 +1,144 @@
-# Grant Navigator (frontend)
+# Grant Intelligence Platform
 
-Grant Navigator is a chat-first frontend that walks an organisation through a
-three-step profile (Organisation → Project → Funding preferences), then
-simulates matching, researching, and drafting a grant application inside the
-same conversation. In-app it is currently labelled "Grant Intelligence"; both
-names refer to the same project.
+Grant Intelligence Platform is now a merged frontend + backend repository.
+The frontend is a chat-first grant workflow built with React, TanStack Start,
+and Bun. The backend is a FastAPI service that powers conversation storage,
+grant search, and supporting API endpoints.
 
-This repository contains **only the frontend**. It runs entirely in the
-browser: grant matching, research, Q&A, and "Rewrite with AI" are all driven
-by a local mock service, and all data is persisted to `localStorage`. There is
-no backend, no database, no authentication, and no real AI model is called.
-Backend integration is planned and prepared for (see below) but not yet
-implemented.
+## What lives in this repo
 
-## Technology stack
+- `src/` — frontend application code
+- `app/` — FastAPI backend code
+- `tests/` — backend test coverage
+- `docs/` — API notes and design docs
+- `storage/` — local SQLite data and generated artifacts
 
-- [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- [Bun](https://bun.sh/) — package manager and script runner
-- [Vite](https://vite.dev/) — dev server and bundler
-- [TanStack Start](https://tanstack.com/start) — SSR application framework
-- [TanStack Router](https://tanstack.com/router) — file-based routing (this app uses a single `/` route)
-- [shadcn/ui](https://ui.shadcn.com/) (new-york style) on top of [Radix UI](https://www.radix-ui.com/) primitives
-- [Tailwind CSS v4](https://tailwindcss.com/)
+## Frontend stack
+
+- React 19 + TypeScript
+- Bun for package management and scripts
+- Vite / TanStack Start / TanStack Router
+- shadcn/ui on top of Radix UI primitives
+- Tailwind CSS v4
+
+## Backend stack
+
+- FastAPI
+- Pydantic v2 / pydantic-settings
+- SQLite for local conversation storage
+- httpx for outbound HTTP clients and test transport stubs
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) v1.x (includes its own JavaScript runtime — a separate Node.js install is not required)
+- Bun 1.x
+- Python 3.11+ (the repo has been exercised with Python 3.13 in this workspace)
 - Git
 
-## Installation
+## Quick start
+
+### 1) Install frontend dependencies
 
 ```bash
 bun install
 ```
 
-## Development
+### 2) Install backend dependencies
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+```
+
+## Run the app
+
+### Frontend
 
 ```bash
 bun run dev
 ```
 
-Starts the Vite dev server, by default at `http://localhost:8080`.
+This starts the frontend dev server, typically on `http://localhost:8080`.
 
-## Production build
+### Backend
+
+```bash
+source .venv/bin/activate
+uvicorn backend.main:backend --reload
+```
+
+This starts the backend API on `http://localhost:8000` by default.
+
+## Useful frontend commands
 
 ```bash
 bun run build
-```
-
-Builds via Vite/Nitro. A development-mode build (unminified, with dev env
-vars) is also available:
-
-```bash
 bun run build:dev
-```
-
-## Preview
-
-```bash
 bun run preview
+bun run lint
+bun run format
 ```
 
-Serves the most recent production build locally, for a final check before
-deploying.
-
-
-## TypeScript, lint, and test commands
-
-Based on the scripts defined in `package.json`:
+## Useful backend checks
 
 ```bash
-bunx tsc --noEmit   # type-check the project (no dedicated npm script defined)
-bun run lint        # eslint .
-bun run format      # prettier --write .
+source .venv/bin/activate
+python3 -m pytest tests -q
 ```
 
-There is currently **no test script and no test suite** in this repository —
-`package.json` defines no `test` command, and no `*.test.*` / `*.spec.*`
-files exist yet.
-
-## Project structure
-
-```
-src/
-  components/
-    layout/      Sidebar
-    chat/        MessageList, Composer, ChatMessageItem, BlockRenderer, WelcomeScreen, ProcessingIndicator
-    widgets/     OrganisationForm, ResearchStatus
-    grants/      GrantResults, GrantDetailsSheet, DeadlineBadge, grantPresentation
-    documents/   ApplicationDocument (editable sections + export)
-    common/      InlineNotice
-    ui/          shadcn/ui primitives
-    App.tsx      Single-screen orchestrator
-  hooks/         useConversations, useStickToBottomScroll, useSpeechRecognition, use-mobile
-  services/      GrantIntelligenceService (interface), MockGrantIntelligenceService,
-                 ApiGrantIntelligenceService (stub), apiClient (fetch boundary), index.ts (mode switch)
-  storage/       localStorage adapter
-  types/         Domain models (Conversation, Grant, ApplicationDocument, etc.)
-  data/          Mock grant catalogue
-  utils/         deadline, text, export (PDF/Word)
-  lib/           Shared utilities, error capture/reporting
-  routes/        TanStack Start file routes
-  routeTree.gen.ts   Generated by the TanStack Router plugin — do not edit by hand
-docs/
-  api-contract.md    Draft proposal for the future backend API
-```
-
-## Implemented features
-
-- Chat-first flow: create, switch between, and delete conversations (persisted locally)
-- Three-step onboarding wizard (Organisation → Project → Funding preferences), with back/forward navigation
-- Simulated multi-step grant research with progress states, and an error/retry UI path
-- Grant recommendation cards with match percentage, deadline, funding details, and match reasoning
-- Grant details view (Sheet) with a link to the grant's real, public source page
-- Conversational Q&A about a specific grant, including suggested questions
-- Application draft generation with per-section editing, cancel, and "Rewrite with AI" (with undo)
-- Export of the application draft to PDF (via the browser print dialog) and Word (`.doc`)
-- File attachment selection in the composer (shown as a reference chip only)
-- Browser-based voice input for the composer, where supported
-- Keyboard navigation, focus management, and responsive layout from 320px to desktop widths
-
-## Mock/demo features
-
-The app runs in **mock mode by default**. The following are all simulated
-locally by `MockGrantIntelligenceService` and `src/data/mockGrants.ts`, not
-real:
-
-- Grant search and matching — a fixed, illustrative catalogue of grants, clearly labelled "Demo data" in the UI
-- Grant Q&A — local keyword matching against grant fields, not a language model
-- Application draft generation — templated section content
-- "Rewrite with AI" — a deterministic local text transformation, not a real model call
-- The simulated research process always succeeds in mock mode; the error/retry UI exists and is reachable once a real backend can fail, but nothing in the current app triggers it
-
-## Local storage behavior
-
-All conversations and the active conversation ID are persisted to the
-browser's `localStorage` (`src/storage/localStorage.ts`), under versioned
-keys (`gi.conversations.v1`, `gi.activeConversationId.v1`). Reads and writes
-are wrapped in `try/catch`: if storage is unavailable (e.g. some
-private-browsing modes) or the quota is exceeded, the app degrades gracefully
-in-memory rather than crashing, and a write failure can be surfaced to the
-caller. Data lives only in the current browser — nothing is synced to a
-server.
-
-## Voice-input browser limitations
-
-Voice input uses the browser's native Web Speech API
-(`SpeechRecognition` / `webkitSpeechRecognition`), with no server-side
-transcription of any kind:
-
-- Supported in Chromium-based browsers (Chrome, Edge, etc.), via the prefixed API
-- Not supported in Firefox
-- Partial/inconsistent support in Safari
-- Requires a secure context (HTTPS or `localhost`) and an explicit microphone permission
-- The composer's UI detects lack of support and disables/labels the voice control accordingly, rather than failing silently
-
-## Export features
-
-The application draft can be exported as:
-
-- **PDF** — renders the document to a styled print view and opens the
-  browser's native print dialog (`window.print()`); the user chooses "Save as
-  PDF" from there. If the browser blocks the popup, the export reports
-  failure instead of doing nothing silently.
-- **Word** — generates a `.doc` file (HTML content wrapped in
-  Word-compatible XML namespaces) and downloads it directly via a Blob URL.
-
-Both are fully client-side; no document is uploaded or generated by a server.
+The backend test suite currently covers chat persistence and EU Horizon search behavior.
 
 ## Environment variables
 
-Defined in `.env.example` — copy it to `.env.local` and adjust as needed:
+### Frontend
 
-| Variable        | Default                 | Purpose                                                                                                                                                                                                                                                                                     |
-| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_API_MODE` | `mock`                  | `mock` uses `MockGrantIntelligenceService` and makes no network requests. `api` switches to `ApiGrantIntelligenceService`, which talks to the future backend described below. That backend does not exist yet — setting this to `api` today just points the app at endpoints that will 404. |
-| `VITE_API_URL`  | `http://localhost:8000` | Base URL for the future backend. Only read when `VITE_API_MODE=api`.                                                                                                                                                                                                                        |
+Defined in `.env.example`.
 
-## Future FastAPI integration points
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `VITE_API_MODE` | `mock` | Uses the local mock frontend service. Set to `api` to call the backend. |
+| `VITE_API_URL` | `http://localhost:8000` | Backend base URL when `VITE_API_MODE=api`. |
 
-The frontend is structured so a real backend (expected to be FastAPI) can be
-wired in without touching UI code. `ApiGrantIntelligenceService`
-(`src/services/ApiGrantIntelligenceService.ts`) already implements the same
-`GrantIntelligenceService` interface as the mock, on top of a small shared
-fetch boundary (`src/services/apiClient.ts`). None of the following endpoints
-exist yet:
+### Backend
 
-- `POST /grants/search` — stubbed in `ApiGrantIntelligenceService`
-- `POST /grants/{grantId}/start-application` — stubbed
-- `POST /documents/{documentId}/sections/{sectionId}/rewrite` — not yet stubbed; currently throws
-- Conversation/chat persistence, file upload, and voice transcription — not yet stubbed at all
+The backend reads `.env` via `pydantic-settings`.
 
-See **`docs/api-contract.md`** for the fuller, still-draft proposal covering
-all of the above. Switching over once a backend exists is a matter of setting
-`VITE_API_MODE=api` and `VITE_API_URL` to the deployed backend's base URL —
-no other frontend code changes are required by design.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `USE_MOCK_BEDROCK` | `true` | Keeps the backend on the local/mock Bedrock flow. |
+| `SQLITE_DB_PATH` | `storage/app.db` | SQLite file used for chat conversations and messages. |
+| `CHAT_HISTORY_WINDOW` | `10` | Number of recent user/assistant messages sent back into the model context. |
 
-## Secrets
+## API endpoints
 
-**Do not commit secrets to this repository.** There are currently no API
-keys, auth tokens, or database credentials anywhere in this project — nothing
-in `.env.example` is sensitive. `.gitignore` excludes `.env` and `.env.*`
-(except `.env.example`) and Wrangler's `.dev.vars`. When a real backend URL,
-API key, or credential is introduced, it must go into a local, git-ignored
-env file — never into a committed file.
-
-## Branch and pull-request workflow
-
-- Branch off `main` using a short, descriptive name (e.g. `feature/...`,
-  `fix/...`, `chore/...`).
-- Open a pull request into `main` for review before merging; keep PRs
-  focused and reasonably scoped.
-- This project is connected to [Lovable](https://lovable.dev): commits
-  pushed to the connected branch sync back into the Lovable editor. Avoid
-  force-pushing or rewriting already-pushed history (rebase/amend/squash of
-  shared commits), as it can rewrite history on Lovable's side and lose
-  project history there.
-- Keep the connected branch in a working (buildable) state, since it's
-  reflected live in Lovable.
-
-## Known limitations
-
-- Frontend only: no real backend, database, authentication, or deployed API.
-- No real AI calls — grant matching, Q&A, and rewriting are local
-  simulations, not model inference.
-- No real grant search — the grant catalogue is fixed, illustrative demo
-  data.
-- Attached files are selected locally for reference only; they are never
-  uploaded, parsed, or stored.
-- No server-side speech transcription — voice input relies entirely on the
-  browser's built-in, client-side Web Speech API and its limitations above.
-- No automated test suite exists yet.
-- Data persistence is limited to the current browser's `localStorage`; there
-  is no cross-device or cross-browser sync.
-
-## Deployment notes
-
-The project's Vite configuration (via `@lovable.dev/vite-tanstack-config`)
-builds the TanStack Start server through [Nitro](https://nitro.build/) with
-**Cloudflare** as its default build target, and `.gitignore` already excludes
-Cloudflare/Wrangler local artifacts (`.wrangler/`, `.dev.vars`). No live
-Cloudflare (or other) deployment is configured or documented in this
-repository today — `bun run build` produces the Nitro/Cloudflare-targeted
-output locally, and `bun run preview` is the supported way to sanity-check it
-before any deployment step is set up.
-Don't forget to create the `.env` file right next to `.env.example`.
-
-
-# Grant Intelligence Backend
-
-## Local Setup
-
-1. Create a virtual environment.
-2. Install dependencies from `requirements.txt`.
-3. Copy `.env.example` to `.env`.
-4. Run:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-## First Endpoints
+### Health
 
 - `GET /api/v1/health`
+
+### Chat
+
+- `POST /api/v1/chat/conversations`
 - `POST /api/v1/chat/message`
+- `GET /api/v1/chat/conversations/{conversation_id}/messages`
+
+### Grants
+
 - `POST /api/v1/grants/search`
+
+### Metadata / frontend config
+
+- `GET /api/v1/meta/frontend-config`
+
+## Recommended workflow after the merge
+
+1. Start the backend.
+2. Start the frontend.
+3. Switch the frontend to API mode when you are ready to test integration.
+4. Run the backend tests and a frontend build/lint check before pushing.
+
+## Notes
+
+- `storage/app.db` is a local SQLite database file and should not be committed.
+- The frontend still supports mock mode, which is useful when the backend is not running.
+- This repository contains working code plus some design notes in top-level `*.md` files; those notes are kept separate from the main setup instructions above.

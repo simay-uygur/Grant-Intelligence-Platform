@@ -33,7 +33,7 @@ dist-ssr
 .dev.vars
 
 # Environment variables
-.env
+backend/.env
 .env.*
 !.env.example
 
@@ -65,3 +65,5 @@ storage/generated/*
 /.postman/
 /postman/
 /storage/app.db
+/.lovable/
+/.lovable/

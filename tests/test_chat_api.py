@@ -2,14 +2,14 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.main import create_app
-from app.schemas.grants import GrantResult, GrantSearchResponse
-from app.services.chat_service import ChatService
+from backend.main import create_app
+from backend.schemas.grants import GrantResult, GrantSearchResponse
+from backend.services.chat_service import ChatService
 
 
 def _build_client(database_path: Path) -> TestClient:
     app = create_app()
-    chat_route_module = __import__("app.api.routes.chat", fromlist=["chat_service"])
+    chat_route_module = __import__("backend.api.routes.chat", fromlist=["chat_service"])
     chat_service = ChatService(database_path=str(database_path))
     chat_service.grant_tools.search_grants = lambda tool_input: GrantSearchResponse(
         grants=[

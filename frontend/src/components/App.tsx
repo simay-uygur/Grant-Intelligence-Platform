@@ -1,0 +1,591 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
+import { useConversations } from "frontend/src/hooks/useConversations";
+import { useIsMobile } from "frontend/src/hooks/use-mobile";
+import { useStickToBottomScroll } from "frontend/src/hooks/useStickToBottomScroll";
+import { grantService, isMockMode } from "frontend/src/services";
+import { MOCK_GRANTS } from "frontend/src/data/mockGrants";
+import type {
+  ApplicationStage,
+  ChatBlock,
+  ChatMessage,
+  Grant,
+  OrganisationProfile,
+  ResearchState,
+} from "frontend/src/types";
+import { Sidebar, MobileSidebar } from "frontend/src/components/layout/Sidebar";
+import { MessageList } from "frontend/src/components/chat/MessageList";
+import { Composer } from "frontend/src/components/chat/Composer";
+import { WelcomeScreen } from "frontend/src/components/chat/WelcomeScreen";
+import { Button } from "frontend/src/components/ui/button";
+import type { BlockCallbacks } from "frontend/src/components/chat/BlockRenderer";
+
+const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
+  welcome: "Describe your organisation and funding needs…",
+  collecting_information: "Add any details that may help refine your profile…",
+  researching: "Research is in progress…",
+  results: "Ask about one of these grants…",
+  application: "Ask to revise, expand, or improve this application…",
+};
+
+const RESEARCH_STEPS = [
+  "Understanding organisation profile",
+  "Analysing funding requirements",
+  "Checking geographical eligibility",
+  "Searching European grant programmes",
+  "Comparing funding amounts",
+  "Reviewing deadlines",
+  "Ranking the strongest matches",
+];
+
+// Grant Q&A is answered locally by matching simple keywords against the
+// question and quoting the matching Grant field(s) — never invented, never
+// a real AI call. "Fact" answers quote structured fields verbatim; the
+// "why it matches" answer is explicitly labelled as the mock assistant's
+// canned explanation, since it's interpretive rather than a raw field.
+function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
+  const q = question.toLowerCase();
+
+  if (/eligib/.test(q)) {
+    return [
+      {
+        type: "text",
+        text: `From this grant's record — organisation eligibility: ${grant.organisationEligibility.join(", ")}. Eligible countries / regions: ${grant.eligibleCountries.join(", ")}.`,
+      },
+    ];
+  }
+  if (/fund|amount|budget|money|€|much/.test(q)) {
+    return [
+      {
+        type: "text",
+        text: `From this grant's record — funding: ${grant.fundingAmount} (${grant.fundingType}).`,
+      },
+    ];
+  }
+  if (/deadline|when|due|close|date/.test(q)) {
+    return [
+      {
+        type: "text",
+        text: `From this grant's record — deadline: ${grant.deadline}.`,
+      },
+    ];
+  }
+  if (/match|why|fit|suit|align/.test(q)) {
+    return [
+      {
+        type: "text",
+        text: `Mock assistant explanation — ${grant.whyItMatches}`,
+      },
+    ];
+  }
+
+  return [
+    {
+      type: "text",
+      text: `From this grant's record, I can answer questions about eligibility, funding amount, the deadline, or why ${grant.title} matches your project.`,
+    },
+    {
+      type: "text",
+      text: "Mock assistant note — this is a simulated response using only the demo data shown for this grant, not a live AI model. Try one of the suggested questions below, or start the application when you're ready.",
+    },
+  ];
+}
+
+const DEMO_PROFILE: OrganisationProfile = {
+  organisationName: "Northlight Robotics",
+  organisationType: "SME",
+  organisationDescription:
+    "A 22-person robotics SME building AI-driven quality inspection for European manufacturers.",
+  country: "Germany",
+  region: "Munich, Bavaria",
+  projectTitle: "OptiScan: Explainable AI for Zero-Defect Manufacturing",
+  projectDescription:
+    "Pilot deployment of an explainable computer-vision platform across three EU factories to reduce defect rates and energy waste.",
+  fundingAmount: "€500,000 – €1,000,000",
+  projectStartDate: "2027-06-01",
+  projectDuration: "24 months",
+  sector: "Digital & AI",
+  eligibilityConstraints: "SME status must be maintained throughout the project.",
+};
+
+export function App() {
+  const c = useConversations();
+  const [busy, setBusy] = useState(false);
+  const [demoRunning, setDemoRunning] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [composerValue, setComposerValue] = useState("");
+  const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
+  const researchInFlight = useRef(false);
+  const isMobile = useIsMobile();
+
+  // If the viewport grows past the mobile breakpoint while the sheet is open
+  // (resize/rotate), close it so it can't sit open over the now-visible desktop sidebar.
+  useEffect(() => {
+    if (!isMobile) setMobileSidebarOpen(false);
+  }, [isMobile]);
+
+  // Grant Q&A context is a local UI concern, not part of the stored
+  // conversation — drop it whenever the active conversation changes so it
+  // can't leak across conversations or survive a switch back and forth.
+  useEffect(() => {
+    setAskingAboutGrant(null);
+  }, [c.activeId]);
+
+  const setBlocks = c.updateMessageBlocks;
+  const appendMessage = c.appendMessage;
+  const uid = c.uid;
+
+  const now = () => new Date().toISOString();
+
+  const askAssistant = useCallback(
+    (blocks: ChatBlock[]) => {
+      const msg: ChatMessage = {
+        id: uid(),
+        role: "assistant",
+        createdAt: now(),
+        blocks,
+      };
+      appendMessage(msg);
+      return msg.id;
+    },
+    [appendMessage, uid],
+  );
+
+  const askUser = useCallback(
+    (blocks: ChatBlock[]) => {
+      const msg: ChatMessage = {
+        id: uid(),
+        role: "user",
+        createdAt: now(),
+        blocks,
+      };
+      appendMessage(msg);
+      return msg.id;
+    },
+    [appendMessage, uid],
+  );
+
+  const runResearch = useCallback(
+    async (profile: OrganisationProfile, initialError?: boolean) => {
+      if (researchInFlight.current) return;
+      researchInFlight.current = true;
+      setBusy(true);
+      c.setStage("researching");
+
+      const state: ResearchState = {
+        steps: RESEARCH_STEPS.map((label, i) => ({
+          label,
+          status: i === 0 ? "active" : "pending",
+        })),
+      };
+      const messageId = askAssistant([{ type: "research_status", state }]);
+
+      try {
+        for (let i = 0; i < RESEARCH_STEPS.length; i++) {
+          await new Promise((r) => setTimeout(r, 450));
+          setBlocks(messageId, (blocks) =>
+            blocks.map((b) => {
+              if (b.type !== "research_status") return b;
+              const steps = b.state.steps.map((s, idx) => {
+                if (idx < i + 1) return { ...s, status: "done" as const };
+                if (idx === i + 1) return { ...s, status: "active" as const };
+                return { ...s, status: "pending" as const };
+              });
+              return { type: "research_status", state: { steps } };
+            }),
+          );
+        }
+
+        if (initialError) throw new Error("Simulated network error");
+
+        const grants = await grantService.searchGrants(profile);
+        c.setGrants(grants);
+        c.setStage("results");
+        askAssistant([
+          {
+            type: "text",
+            text: `I found ${grants.length} strong matches for ${profile.organisationName}. Here are the top three, ranked by fit:`,
+          },
+          { type: "grant_results", grants },
+        ]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Research failed";
+        setBlocks(messageId, (blocks) =>
+          blocks.map((b) =>
+            b.type === "research_status"
+              ? {
+                  type: "research_status",
+                  state: { ...b.state, error: message },
+                }
+              : b,
+          ),
+        );
+      } finally {
+        researchInFlight.current = false;
+        setBusy(false);
+      }
+    },
+    [askAssistant, c, setBlocks],
+  );
+
+  const handleSubmitProfile = useCallback(
+    (profile: OrganisationProfile) => {
+      c.setProfile(profile);
+      askUser([
+        {
+          type: "text",
+          text: `Here are the details:\n• Organisation: ${profile.organisationName} (${profile.organisationType})\n• Country: ${profile.country}${profile.region ? `, ${profile.region}` : ""}\n• Sector: ${profile.sector}\n• Project: ${profile.projectTitle}\n• Budget: ${profile.fundingAmount}\n• Duration: ${profile.projectDuration}`,
+        },
+      ]);
+      askAssistant([
+        {
+          type: "text",
+          text: "Thanks — that's enough to start. Let me research the best matches across European programmes.",
+        },
+      ]);
+      void runResearch(profile);
+    },
+    [askAssistant, askUser, c, runResearch],
+  );
+
+  const handleRetryResearch = useCallback(() => {
+    if (c.activeConversation?.profile) {
+      void runResearch(c.activeConversation.profile);
+    }
+  }, [c.activeConversation, runResearch]);
+
+  const handleAskGrant = useCallback(
+    (grant: Grant) => {
+      setAskingAboutGrant(grant);
+      askUser([{ type: "text", text: `Tell me more about ${grant.title}.` }]);
+      askAssistant([
+        {
+          type: "text",
+          text: `${grant.title} is part of the ${grant.programme}. It offers ${grant.fundingAmount} as ${grant.fundingType.toLowerCase()}, with a deadline on ${grant.deadline}.\n\nKey requirements:\n${grant.requirements.map((r) => `• ${r}`).join("\n")}\n\nOpen the source link on the card for the official call text, or start an application to draft your proposal here.`,
+        },
+      ]);
+    },
+    [askAssistant, askUser],
+  );
+
+  const handleStartApplication = useCallback(
+    async (grant: Grant) => {
+      if (!c.activeConversation?.profile) return;
+      setAskingAboutGrant(null);
+      setBusy(true);
+      try {
+        const doc = await grantService.startApplication(grant, c.activeConversation.profile);
+        c.setDocument(doc, grant.id);
+        c.setStage("application");
+        askAssistant([
+          {
+            type: "success",
+            message: `Application draft created for ${grant.title}. Edit any section, or use Rewrite with AI.`,
+          },
+          { type: "document", documentId: doc.id },
+        ]);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [askAssistant, c],
+  );
+
+  const handleUserSend = useCallback(
+    (text: string) => {
+      askUser([{ type: "text", text }]);
+      const stage = c.activeConversation?.stage ?? "welcome";
+      if (askingAboutGrant) {
+        askAssistant(answerAboutGrant(text, askingAboutGrant));
+      } else if (stage === "welcome") {
+        c.setStage("collecting_information");
+        askAssistant([
+          {
+            type: "text",
+            text: "Great — to match you to the strongest calls, please complete this short profile.",
+          },
+          { type: "structured_form" },
+        ]);
+      } else if (stage === "application") {
+        askAssistant([
+          {
+            type: "text",
+            text: "You can edit any section directly, click Rewrite with AI to regenerate it, or export the whole document as PDF or Word.",
+          },
+        ]);
+      } else {
+        askAssistant([
+          {
+            type: "text",
+            text: "I've noted that. You can keep refining the draft, ask about any of the recommended grants, or start a new conversation for a different funding scenario.",
+          },
+        ]);
+      }
+    },
+    [askAssistant, askUser, askingAboutGrant, c],
+  );
+
+  const runDemo = useCallback(async () => {
+    if (demoRunning || busy) return;
+    setDemoRunning(true);
+    try {
+      c.newConversation();
+      await new Promise((r) => setTimeout(r, 200));
+      askUser([
+        {
+          type: "text",
+          text: "We're an SME building AI vision for European factories and want to fund a 24-month pilot around €800K.",
+        },
+      ]);
+      c.setStage("collecting_information");
+      askAssistant([
+        {
+          type: "text",
+          text: "Great — here's a pre-filled profile based on what you said. Adjust anything before I research.",
+        },
+        { type: "structured_form", profile: DEMO_PROFILE },
+      ]);
+      await new Promise((r) => setTimeout(r, 500));
+      c.setProfile(DEMO_PROFILE);
+      askUser([
+        {
+          type: "text",
+          text: `Profile confirmed for ${DEMO_PROFILE.organisationName}.`,
+        },
+      ]);
+      askAssistant([
+        {
+          type: "text",
+          text: "Perfect. Researching the strongest European matches now…",
+        },
+      ]);
+      await runResearch(DEMO_PROFILE);
+      await new Promise((r) => setTimeout(r, 400));
+      // Deliberately reaches into the mock catalogue directly rather than
+      // grantService: this is the scripted demo choosing a specific,
+      // known grant for its narrative, not a lookup a service should
+      // provide — searchGrants() has no "get grant by index" contract.
+      await handleStartApplication(MOCK_GRANTS[0]);
+    } finally {
+      setDemoRunning(false);
+    }
+  }, [askAssistant, askUser, busy, c, demoRunning, handleStartApplication, runResearch]);
+
+  const callbacks: BlockCallbacks = useMemo(
+    () => ({
+      onSubmitProfile: handleSubmitProfile,
+      onRetryResearch: handleRetryResearch,
+      onAskGrant: handleAskGrant,
+      onStartApplication: handleStartApplication,
+      onSectionChange: c.updateDocumentSection,
+      getDocument: (id) =>
+        c.activeConversation?.document?.id === id ? c.activeConversation.document : undefined,
+      getProfile: () => c.activeConversation?.profile,
+      // Falls back to the mock catalogue when a document references a grant
+      // that's no longer in this conversation's current grants (e.g. after
+      // a second research pass replaced it). This lookup is synchronous
+      // because it runs during render (BlockRenderer -> ApplicationDocumentView).
+      // TODO(api): once a real backend exists, replace this fallback with
+      // GET /grants/{id} — that will require getGrantById to become async
+      // and the render path here to move to a loading-aware pattern; not
+      // done now since it's a real behavioural change, not just a data-source swap.
+      getGrantById: (id) =>
+        c.activeConversation?.grants?.find((g) => g.id === id) ??
+        MOCK_GRANTS.find((g) => g.id === id),
+      formDisabled: busy,
+      hasGrantResults: Boolean(c.activeConversation?.grants?.length),
+    }),
+    [
+      busy,
+      c.activeConversation,
+      c.updateDocumentSection,
+      handleAskGrant,
+      handleRetryResearch,
+      handleStartApplication,
+      handleSubmitProfile,
+    ],
+  );
+
+  const active = c.activeConversation;
+
+  // Show a lightweight "assistant is working" indicator for gaps where busy
+  // work is happening but no research_status block (which has its own
+  // step-by-step progress and recommendation-skeleton UI) is already
+  // covering that role — that card owns the loading story from the first
+  // step through to grant results actually landing.
+  const showProcessingIndicator = useMemo(() => {
+    if (!active || !busy) return false;
+    const last = active.messages[active.messages.length - 1];
+    const lastBlock = last?.blocks[last.blocks.length - 1];
+    const hasGrantResults = Boolean(active.grants?.length);
+    const researchCoveringIndicator =
+      lastBlock?.type === "research_status" && !lastBlock.state.error && !hasGrantResults;
+    return !researchCoveringIndicator;
+  }, [active, busy]);
+
+  const { scrollContainerRef, scrollBottomRef, showScrollButton, scrollToBottom } =
+    useStickToBottomScroll(active, showProcessingIndicator);
+
+  if (!c.hydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Loading Grant Intelligence…
+      </div>
+    );
+  }
+
+  const isFreshWelcome = Boolean(
+    active && active.stage === "welcome" && active.messages.length <= 1 && !demoRunning,
+  );
+
+  return (
+    <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Skip to conversation
+      </a>
+      <Sidebar
+        conversations={c.conversations}
+        activeId={c.activeId}
+        onSelect={c.selectConversation}
+        onNew={c.newConversation}
+        onDelete={c.deleteConversation}
+      />
+      <MobileSidebar
+        open={mobileSidebarOpen}
+        onOpenChange={setMobileSidebarOpen}
+        conversations={c.conversations}
+        activeId={c.activeId}
+        onSelect={c.selectConversation}
+        onNew={c.newConversation}
+        onDelete={c.deleteConversation}
+      />
+
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-w-0 flex-1 flex-col overflow-hidden"
+      >
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open conversation menu"
+              className="shrink-0 rounded-lg md:hidden"
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <h1
+                className="truncate text-sm font-semibold text-foreground"
+                title={active?.title ?? "No conversation"}
+              >
+                {active?.title ?? "No conversation"}
+              </h1>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                  Connected · {isMockMode ? "Mock mode" : "API mode"}
+                </span>
+                {active && (
+                  <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          {active?.stage === "welcome" && (
+            <button
+              type="button"
+              onClick={runDemo}
+              disabled={demoRunning || busy}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            >
+              <Play className="h-3.5 w-3.5" />
+              {demoRunning ? "Running demo…" : "Run demo"}
+            </button>
+          )}
+        </header>
+
+        {!c.persistenceOk && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="shrink-0 border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning sm:px-6"
+          >
+            Changes aren&apos;t being saved to this browser right now — local storage may be full or
+            unavailable (for example, in private browsing). Keep this tab open so you don&apos;t
+            lose your work.
+          </div>
+        )}
+
+        <div className="relative min-h-0 flex-1">
+          <div ref={scrollContainerRef} className="h-full overflow-y-auto">
+            {active ? (
+              isFreshWelcome ? (
+                <WelcomeScreen onQuickStart={handleUserSend} onFillComposer={setComposerValue} />
+              ) : (
+                <MessageList
+                  messages={active.messages}
+                  callbacks={callbacks}
+                  showProcessingIndicator={showProcessingIndicator}
+                />
+              )
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <MessageSquarePlus className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">No conversation selected</p>
+                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                    Start a new conversation to research grants for your organisation.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={c.newConversation}
+                  className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+                >
+                  <MessageSquarePlus className="h-4 w-4" />
+                  New conversation
+                </Button>
+              </div>
+            )}
+            {/* bottom spacer so composer never hides content, and scroll anchor */}
+            <div ref={scrollBottomRef} className="h-4" />
+          </div>
+
+          {showScrollButton && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => scrollToBottom("smooth")}
+                aria-label="Scroll to latest messages"
+                className="pointer-events-auto h-auto gap-1.5 rounded-full border-border bg-card/95 px-3.5 py-1.5 text-xs font-medium text-foreground shadow-md backdrop-blur hover:bg-muted"
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+                Scroll to latest
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <Composer
+          value={composerValue}
+          onValueChange={setComposerValue}
+          disabled={busy || !active}
+          onSend={handleUserSend}
+          placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
+          grantContext={askingAboutGrant}
+          onClearGrantContext={() => setAskingAboutGrant(null)}
+        />
+      </main>
+    </div>
+  );
+}

@@ -11,4 +11,3 @@ python-dotenv>=1.1,<2.0
 pytest>=8.4,<9.0
 pypdf>=4.3,<6.0
 reportlab>=4.4,<5.0
-httpx

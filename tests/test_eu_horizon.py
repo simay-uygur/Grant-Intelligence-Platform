@@ -2,8 +2,8 @@ import json
 
 import httpx
 
-from app.clients.sources.eu_horizon import EUHorizonClient
-from app.schemas.grants import GrantSearchRequest
+from backend.clients.sources.eu_horizon import EUHorizonClient
+from backend.schemas.grants import GrantSearchRequest
 
 
 def test_search_returns_normalized_horizon_topics_only() -> None:
