@@ -65,9 +65,7 @@ type BackendHistorySync =
 function chatReplyBlocks(reply: ChatReply): ChatBlock[] {
   return [
     { type: "text", text: reply.assistantMessage },
-    ...reply.followUpQuestions.map(
-      (question): ChatBlock => ({ type: "question", text: question }),
-    ),
+    ...reply.followUpQuestions.map((question): ChatBlock => ({ type: "question", text: question })),
   ];
 }
 
@@ -304,13 +302,7 @@ export function App() {
       const state: ResearchState = {
         steps: researchSteps.map((label, i) => ({
           label,
-          status: isMockMode
-            ? i === 0
-              ? "active"
-              : "pending"
-            : i === 0
-              ? "done"
-              : "active",
+          status: isMockMode ? (i === 0 ? "active" : "pending") : i === 0 ? "done" : "active",
         })),
       };
       const messageId = askAssistant([{ type: "research_status", state }]);
@@ -436,10 +428,7 @@ export function App() {
       setAskingAboutGrant(null);
       setBusy(true);
       try {
-        const doc = await applicationService.startApplication(
-          grant,
-          c.activeConversation.profile,
-        );
+        const doc = await applicationService.startApplication(grant, c.activeConversation.profile);
         c.setDocument(doc, grant.id);
         c.setStage("application");
         askAssistant([
@@ -483,8 +472,7 @@ export function App() {
         askAssistant(blocks);
         void synchronizeBackendHistory(activeConversation.id, reply.conversationId);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "The backend chat request failed.";
+        const message = error instanceof Error ? error.message : "The backend chat request failed.";
         const blocks: ChatBlock[] = [{ type: "error", message }];
         if (includeProfileForm) {
           blocks.push({
@@ -638,8 +626,7 @@ export function App() {
         ? "bg-warning"
         : "bg-destructive";
   const activeHistorySync =
-    backendHistorySync.status !== "idle" &&
-    backendHistorySync.conversationId === active?.id
+    backendHistorySync.status !== "idle" && backendHistorySync.conversationId === active?.id
       ? backendHistorySync
       : undefined;
 

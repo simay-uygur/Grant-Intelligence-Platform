@@ -31,6 +31,7 @@ grant search, and supporting API endpoints.
 ## Prerequisites
 
 - Bun 1.x
+- Node.js 20.19+ or 22.12+ for the frontend dev server
 - Python 3.11+ (the repo has been exercised with Python 3.13 in this workspace)
 - Git
 
@@ -39,6 +40,7 @@ grant search, and supporting API endpoints.
 ### 1) Install frontend dependencies
 
 ```bash
+cd frontend
 bun install
 ```
 
@@ -56,6 +58,7 @@ python3 -m pip install -r requirements.txt
 ### Frontend
 
 ```bash
+cd frontend
 bun run dev
 ```
 

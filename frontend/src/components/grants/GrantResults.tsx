@@ -201,9 +201,7 @@ export function GrantResults({ grants, sourceSummary, onAsk, onStart }: Props) {
                 />
                 <CompareRow
                   label="Programme / source"
-                  values={compareGrants.map(
-                    (g) => g.programme || g.source,
-                  )}
+                  values={compareGrants.map((g) => g.programme || g.source)}
                 />
               </tbody>
             </table>
@@ -222,13 +220,7 @@ export function GrantResults({ grants, sourceSummary, onAsk, onStart }: Props) {
   );
 }
 
-function CompareRow({
-  label,
-  values,
-}: {
-  label: string;
-  values: Array<string | undefined>;
-}) {
+function CompareRow({ label, values }: { label: string; values: Array<string | undefined> }) {
   if (values.every((value) => !value?.trim())) return null;
   return (
     <tr className="border-b border-border/60 align-top">
@@ -268,10 +260,10 @@ function GrantCard({
   const compareId = `compare-${grant.id}`;
   const hasFacts = Boolean(
     grant.fundingAmount ||
-      grant.deadline ||
-      grant.fundingType ||
-      grant.eligibleCountries?.length ||
-      grant.organisationEligibility?.length,
+    grant.deadline ||
+    grant.fundingType ||
+    grant.eligibleCountries?.length ||
+    grant.organisationEligibility?.length,
   );
 
   return (

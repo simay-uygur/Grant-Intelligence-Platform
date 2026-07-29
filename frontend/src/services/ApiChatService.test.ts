@@ -40,9 +40,7 @@ test("creates a backend conversation, sends a message, and reads history", async
       ],
     });
   };
-  const service = new ApiChatService(
-    new ApiClient("http://127.0.0.1:8000", fetchImpl),
-  );
+  const service = new ApiChatService(new ApiClient("http://127.0.0.1:8000", fetchImpl));
 
   const conversation = await service.createConversation();
   const reply = await service.sendMessage({
@@ -83,9 +81,7 @@ test("URL-encodes backend conversation IDs when reading history", async () => {
     }),
   );
 
-  await expect(
-    service.getMessages("backend/conversation with spaces"),
-  ).resolves.toEqual([]);
+  await expect(service.getMessages("backend/conversation with spaces")).resolves.toEqual([]);
   expect(requestedUrl).toBe(
     "http://127.0.0.1:8000/api/v1/chat/conversations/backend%2Fconversation%20with%20spaces/messages",
   );

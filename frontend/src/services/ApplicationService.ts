@@ -1,10 +1,7 @@
 import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
 
 export interface ApplicationService {
-  startApplication(
-    grant: Grant,
-    profile: OrganisationProfile,
-  ): Promise<ApplicationDocument>;
+  startApplication(grant: Grant, profile: OrganisationProfile): Promise<ApplicationDocument>;
   rewriteSection(
     sectionTitle: string,
     currentContent: string,

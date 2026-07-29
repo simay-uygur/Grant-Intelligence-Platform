@@ -209,7 +209,9 @@ test("creates a backend chat conversation before showing the profile form", asyn
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
 
   await expect(page.getByText("Backend chat is connected.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Tell me about your organisation" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Tell me about your organisation" }),
+  ).toBeVisible();
   expect(chatBody).toMatchObject({
     conversation_id: "e2e-backend-conversation",
     user_message: "I'd like to find grants for my organisation.",
@@ -232,7 +234,9 @@ test("shows a chat API error and keeps the local profile form available", async 
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
 
   await expect(page.getByText("Conversation service unavailable.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Tell me about your organisation" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Tell me about your organisation" }),
+  ).toBeVisible();
 });
 
 test("reuses one backend conversation for later chat messages", async ({ page }) => {
@@ -328,18 +332,12 @@ test("restores missing backend history after reloading a saved conversation", as
           id: "saved-assistant",
           role: "assistant",
           createdAt: "2026-07-28T20:04:00Z",
-          blocks: [
-            { type: "text", text: "Saved local reply." },
-            { type: "structured_form" },
-          ],
+          blocks: [{ type: "text", text: "Saved local reply." }, { type: "structured_form" }],
         },
       ],
     };
     window.localStorage.setItem("gi.conversations.v1", JSON.stringify([conversation]));
-    window.localStorage.setItem(
-      "gi.activeConversationId.v1",
-      JSON.stringify(conversation.id),
-    );
+    window.localStorage.setItem("gi.activeConversationId.v1", JSON.stringify(conversation.id));
   });
 
   await page.reload();
@@ -347,7 +345,9 @@ test("restores missing backend history after reloading a saved conversation", as
   await expect(page.getByText("An earlier backend question.", { exact: true })).toBeVisible();
   await expect(page.getByText("An earlier backend reply.", { exact: true })).toBeVisible();
   await expect(page.getByText("Saved local reply.", { exact: true })).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "Tell me about your organisation" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Tell me about your organisation" }),
+  ).toBeVisible();
   await expect(page.getByText("History synced", { exact: true })).toBeVisible();
   expect(historyRequests).toBeGreaterThan(0);
 });

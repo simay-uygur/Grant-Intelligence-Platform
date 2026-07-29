@@ -117,9 +117,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
 
                 {(grant.whyItMatches || grant.matchReasons?.length) && (
                   <Section title="Why it was returned">
-                    {grant.whyItMatches && (
-                      <Field label="Summary" value={grant.whyItMatches} />
-                    )}
+                    {grant.whyItMatches && <Field label="Summary" value={grant.whyItMatches} />}
                     {grant.matchReasons?.length ? (
                       <ListField label="Match reasons" items={grant.matchReasons} />
                     ) : null}

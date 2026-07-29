@@ -29,10 +29,6 @@ test("creates a local draft from a minimal live grant", async () => {
 
   expect(document.grantId).toBe(grant.id);
   expect(document.sections.length).toBeGreaterThan(0);
-  expect(document.sections.map((section) => section.content).join("\n")).not.toContain(
-    "undefined",
-  );
-  expect(document.sections.map((section) => section.content).join("\n")).toContain(
-    "eu_horizon",
-  );
+  expect(document.sections.map((section) => section.content).join("\n")).not.toContain("undefined");
+  expect(document.sections.map((section) => section.content).join("\n")).toContain("eu_horizon");
 });

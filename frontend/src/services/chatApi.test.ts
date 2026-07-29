@@ -134,9 +134,7 @@ describe("chat API mapping", () => {
   });
 
   test("rejects malformed conversation and history responses", () => {
-    expect(() => parseConversation({ conversation_id: "" })).toThrow(
-      ChatApiContractError,
-    );
+    expect(() => parseConversation({ conversation_id: "" })).toThrow(ChatApiContractError);
     expect(() =>
       parseChatHistory({
         conversation_id: "backend-conversation",

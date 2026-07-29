@@ -16,9 +16,7 @@ test("checks health and maps frontend bootstrap metadata", async () => {
       endpoints: [],
     });
   };
-  const service = new ApiBackendService(
-    new ApiClient("http://127.0.0.1:8000", fetchImpl),
-  );
+  const service = new ApiBackendService(new ApiClient("http://127.0.0.1:8000", fetchImpl));
 
   await expect(service.getInfo()).resolves.toEqual({
     appName: "Grant Intelligence Backend",

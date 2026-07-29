@@ -1,9 +1,5 @@
 export type ApplicationStage =
-  | "welcome"
-  | "collecting_information"
-  | "researching"
-  | "results"
-  | "application";
+  "welcome" | "collecting_information" | "researching" | "results" | "application";
 
 /**
  * Covers three conceptually distinct things in one flat, stored shape:

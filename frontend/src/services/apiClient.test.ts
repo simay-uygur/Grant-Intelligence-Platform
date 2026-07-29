@@ -6,9 +6,7 @@ describe("ApiClient", () => {
     expect(joinApiUrl("http://localhost:8000/", "/api/v1/grants/search")).toBe(
       "http://localhost:8000/api/v1/grants/search",
     );
-    expect(joinApiUrl(undefined, "api/v1/grants/search")).toBe(
-      "/api/v1/grants/search",
-    );
+    expect(joinApiUrl(undefined, "api/v1/grants/search")).toBe("/api/v1/grants/search");
   });
 
   test("surfaces FastAPI error details", async () => {

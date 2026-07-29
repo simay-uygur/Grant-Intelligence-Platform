@@ -44,9 +44,7 @@ const clean = (value: string | undefined): string | undefined => {
   return trimmed ? trimmed : undefined;
 };
 
-export function buildGrantSearchRequest(
-  profile: OrganisationProfile,
-): GrantSearchRequestDto {
+export function buildGrantSearchRequest(profile: OrganisationProfile): GrantSearchRequestDto {
   const primaryQuery = [clean(profile.projectTitle), clean(profile.sector)]
     .filter((value): value is string => Boolean(value))
     .join(" ");

@@ -16,9 +16,7 @@ const apiBaseUrl = import.meta.env.VITE_API_URL as string | undefined;
 const apiClient = mode === "api" ? new ApiClient(apiBaseUrl) : undefined;
 
 export const grantService: GrantService =
-  mode === "api" && apiClient
-    ? new ApiGrantService(apiBaseUrl, apiClient)
-    : new MockGrantService();
+  mode === "api" && apiClient ? new ApiGrantService(apiBaseUrl, apiClient) : new MockGrantService();
 export const applicationService: ApplicationService = new LocalApplicationService();
 export const chatService: ChatService | undefined = apiClient
   ? new ApiChatService(apiClient)

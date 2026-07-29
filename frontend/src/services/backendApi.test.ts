@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  BackendApiContractError,
-  parseBackendInfo,
-  parseHealthResponse,
-} from "./backendApi";
+import { BackendApiContractError, parseBackendInfo, parseHealthResponse } from "./backendApi";
 
 describe("backend bootstrap API mapping", () => {
   test("accepts a healthy backend response", () => {
@@ -11,9 +7,7 @@ describe("backend bootstrap API mapping", () => {
   });
 
   test("rejects unhealthy and malformed health responses", () => {
-    expect(() => parseHealthResponse({ status: "degraded" })).toThrow(
-      BackendApiContractError,
-    );
+    expect(() => parseHealthResponse({ status: "degraded" })).toThrow(BackendApiContractError);
     expect(() => parseHealthResponse({})).toThrow(BackendApiContractError);
   });
 

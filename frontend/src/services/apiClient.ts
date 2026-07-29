@@ -21,9 +21,7 @@ export function joinApiUrl(baseUrl: string | undefined, path: string): string {
 async function errorDetail(response: Response): Promise<string | undefined> {
   try {
     const body = (await response.json()) as { detail?: unknown };
-    return typeof body.detail === "string" && body.detail.trim()
-      ? body.detail.trim()
-      : undefined;
+    return typeof body.detail === "string" && body.detail.trim() ? body.detail.trim() : undefined;
   } catch {
     return undefined;
   }
@@ -56,8 +54,7 @@ export class ApiClient {
     if (!res.ok) {
       const detail = await errorDetail(res);
       throw new ApiError(
-        detail ??
-          `Grant backend request failed (${res.status}). Please try again.`,
+        detail ?? `Grant backend request failed (${res.status}). Please try again.`,
         res.status,
       );
     }

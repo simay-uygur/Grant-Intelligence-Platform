@@ -56,10 +56,7 @@ describe("backend chat history merge", () => {
         id: "local-assistant",
         role: "assistant",
         createdAt: "2026-07-28T20:02:00Z",
-        blocks: [
-          { type: "text", text: "Earlier backend answer" },
-          { type: "structured_form" },
-        ],
+        blocks: [{ type: "text", text: "Earlier backend answer" }, { type: "structured_form" }],
       },
     ];
 

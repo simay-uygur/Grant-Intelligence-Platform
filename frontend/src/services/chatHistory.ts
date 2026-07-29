@@ -3,9 +3,7 @@ import type { ChatMessage } from "@/types";
 
 function containsBackendText(message: ChatMessage, content: string): boolean {
   return message.blocks.some(
-    (block) =>
-      (block.type === "text" || block.type === "question") &&
-      block.text === content,
+    (block) => (block.type === "text" || block.type === "question") && block.text === content,
   );
 }
 

@@ -1,11 +1,7 @@
 import type { GrantSearchResult, OrganisationProfile } from "@/types";
 import type { GrantService } from "./GrantService";
 import { ApiClient } from "./apiClient";
-import {
-  buildGrantSearchRequest,
-  mapGrantResult,
-  parseGrantSearchResponse,
-} from "./grantApi";
+import { buildGrantSearchRequest, mapGrantResult, parseGrantSearchResponse } from "./grantApi";
 
 const GRANT_SEARCH_PATH = "/api/v1/grants/search";
 
