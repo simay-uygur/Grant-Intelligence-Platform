@@ -53,7 +53,7 @@ class AgentService:
                 ) from exc
             raise AgentUnavailableError(
                 "The agent library is not installed yet. Put it at "
-                "`Grant-Intelligence-Platform/agent/` with `agent/service.py`."
+                "`Grant-Intelligence-Platform/ai-agent/agent/service.py`."
             ) from exc
 
         try:
@@ -64,4 +64,3 @@ class AgentService:
             ) from exc
 
         return function
-
