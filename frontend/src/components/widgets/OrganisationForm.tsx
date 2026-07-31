@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, Wand2 } from "lucide-react";
 import type { OrganisationProfile } from "@/types";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
@@ -99,6 +99,23 @@ const EMPTY: OrganisationProfile = {
   eligibilityConstraints: "",
 };
 
+const SAMPLE_PROFILE: OrganisationProfile = {
+  organisationName: "VisionWorks Robotics",
+  organisationType: "SME",
+  organisationDescription:
+    "VisionWorks Robotics builds AI-assisted quality inspection systems for manufacturing teams.",
+  country: "Germany",
+  region: "Berlin",
+  projectTitle: "AI Quality Inspection",
+  projectDescription:
+    "AI-driven visual quality inspection across three European factory pilots, reducing defects and improving production traceability.",
+  fundingAmount: "€500,000 – €1,000,000",
+  projectStartDate: "2026-10-01",
+  projectDuration: "24 months",
+  sector: "Digital & AI",
+  eligibilityConstraints: "Open to consortium-based calls and SME innovation grants.",
+};
+
 type Step = 1 | 2 | 3;
 
 const STEP_REQUIRED: Record<Step, (keyof OrganisationProfile)[]> = {
@@ -181,19 +198,38 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
     onSubmit(profile);
   };
 
+  const fillSampleProfile = () => {
+    setProfile(SAMPLE_PROFILE);
+    setTouched(false);
+    setStep(3);
+  };
+
   return (
     <Card ref={cardRef} className="rounded-2xl p-4 shadow-sm sm:p-5">
       <CardHeader className="mb-4 flex flex-col gap-3 space-y-0 p-0">
         <StepIndicator step={step} />
-        <div>
-          <h3
-            ref={headingRef}
-            tabIndex={-1}
-            className="text-sm font-semibold text-foreground outline-none"
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3
+              ref={headingRef}
+              tabIndex={-1}
+              className="text-sm font-semibold text-foreground outline-none"
+            >
+              {STEP_COPY[step].title}
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">{STEP_COPY[step].subtitle}</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={fillSampleProfile}
+            disabled={disabled}
+            className="w-full shrink-0 gap-2 rounded-lg sm:w-auto"
           >
-            {STEP_COPY[step].title}
-          </h3>
-          <p className="mt-1 text-xs text-muted-foreground">{STEP_COPY[step].subtitle}</p>
+            <Wand2 className="h-3.5 w-3.5" />
+            Fill sample
+          </Button>
         </div>
       </CardHeader>
 

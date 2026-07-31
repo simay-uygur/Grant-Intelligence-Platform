@@ -54,7 +54,12 @@ test("calls the versioned grant endpoint and returns mapped live results", async
   expect(requestedInit?.method).toBe("POST");
   expect(JSON.parse(String(requestedInit?.body))).toEqual({
     query: "AI inspection Manufacturing",
+    organisationName: "Northlight",
+    organisationType: "SME",
     country: "Germany",
+    projectTitle: "AI inspection",
+    sector: "Manufacturing",
+    fundingAmount: "EUR 500 000",
     organization_type: "SME",
     only_open: true,
     limit: 3,

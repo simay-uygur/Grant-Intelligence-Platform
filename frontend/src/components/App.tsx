@@ -346,7 +346,7 @@ export function App() {
             type: "text",
             text: isMockMode
               ? `I found ${grants.length} demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
-              : `I found ${grants.length} live Horizon ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results come directly from the backend search; fields not supplied by the source are left blank.`,
+              : `I found ${grants.length} live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results were ranked by the backend grant agent.`,
           },
           { type: "grant_results", grants, sourceSummary: result.sourceSummary },
         ]);
@@ -434,7 +434,7 @@ export function App() {
         askAssistant([
           {
             type: "success",
-            message: `Local application draft created for ${grant.title}. Edit any section, try the simulated local rewrite, or export it.`,
+            message: `${isMockMode ? "Local" : "AI-generated"} application draft created for ${grant.title}. Edit any section, try a rewrite, or export it.`,
           },
           { type: "document", documentId: doc.id },
         ]);
@@ -512,7 +512,7 @@ export function App() {
         askAssistant([
           {
             type: "text",
-            text: "You can edit any section directly, try the simulated local rewrite, or export the whole document as PDF or Word.",
+            text: "You can edit any section directly, try an AI rewrite, or export the whole document as PDF or Word.",
           },
         ]);
       } else if (chatService) {

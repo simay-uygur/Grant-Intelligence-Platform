@@ -26,8 +26,19 @@ describe("grant API mapping", () => {
   test("builds the backend request without deriving budget filters", () => {
     expect(buildGrantSearchRequest(profile)).toEqual({
       query: "Explainable AI inspection Digital & AI",
+      organisationName: "Northlight Robotics",
+      organisationType: "SME",
+      organisationDescription: "Robotics company",
+      sector: "Digital & AI",
       country: "Germany",
+      region: "Bavaria",
+      projectTitle: "Explainable AI inspection",
+      projectDescription: "Computer vision for factories",
+      fundingAmount: "€500,000 – €1,000,000",
+      projectStartDate: "2027-06-01",
+      projectDuration: "24 months",
       organization_type: "SME",
+      eligibilityConstraints: undefined,
       only_open: true,
       limit: 3,
     });

@@ -9,6 +9,7 @@ grant search, and supporting API endpoints.
 
 - `src/` — frontend application code
 - `app/` — FastAPI backend code
+- `agent/` — backend adapter for the Bedrock-backed grant agent
 - `tests/` — backend test coverage
 - `docs/` — API notes and design docs
 - `storage/` — local SQLite data and generated artifacts
@@ -26,6 +27,7 @@ grant search, and supporting API endpoints.
 - FastAPI
 - Pydantic v2 / pydantic-settings
 - SQLite for local conversation storage
+- boto3 and requests for the Bedrock-backed agent and EU Funding & Tenders Portal client
 - httpx for outbound HTTP clients and test transport stubs
 
 ## Prerequisites
@@ -68,7 +70,7 @@ This starts the frontend dev server, typically on `http://localhost:8080`.
 
 ```bash
 source .venv/bin/activate
-uvicorn backend.main:backend --reload
+uvicorn backend.main:app --reload
 ```
 
 This starts the backend API on `http://localhost:8000` by default.
@@ -90,7 +92,7 @@ source .venv/bin/activate
 python3 -m pytest tests -q
 ```
 
-The backend test suite currently covers chat persistence and EU Horizon search behavior.
+The backend test suite currently covers chat persistence and the agent integration contract.
 
 ## Environment variables
 
@@ -100,7 +102,7 @@ Defined in `.env.example`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `VITE_API_MODE` | `mock` | Uses the local mock frontend service. Set to `api` to call the backend. |
+| `VITE_API_MODE` | `api` | Uses the FastAPI backend and Bedrock-backed agent. Set to `mock` for frontend-only development. |
 | `VITE_API_URL` | `http://localhost:8000` | Backend base URL when `VITE_API_MODE=api`. |
 
 ### Backend
@@ -109,9 +111,20 @@ The backend reads `.env` via `pydantic-settings`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `USE_MOCK_BEDROCK` | `true` | Keeps the backend on the local/mock Bedrock flow. |
+| `USE_MOCK_BEDROCK` | `true` | Controls the legacy chat preview flow; grant search and application drafting use the Bedrock agent. |
 | `SQLITE_DB_PATH` | `storage/app.db` | SQLite file used for chat conversations and messages. |
 | `CHAT_HISTORY_WINDOW` | `10` | Number of recent user/assistant messages sent back into the model context. |
+
+## Agent layer
+
+The backend calls `agent/service.py`, which delegates to the Bedrock-backed implementation in `tools/`.
+
+Required functions:
+
+- `search_grants(profile, max_grants=3)`
+- `start_application(grant, profile)`
+- `rewrite_section(section_title, current_content, profile, grant=None, instruction=None)`
+
 
 ## API endpoints
 

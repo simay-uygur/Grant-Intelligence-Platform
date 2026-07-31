@@ -17,7 +17,11 @@ def create_app() -> FastAPI:
         },
         {
             "name": "grants",
-            "description": "Grant search endpoints that expose normalized Horizon and related opportunity results.",
+            "description": "Grant search endpoints backed by the local agent layer.",
+        },
+        {
+            "name": "documents",
+            "description": "Application drafting and section rewrite endpoints backed by the local agent layer.",
         },
         {
             "name": "meta",

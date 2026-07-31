@@ -1,20 +1,44 @@
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class GrantSearchRequest(BaseModel):
+class AgentProfile(BaseModel):
+    organisationName: str | None = Field(default=None, examples=["VisionWorks Robotics"])
+    organisationType: str | None = Field(default=None, examples=["SME"])
+    organisationDescription: str | None = Field(default=None)
+    sector: str | None = Field(default=None, examples=["robotics"])
+    country: str | None = Field(default=None, examples=["Kosovo"])
+    region: str | None = Field(default=None)
+    projectTitle: str | None = Field(default=None, examples=["AI Quality Inspection"])
+    projectDescription: str | None = Field(
+        default=None,
+        examples=["AI-driven quality inspection across 3 EU factories."],
+    )
+    fundingAmount: str | None = Field(default=None, examples=["500,000 - 1,000,000 EUR"])
+    projectStartDate: str | None = Field(default=None)
+    projectDuration: str | None = Field(default=None, examples=["24 months"])
+    eligibilityConstraints: str | None = Field(default=None)
+
+    model_config = ConfigDict(extra="allow")
+
+    def to_agent_profile(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
+class GrantSearchRequest(AgentProfile):
     query: str | None = Field(
         default=None,
         description=(
-            "Optional free-text query sent to the Horizon search endpoint as the "
-            "`text` parameter. Use this for the simplest working search."
+            "Legacy free-text query. If agent profile fields are omitted, this is "
+            "passed as the project description."
         ),
         examples=["AI"],
     )
     country: str | None = Field(
         default=None,
         description=(
-            "Optional backend-side filter or prioritization hint. This is not currently "
-            "sent to the Horizon API as a native server-side filter."
+            "Country associated with the applicant profile."
         ),
         examples=["Turkey"],
     )
@@ -37,16 +61,15 @@ class GrantSearchRequest(BaseModel):
     keywords: list[str] = Field(
         default_factory=list,
         description=(
-            "Optional keyword list. If `query` is omitted, keywords are joined into a "
-            "single search text string for the Horizon API request."
+            "Legacy keyword list. If profile fields are omitted, these are passed as "
+            "the sector or project description."
         ),
         examples=[["education", "ai", "inclusion"]],
     )
     organization_type: str | None = Field(
         default=None,
         description=(
-            "Optional organization type for later ranking/filtering logic. It is not "
-            "currently used as a native Horizon API filter."
+            "Legacy spelling mapped to `organisationType` for the agent."
         ),
         examples=["SME"],
     )
@@ -74,35 +97,91 @@ class GrantSearchRequest(BaseModel):
         ),
     )
     limit: int = Field(
-        default=10,
+        default=3,
         ge=1,
         le=25,
         description=(
-            "Maximum number of normalized results to return. This is an upper bound, "
-            "not a guarantee, because some raw Horizon records are discarded during "
-            "normalization and filtering."
+            "Maximum number of grants requested from the agent."
         ),
         examples=[10],
     )
 
-    model_config = {
-        "json_schema_extra": {
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
             "example": {
-                "query": "AI",
+                "organisationName": "VisionWorks Robotics",
+                "organisationType": "SME",
+                "sector": "robotics",
+                "country": "Kosovo",
+                "projectTitle": "AI Quality Inspection",
+                "projectDescription": "AI-driven quality inspection across 3 EU factories.",
+                "fundingAmount": "500,000 - 1,000,000 EUR",
+                "projectDuration": "24 months",
                 "limit": 3,
             }
-        }
-    }
+        },
+    )
+
+    def to_agent_profile(self) -> dict[str, Any]:
+        profile = super().to_agent_profile()
+
+        if self.organization_type and "organisationType" not in profile:
+            profile["organisationType"] = self.organization_type
+        if self.budget_min is not None or self.budget_max is not None:
+            profile.setdefault("fundingAmount", self._format_budget_range())
+        if self.keywords and "sector" not in profile:
+            profile["sector"] = ", ".join(self.keywords)
+        if self.query and "projectDescription" not in profile:
+            profile["projectDescription"] = self.query
+
+        for backend_only_key in (
+            "query",
+            "keywords",
+            "budget_min",
+            "budget_max",
+            "organization_type",
+            "programme_period",
+            "action_type",
+            "only_open",
+            "limit",
+        ):
+            profile.pop(backend_only_key, None)
+
+        return profile
+
+    def _format_budget_range(self) -> str:
+        if self.budget_min is not None and self.budget_max is not None:
+            return f"{self.budget_min} - {self.budget_max} EUR"
+        if self.budget_min is not None:
+            return f"At least {self.budget_min} EUR"
+        return f"Up to {self.budget_max} EUR"
 
 
 class GrantResult(BaseModel):
-    id: str = Field(description="Stable normalized identifier for the kept Horizon topic result.")
+    id: str = Field(description="Stable grant identifier.")
+    programme: str | None = Field(default=None, description="Grant programme name.")
     title: str = Field(description="Normalized grant or call title shown to the user.")
-    source: str = Field(description="Source system from which the normalized result was collected.")
-    summary: str = Field(description="Short normalized summary extracted from the source metadata.")
+    matchPercentage: int | None = Field(default=None, description="Agent match score from 0 to 100.")
+    fundingAmount: str | None = Field(default=None, description="Agent-provided funding range.")
+    eligibleCountries: list[str] = Field(default_factory=list)
+    organisationEligibility: str | list[str] | None = Field(default=None)
+    fundingType: str | None = Field(default=None)
+    description: str | None = Field(default=None)
+    whyItMatches: str | None = Field(default=None)
+    matchReasons: list[str] = Field(default_factory=list)
+    requirements: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    sourceUrl: str | None = Field(default=None)
+
+    source: str | None = Field(default=None, description="Legacy source system field.")
+    summary: str | None = Field(
+        default=None,
+        description="Legacy short summary field retained for current chat tests.",
+    )
     amount: str | None = Field(
         default=None,
-        description="Optional funding amount or range when the source metadata contains it.",
+        description="Legacy funding amount field.",
     )
     deadline: str | None = Field(
         default=None,
@@ -114,40 +193,44 @@ class GrantResult(BaseModel):
     )
     url: str | None = Field(
         default=None,
-        description="Optional direct link to the kept Horizon opportunity page.",
+        description="Legacy source URL field.",
     )
 
-    model_config = {
-        "json_schema_extra": {
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
             "example": {
                 "id": "HORIZON-CL2-2026-EDU-01",
+                "programme": "Horizon Europe",
                 "title": "Digital education innovation for inclusive learning",
-                "source": "eu_horizon",
-                "summary": "Supports education technology initiatives with measurable inclusion goals.",
-                "amount": "Up to EUR 150,000",
+                "matchPercentage": 88,
+                "fundingAmount": "Up to EUR 150,000",
                 "deadline": "2026-11-15",
-                "match_explanation": "Matches education, AI, and inclusion keywords.",
-                "url": "https://example.org/grants/HORIZON-CL2-2026-EDU-01",
+                "eligibleCountries": ["Turkey"],
+                "organisationEligibility": "SMEs are eligible.",
+                "fundingType": "Grant",
+                "description": "Supports education technology initiatives.",
+                "whyItMatches": "Matches education, AI, and inclusion keywords.",
+                "matchReasons": ["AI focus", "SME eligibility"],
+                "requirements": ["Consortium required"],
+                "tags": ["AI", "education"],
+                "sourceUrl": "https://example.org/grants/HORIZON-CL2-2026-EDU-01",
             }
-        }
-    }
+        },
+    )
 
 
 class GrantSearchResponse(BaseModel):
     grants: list[GrantResult] = Field(
         description=(
-            "Normalized grant results returned by the search service after raw Horizon "
-            "records are filtered, normalized, deduplicated, and limited."
+            "Agent-ranked grant results."
         )
     )
     source_summary: str = Field(
-        description="Human-readable explanation of which sources or filters were used."
+        description="Human-readable explanation of which source or adapter was used."
     )
-    normalized_filters_applied: dict[str, str | int | bool | list[str] | None] = Field(
-        description=(
-            "Final normalized filter values the backend applied. Optional fields may be "
-            "null or empty when they were not supplied."
-        )
+    normalized_filters_applied: dict[str, Any] = Field(
+        description="Final profile values sent to the agent."
     )
 
     model_config = {
