@@ -1,4 +1,4 @@
-import { Landmark, Plus, Trash2 } from "lucide-react";
+import { KanbanSquare, Landmark, MessagesSquare, Plus, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
@@ -11,13 +11,23 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
+/** Which main view the app is showing. Local UI state only — never persisted. */
+export type MainView = "chat" | "pipeline";
+
 interface SidebarProps {
   conversations: Conversation[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  mainView: MainView;
+  onSelectView: (view: MainView) => void;
 }
+
+const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
+  { id: "chat", label: "Chat", icon: MessagesSquare },
+  { id: "pipeline", label: "Pipeline", icon: KanbanSquare },
+];
 
 function SidebarContent({
   conversations,
@@ -25,6 +35,8 @@ function SidebarContent({
   onSelect,
   onNew,
   onDelete,
+  mainView,
+  onSelectView,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   return (
@@ -54,6 +66,37 @@ function SidebarContent({
           New conversation
         </Button>
       </div>
+
+      {/* Switches the main area between the chat and the global pipeline
+          dashboard. Purely a view switch — it doesn't touch conversations. */}
+      <nav aria-label="Views" className="px-2 pb-3">
+        <ul className="space-y-1">
+          {VIEWS.map(({ id, label, icon: Icon }) => {
+            const current = mainView === id;
+            return (
+              <li key={id}>
+                <button
+                  type="button"
+                  aria-current={current ? "page" : undefined}
+                  onClick={() => {
+                    onSelectView(id);
+                    onNavigate?.();
+                  }}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                    current
+                      ? "bg-sidebar-accent text-white"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-white",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
 
       <div className="px-5 pb-2 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
         Conversations

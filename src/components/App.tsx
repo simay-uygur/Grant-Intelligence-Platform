@@ -4,6 +4,7 @@ import { useConversations } from "@/hooks/useConversations";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { grantService, isMockMode } from "@/services";
+import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
   ApplicationStage,
@@ -13,7 +14,9 @@ import type {
   OrganisationProfile,
   ResearchState,
 } from "@/types";
-import { Sidebar, MobileSidebar } from "@/components/layout/Sidebar";
+import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { PipelineDashboard } from "@/components/PipelineDashboard";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -113,6 +116,10 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  // Which main view is showing. Local, non-persisted UI state: the pipeline
+  // dashboard is global across conversations, so it's a sibling view of the
+  // chat rather than a block inside one — the app still has a single route.
+  const [mainView, setMainView] = useState<MainView>("chat");
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
   const researchInFlight = useRef(false);
@@ -371,6 +378,25 @@ export function App() {
     }
   }, [askAssistant, askUser, busy, c, demoRunning, handleStartApplication, runResearch]);
 
+  // Picking a conversation from the sidebar implies you want to read it, so
+  // these pair the existing (untouched) conversation actions with a switch
+  // back to the chat view. View state only — no conversation logic changes.
+  const selectConversation = c.selectConversation;
+  const newConversation = c.newConversation;
+
+  const selectConversationInChat = useCallback(
+    (id: string) => {
+      setMainView("chat");
+      selectConversation(id);
+    },
+    [selectConversation],
+  );
+
+  const newConversationInChat = useCallback(() => {
+    setMainView("chat");
+    newConversation();
+  }, [newConversation]);
+
   const callbacks: BlockCallbacks = useMemo(
     () => ({
       onSubmitProfile: handleSubmitProfile,
@@ -438,6 +464,9 @@ export function App() {
     active && active.stage === "welcome" && active.messages.length <= 1 && !demoRunning,
   );
 
+  const headerTitle =
+    mainView === "pipeline" ? "Application pipeline" : (active?.title ?? "No conversation");
+
   return (
     <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
       <a
@@ -449,18 +478,22 @@ export function App() {
       <Sidebar
         conversations={c.conversations}
         activeId={c.activeId}
-        onSelect={c.selectConversation}
-        onNew={c.newConversation}
+        onSelect={selectConversationInChat}
+        onNew={newConversationInChat}
         onDelete={c.deleteConversation}
+        mainView={mainView}
+        onSelectView={setMainView}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
         onOpenChange={setMobileSidebarOpen}
         conversations={c.conversations}
         activeId={c.activeId}
-        onSelect={c.selectConversation}
-        onNew={c.newConversation}
+        onSelect={selectConversationInChat}
+        onNew={newConversationInChat}
         onDelete={c.deleteConversation}
+        mainView={mainView}
+        onSelectView={setMainView}
       />
 
       <main
@@ -481,34 +514,34 @@ export function App() {
               <Menu className="h-4 w-4" />
             </Button>
             <div className="min-w-0">
-              <h1
-                className="truncate text-sm font-semibold text-foreground"
-                title={active?.title ?? "No conversation"}
-              >
-                {active?.title ?? "No conversation"}
+              <h1 className="truncate text-sm font-semibold text-foreground" title={headerTitle}>
+                {headerTitle}
               </h1>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-success" />
                   Connected · {isMockMode ? "Mock mode" : "API mode"}
                 </span>
-                {active && (
+                {mainView === "chat" && active && (
                   <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
                 )}
               </div>
             </div>
           </div>
-          {active?.stage === "welcome" && (
-            <button
-              type="button"
-              onClick={runDemo}
-              disabled={demoRunning || busy}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-            >
-              <Play className="h-3.5 w-3.5" />
-              {demoRunning ? "Running demo…" : "Run demo"}
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {mainView === "chat" && active?.stage === "welcome" && (
+              <button
+                type="button"
+                onClick={runDemo}
+                disabled={demoRunning || busy}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              >
+                <Play className="h-3.5 w-3.5" />
+                {demoRunning ? "Running demo…" : "Run demo"}
+              </button>
+            )}
+            <ThemeToggle />
+          </div>
         </header>
 
         {!c.persistenceOk && (
@@ -523,7 +556,10 @@ export function App() {
           </div>
         )}
 
-        <div className="relative min-h-0 flex-1">
+        {/* Chat and pipeline are sibling main views. The chat stays mounted
+            (just hidden) while the pipeline is open so the message list keeps
+            its scroll position and stick-to-bottom listener across switches. */}
+        <div className={cn("relative min-h-0 flex-1", mainView !== "chat" && "hidden")}>
           <div ref={scrollContainerRef} className="h-full overflow-y-auto">
             {active ? (
               isFreshWelcome ? (
@@ -576,15 +612,23 @@ export function App() {
           )}
         </div>
 
-        <Composer
-          value={composerValue}
-          onValueChange={setComposerValue}
-          disabled={busy || !active}
-          onSend={handleUserSend}
-          placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
-          grantContext={askingAboutGrant}
-          onClearGrantContext={() => setAskingAboutGrant(null)}
-        />
+        {mainView === "pipeline" && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <PipelineDashboard />
+          </div>
+        )}
+
+        <div className={cn("shrink-0", mainView !== "chat" && "hidden")}>
+          <Composer
+            value={composerValue}
+            onValueChange={setComposerValue}
+            disabled={busy || !active}
+            onSend={handleUserSend}
+            placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
+            grantContext={askingAboutGrant}
+            onClearGrantContext={() => setAskingAboutGrant(null)}
+          />
+        </div>
       </main>
     </div>
   );
