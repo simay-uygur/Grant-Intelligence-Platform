@@ -614,7 +614,9 @@ export function App() {
 
         {mainView === "pipeline" && (
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <PipelineDashboard />
+            {/* The pipeline's empty state sends people back to the chat; it
+                reuses this same view toggle rather than adding a route. */}
+            <PipelineDashboard onGoToChat={() => setMainView("chat")} />
           </div>
         )}
 

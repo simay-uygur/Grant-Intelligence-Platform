@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Building2, CalendarClock, Coins } from "lucide-react";
+import { Building2, CalendarClock, Coins, MessagesSquare, Rows3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import { useApplications } from "@/hooks/useApplications";
@@ -7,6 +7,7 @@ import { formatDeadline } from "@/utils/deadline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/EmptyState";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,19 @@ const STATUS_DESCRIPTION: Record<ApplicationStatus, string> = {
   under_review: "With the funder's evaluators; a decision is pending.",
   approved: "Funded — the funder accepted the application.",
   rejected: "Not funded this round.",
+};
+
+/**
+ * Per-column empty copy. Each stage gets its own line rather than one shared
+ * "No applications" — an empty Rejected column is good news, an empty
+ * Drafting column just means nothing has been started.
+ */
+const STATUS_EMPTY: Record<ApplicationStatus, string> = {
+  drafting: "Nothing in draft",
+  submitted: "Nothing sent to a funder",
+  under_review: "Nothing with reviewers",
+  approved: "No approvals yet",
+  rejected: "No rejections — so far",
 };
 
 /**
@@ -218,9 +232,9 @@ function StatusColumn({
       </div>
 
       {applications.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
-          No applications at this stage.
-        </p>
+        // Inline variant: the column's own heading and description already
+        // explain the stage, so this stays to a single specific line.
+        <EmptyState variant="inline" headingLevel="h4" title={STATUS_EMPTY[status]} />
       ) : (
         <ul role="list" className="flex flex-1 flex-col gap-3">
           {applications.map((application) => (
@@ -246,7 +260,7 @@ function StatusColumn({
  * demo data on first run. Changing a card's status re-groups it into the
  * target column and persists.
  */
-export function PipelineDashboard() {
+export function PipelineDashboard({ onGoToChat }: { onGoToChat: () => void }) {
   const { applications, hydrated, persistenceOk, updateStatus } = useApplications();
 
   // Grouped from live state, so a status change moves the card between
@@ -316,7 +330,21 @@ export function PipelineDashboard() {
           there. From 1200px all five sit in a single row, where stretching
           is what gives the columns their even bottom edge, so it comes
           back. */}
-      {hydrated ? (
+      {!hydrated ? (
+        // Applications are read from storage in an effect, so the first
+        // render has nothing yet. Showing the board here would flash five
+        // empty columns, and showing the board-level empty state would
+        // wrongly claim the pipeline is empty.
+        <p className="text-sm text-muted-foreground">Loading applications…</p>
+      ) : applications.length === 0 ? (
+        <EmptyState
+          headingLevel="h3"
+          icon={Rows3}
+          title="No applications in your pipeline yet"
+          description="This board follows every application you start, from first draft through to the funder's decision. Find a grant you're eligible for in the chat, start an application, and it will appear here."
+          action={{ label: "Find grants in chat", onClick: onGoToChat, icon: MessagesSquare }}
+        />
+      ) : (
         <div className="grid grid-cols-1 items-start gap-3 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3 min-[1200px]:grid-cols-5 min-[1200px]:items-stretch">
           {STATUS_ORDER.map((status) => (
             <StatusColumn
@@ -327,11 +355,6 @@ export function PipelineDashboard() {
             />
           ))}
         </div>
-      ) : (
-        // Applications are read from storage in an effect, so the first
-        // render has nothing yet. Showing the board's empty columns instead
-        // would flash five "No applications at this stage" placeholders.
-        <p className="text-sm text-muted-foreground">Loading applications…</p>
       )}
     </section>
   );
