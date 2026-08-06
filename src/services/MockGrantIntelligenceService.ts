@@ -6,6 +6,7 @@ import type {
   OrganisationProfile,
 } from "@/types";
 import type { GrantIntelligenceService } from "./GrantIntelligenceService";
+import { isMockScenario } from "./mockScenario";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -80,8 +81,16 @@ function makeSections(
 }
 
 export class MockGrantIntelligenceService implements GrantIntelligenceService {
+  // The scenario branches below are opt-in via the `mock` query parameter
+  // (see mockScenario.ts). Without it, every call resolves as it always has.
   async searchGrants(_profile: OrganisationProfile): Promise<Grant[]> {
     await wait(400);
+    if (isMockScenario("search-error")) {
+      throw new Error(
+        "Simulated failure (?mock=search-error): the demo grant index didn't respond. No real service was contacted.",
+      );
+    }
+    if (isMockScenario("search-empty")) return [];
     return MOCK_GRANTS;
   }
 
@@ -90,6 +99,11 @@ export class MockGrantIntelligenceService implements GrantIntelligenceService {
     profile: OrganisationProfile,
   ): Promise<ApplicationDocument> {
     await wait(300);
+    if (isMockScenario("generate-error")) {
+      throw new Error(
+        "Simulated failure (?mock=generate-error): the draft couldn't be generated. Nothing was sent anywhere.",
+      );
+    }
     return {
       id: `doc-${grant.id}-${Date.now()}`,
       grantId: grant.id,
@@ -106,6 +120,11 @@ export class MockGrantIntelligenceService implements GrantIntelligenceService {
     grant: Grant | undefined,
   ): Promise<string> {
     await wait(700);
+    if (isMockScenario("rewrite-error")) {
+      throw new Error(
+        "Simulated failure (?mock=rewrite-error): the mock rewrite didn't finish. Your text is unchanged.",
+      );
+    }
     const org = profile.organisationName || "Our organisation";
     const programme = grant?.programme ?? "the target programme";
     const openings: Record<string, string> = {

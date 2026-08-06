@@ -72,6 +72,9 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
   // sections (or the mobile dropdown) never discards an unsaved draft.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [rewritingId, setRewritingId] = useState<string | null>(null);
+  const [rewriteError, setRewriteError] = useState<{ sectionId: string; message: string } | null>(
+    null,
+  );
   const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
   const [pendingRewriteId, setPendingRewriteId] = useState<string | null>(null);
   const [lastRewrite, setLastRewrite] = useState<LastRewrite | null>(null);
@@ -134,6 +137,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     const isEditingSection = drafts[section.id] !== undefined;
     const currentText = isEditingSection ? drafts[section.id] : section.content;
     setRewritingId(section.id);
+    setRewriteError(null);
     try {
       const next = await grantService.rewriteSection(section.title, currentText, profile, grant);
       setLastRewrite({
@@ -147,6 +151,14 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
         onSectionChange(section.id, next);
         flashSaved(section.id);
       }
+    } catch (err) {
+      // The rewrite is the only step here that can fail, and it fails
+      // harmlessly — the section still holds whatever it held before, so the
+      // notice says so rather than implying lost work.
+      setRewriteError({
+        sectionId: section.id,
+        message: err instanceof Error ? err.message : "The rewrite didn't finish.",
+      });
     } finally {
       setRewritingId(null);
     }
@@ -351,6 +363,10 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                 draft={drafts[activeSection.id]}
                 dirty={isDirty(activeSection.id)}
                 rewriting={rewritingId === activeSection.id}
+                rewriteError={
+                  rewriteError?.sectionId === activeSection.id ? rewriteError.message : undefined
+                }
+                onDismissRewriteError={() => setRewriteError(null)}
                 savedFlash={savedFlashId === activeSection.id}
                 canUndoRewrite={lastRewrite?.sectionId === activeSection.id}
                 rewriteAvailable={Boolean(profile)}
@@ -412,6 +428,8 @@ function SectionEditor({
   draft,
   dirty,
   rewriting,
+  rewriteError,
+  onDismissRewriteError,
   savedFlash,
   canUndoRewrite,
   rewriteAvailable,
@@ -427,6 +445,8 @@ function SectionEditor({
   draft: string | undefined;
   dirty: boolean;
   rewriting: boolean;
+  rewriteError?: string;
+  onDismissRewriteError: () => void;
   savedFlash: boolean;
   canUndoRewrite: boolean;
   rewriteAvailable: boolean;
@@ -533,6 +553,44 @@ function SectionEditor({
           )}
         </div>
       </div>
+
+      {/* Announced politely so a screen reader hears the rewrite start and
+          finish; the visible signal is the spinner in the toolbar button. */}
+      <span aria-live="polite" className="sr-only">
+        {rewriting ? `Rewriting ${section.title}…` : ""}
+      </span>
+
+      {/* role="alert" comes from InlineNotice's error tone, so a failed
+          rewrite is announced without moving focus out of the editor. */}
+      {rewriteError && !rewriting && (
+        <InlineNotice tone="error" className="mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+              {rewriteError} This section still has the text it had before, so nothing was lost.
+            </span>
+            <div className="flex shrink-0 gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onRewrite}
+                className="h-auto rounded-md border-destructive/40 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+              >
+                Try again
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onDismissRewriteError}
+                className="h-auto rounded-md px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </InlineNotice>
+      )}
 
       {editing ? (
         <textarea

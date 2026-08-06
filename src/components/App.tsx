@@ -211,8 +211,13 @@ export function App() {
         askAssistant([
           {
             type: "text",
-            text: `I found ${grants.length} strong matches for ${profile.organisationName}. Here are the top three, ranked by fit:`,
+            text:
+              grants.length === 0
+                ? `I couldn't find anything in the demo dataset that matches ${profile.organisationName} on every criterion. Here's what usually helps:`
+                : `I found ${grants.length} strong matches for ${profile.organisationName}. Here are the top three, ranked by fit:`,
           },
+          // Sent even when empty: GrantResults owns the no-match state and
+          // the "search again" action, so the answer isn't a dead end.
           { type: "grant_results", grants },
         ]);
       } catch (err) {
@@ -290,6 +295,16 @@ export function App() {
             message: `Application draft created for ${grant.title}. Edit any section, or use Rewrite with AI.`,
           },
           { type: "document", documentId: doc.id },
+        ]);
+      } catch (err) {
+        // Previously uncaught: a rejection here left the UI sitting on the
+        // results with no explanation. The stage is deliberately not moved,
+        // so "Start application" on the grant card is still there to retry.
+        askAssistant([
+          {
+            type: "error",
+            message: `${err instanceof Error ? err.message : "The draft couldn't be generated."} Nothing was saved — use "Start application" on ${grant.title} to try again.`,
+          },
         ]);
       } finally {
         setBusy(false);
@@ -419,7 +434,11 @@ export function App() {
         c.activeConversation?.grants?.find((g) => g.id === id) ??
         MOCK_GRANTS.find((g) => g.id === id),
       formDisabled: busy,
-      hasGrantResults: Boolean(c.activeConversation?.grants?.length),
+      // "Has the search finished", not "did it find anything" — a completed
+      // search that matched nothing must still stop the research card's
+      // preparing-results skeletons, or they'd spin forever above the
+      // no-matches state.
+      hasGrantResults: c.activeConversation?.grants !== undefined,
     }),
     [
       busy,

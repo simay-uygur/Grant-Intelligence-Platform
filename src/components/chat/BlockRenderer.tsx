@@ -84,6 +84,9 @@ export function BlockRenderer({
           grants={block.grants}
           onAsk={callbacks.onAskGrant}
           onStart={callbacks.onStartApplication}
+          // Reuses the existing research retry so a zero-match result can
+          // offer a way forward. No new callback, no new block type.
+          onRetryResearch={callbacks.onRetryResearch}
         />
       );
     case "document": {
