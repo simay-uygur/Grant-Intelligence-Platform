@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/EmptyState";
+// The shared deadline badge, reused so grant results and pipeline cards can't
+// drift into two different definitions of "closing soon".
+import { DeadlineBadge } from "@/components/grants/DeadlineBadge";
 import {
   Select,
   SelectContent,
@@ -79,6 +82,18 @@ const STATUS_BADGE: Record<ApplicationStatus, string> = {
   rejected: "border-destructive/30 bg-destructive/10 text-destructive",
 };
 
+/**
+ * Once a funder has approved or rejected an application, its call deadline is
+ * history — flagging it as "Closed" or "Closes in 5 days" would be noise at
+ * best and alarming at worst. Urgency shows only while the outcome is still
+ * open: drafting, submitted, under review.
+ */
+const TERMINAL_STATUSES: readonly ApplicationStatus[] = ["approved", "rejected"];
+
+function showsDeadlineUrgency(status: ApplicationStatus): boolean {
+  return !TERMINAL_STATUSES.includes(status);
+}
+
 /** Left edge accent, so a card's status reads at a glance while scanning. */
 const STATUS_ACCENT: Record<ApplicationStatus, string> = {
   drafting: "border-l-border",
@@ -144,10 +159,15 @@ function ApplicationCard({
               {application.fundingAmount}
             </dd>
           </div>
-          <div className="flex items-center gap-2">
+          {/* flex-wrap so the urgency badge drops to its own line rather than
+              squeezing the date when a column is at its narrowest. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <dt className="sr-only">Deadline</dt>
             <dd>{formatDeadline(application.deadline)}</dd>
+            {showsDeadlineUrgency(application.status) && (
+              <DeadlineBadge deadline={application.deadline} compact />
+            )}
           </div>
         </dl>
         <div className="mt-3 border-t border-border pt-2">
