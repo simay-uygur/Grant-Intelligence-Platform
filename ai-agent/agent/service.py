@@ -1,62 +1,81 @@
 # agent/service.py
-# The service layer the backend calls. Maps directly to the frontend's methods:
-#   search_grants(profile)          -> searchGrants
-#   start_application(grant,profile)-> startApplication
-#   rewrite_section(...)            -> rewriteSection
-# These are reliable structured functions — no agent-loop ambiguity.
+# The service layer the backend calls. Maps to the frontend's methods.
+# Now with error handling so failures return safe values instead of crashing.
 
 import os
-
-# Ensure Bedrock auth is set no matter how this is imported.
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
-from tools.eu_horizon_api import eu_horizon_api
+from tools.keyword_agent import generate_keywords
+from tools.grant_searcher import search_all
 from tools.grant_selector import select_grants
 from tools.start_application import start_application as _start_application
 from tools.rewrite_section import rewrite_section as _rewrite_section
-from tools.keyword_agent import generate_keywords
-from tools.grant_searcher import search_all
 
 
 def search_grants(profile, max_grants=3):
     """
-    Frontend: searchGrants(profile) -> Grant[]
-    Multi-part pipeline:
-      1. keyword_agent  -> generate several smart search keywords
-      2. grant_searcher -> search all keywords, pool candidates
-      3. structure_grants -> score & select the best matches
+    searchGrants(profile) -> Grant[]
+    Pipeline: keywords -> broad search -> select best. Returns [] on failure.
     """
-    # 1. Generate multiple keywords from the profile.
-    keywords = generate_keywords(profile, max_keywords=5)
+    try:
+        keywords = generate_keywords(profile, max_keywords=5)
+    except Exception as e:
+        print(f"[service] keyword generation failed: {e}")
+        fallback = str(profile.get("sector") or "innovation").split()[0].lower()
+        keywords = [fallback]
 
-    # 2. Search all keywords and pool unique candidates.
-    candidates = search_all(keywords, page_size=10)
-
-    # Safety: if nothing came back, return empty rather than crash.
-    if not candidates:
+    try:
+        candidates = search_all(keywords, page_size=10)
+    except Exception as e:
+        print(f"[service] grant search failed: {e}")
         return []
 
-    # 3. Score and select the best matches from the full pool.
-    grants = select_grants(candidates, profile, max_grants=max_grants)
-    return grants
+    if not candidates:
+        print("[service] no candidate grants found.")
+        return []
+
+    try:
+        grants = select_grants(candidates, profile, max_grants=max_grants)
+    except Exception as e:
+        print(f"[service] grant selection failed: {e}")
+        return []
+
+    return grants or []
 
 
 def start_application(grant, profile):
     """
-    Frontend: startApplication(grant, profile) -> ApplicationDocument
+    startApplication(grant, profile) -> ApplicationDocument
+    Returns a minimal error document on failure rather than crashing.
     """
-    return _start_application(grant, profile)
+    try:
+        return _start_application(grant, profile)
+    except Exception as e:
+        print(f"[service] start_application failed: {e}")
+        return {
+            "id": "error",
+            "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
+            "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
+            "sections": [],
+            "updatedAt": "",
+            "error": "Could not draft the application. Please try again.",
+        }
 
 
 def rewrite_section(section_title, current_content, profile, grant=None, instruction=None):
     """
-    Frontend: rewriteSection(sectionTitle, currentContent, profile, grant) -> string
+    rewriteSection(...) -> string
+    Returns the original content unchanged if the rewrite fails.
     """
-    return _rewrite_section(
-        section_title=section_title,
-        current_content=current_content,
-        profile=profile,
-        grant=grant,
-        instruction=instruction,
-    )
+    try:
+        return _rewrite_section(
+            section_title=section_title,
+            current_content=current_content,
+            profile=profile,
+            grant=grant,
+            instruction=instruction,
+        )
+    except Exception as e:
+        print(f"[service] rewrite_section failed: {e}")
+        return current_content
