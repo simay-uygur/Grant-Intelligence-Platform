@@ -5,6 +5,7 @@ from backend.api.router import api_router
 from backend.core.config import settings
 
 
+
 def create_app() -> FastAPI:
     tags_metadata = [
         {
@@ -44,8 +45,8 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.frontend_cors_origins,
-        allow_credentials=True,
+        allow_origins=["*"],
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
