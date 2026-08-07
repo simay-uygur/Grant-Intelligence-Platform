@@ -6,33 +6,39 @@
 # These are reliable structured functions — no agent-loop ambiguity.
 
 import os
+
 # Ensure Bedrock auth is set no matter how this is imported.
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
 from tools.eu_horizon_api import eu_horizon_api
-from tools.structure_grants import structure_grants
+from tools.grant_selector import select_grants
 from tools.start_application import start_application as _start_application
 from tools.rewrite_section import rewrite_section as _rewrite_section
+from tools.keyword_agent import generate_keywords
+from tools.grant_searcher import search_all
 
 
 def search_grants(profile, max_grants=3):
     """
     Frontend: searchGrants(profile) -> Grant[]
-    Takes the organisation profile, searches real EU grants, returns structured Grant[].
+    Multi-part pipeline:
+      1. keyword_agent  -> generate several smart search keywords
+      2. grant_searcher -> search all keywords, pool candidates
+      3. structure_grants -> score & select the best matches
     """
-    # Pick search keywords from the profile. Use sector/keywords if present, else a default.
-    keyword = (
-        profile.get("sector")
-        or profile.get("projectTitle")
-        or profile.get("organisationType")
-        or "innovation"
-    )
-    # Keep it simple: first meaningful word works best with the EU API.
-    keyword = str(keyword).split()[0].lower()
+    # 1. Generate multiple keywords from the profile.
+    keywords = generate_keywords(profile, max_keywords=5)
 
-    raw = eu_horizon_api(keyword, page_size=15)
-    grants = structure_grants(raw, profile, max_grants=max_grants)
+    # 2. Search all keywords and pool unique candidates.
+    candidates = search_all(keywords, page_size=10)
+
+    # Safety: if nothing came back, return empty rather than crash.
+    if not candidates:
+        return []
+
+    # 3. Score and select the best matches from the full pool.
+    grants = select_grants(candidates, profile, max_grants=max_grants)
     return grants
 
 
