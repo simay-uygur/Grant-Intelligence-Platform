@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineNotice } from "@/components/common/InlineNotice";
+import { DemoBadge } from "@/components/common/DemoBadge";
 import { wordCount } from "@/utils/text";
 
 interface Props {
@@ -270,7 +271,12 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
         <CardHeader className="mb-5 flex flex-col gap-3 border-b border-border p-0 pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
             <div className="min-w-0 sm:flex-1">
-              <div className="text-[11px] font-medium text-brand">Grant application draft</div>
+              {/* The whole document is generated prose. Marked once, at the
+                  top, rather than on all twelve sections. */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-[11px] font-medium text-brand">Grant application draft</span>
+                <DemoBadge marker="mock-draft" compact />
+              </div>
               <h3 className="mt-1 break-words text-lg font-semibold text-foreground">
                 {doc.grantTitle}
               </h3>
@@ -583,6 +589,9 @@ function SectionEditor({
                 Saved
               </span>
             )}
+            {/* Shown exactly while a rewrite is undoable — i.e. while this
+                section's text is the one the mock rewriter just produced. */}
+            {canUndoRewrite && <DemoBadge marker="mock-draft" compact />}
           </div>
         </div>
 

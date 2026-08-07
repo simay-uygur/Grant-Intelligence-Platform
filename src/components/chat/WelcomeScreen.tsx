@@ -74,7 +74,7 @@ export function WelcomeScreen({ onQuickStart, onFillComposer }: Props) {
       </div>
 
       <p className="mt-6 max-w-md text-[11px] text-muted-foreground">
-        Mock mode — this demo uses local sample data only. No real grant databases or AI models are
+        Demo mode — this demo uses local sample data only. No real grant databases or AI models are
         connected.
       </p>
     </div>

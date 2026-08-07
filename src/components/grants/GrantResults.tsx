@@ -28,6 +28,7 @@ import {
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { InlineNotice } from "@/components/common/InlineNotice";
+import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { MATCH_TIER_CLASSES, type MatchTier, matchTierFor } from "./grantPresentation";
 import { formatDeadline } from "@/utils/deadline";
@@ -109,9 +110,7 @@ export function GrantResults({ grants, onAsk, onStart, onRetryResearch }: Props)
             Ranked by fit with your organisation profile.
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-amber-300/50 bg-amber-100/60 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-          Demo data
-        </span>
+        <DemoBadge marker="demo-data" />
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -302,9 +301,12 @@ function GrantCard({
         </dl>
 
         <div className="mt-4 rounded-lg bg-brand/5 p-3">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-brand">
+          {/* The one piece of a grant card that reads like written analysis
+              rather than a catalogue field, so it carries its own marker. */}
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium text-brand">
             <Sparkles className="h-3.5 w-3.5" />
             Why it matches
+            <DemoBadge marker="sample-result" compact className="ml-0.5" />
           </div>
           <p className="mt-1 line-clamp-3 break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
             {grant.whyItMatches}

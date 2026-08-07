@@ -77,7 +77,7 @@ function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
     return [
       {
         type: "text",
-        text: `Mock assistant explanation — ${grant.whyItMatches}`,
+        text: `Sample result — ${grant.whyItMatches}`,
       },
     ];
   }
@@ -89,7 +89,7 @@ function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
     },
     {
       type: "text",
-      text: "Mock assistant note — this is a simulated response using only the demo data shown for this grant, not a live AI model. Try one of the suggested questions below, or start the application when you're ready.",
+      text: "Sample result — this is a simulated response using only the demo data shown for this grant, not a live AI model. Try one of the suggested questions below, or start the application when you're ready.",
     },
   ];
 }
@@ -539,7 +539,7 @@ export function App() {
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                  Connected · {isMockMode ? "Mock mode" : "API mode"}
+                  Connected · {isMockMode ? "Demo mode" : "API mode"}
                 </span>
                 {mainView === "chat" && active && (
                   <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>

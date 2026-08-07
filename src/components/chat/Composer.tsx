@@ -377,7 +377,7 @@ export function Composer({
             </Tooltip>
           </div>
           <div className="mt-2 px-1 text-[11px] text-muted-foreground">
-            Mock mode • Responses use local demo data. Not legal or financial advice.
+            Demo mode • Responses use local demo data. Not legal or financial advice.
           </div>
         </div>
       </div>
