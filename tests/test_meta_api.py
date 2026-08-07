@@ -32,6 +32,16 @@ def test_frontend_config_advertises_live_frontend_endpoints() -> None:
     ) in endpoints
     assert ("chat_message", "POST", "/api/v1/chat/message") in endpoints
     assert ("grant_search", "POST", "/api/v1/grants/search") in endpoints
+    assert (
+        "start_application",
+        "POST",
+        "/api/v1/grants/{grant_id}/start-application",
+    ) in endpoints
+    assert (
+        "rewrite_section",
+        "PATCH",
+        "/api/v1/documents/{document_id}/sections/{section_id}",
+    ) in endpoints
 
 
 def test_tools_list_distinguishes_live_and_planned_tools() -> None:
@@ -40,8 +50,10 @@ def test_tools_list_distinguishes_live_and_planned_tools() -> None:
     assert response.status_code == 200
     tools = {tool["name"]: tool for tool in response.json()["tools"]}
     assert tools["searchGrants"]["status"] == "live"
-    assert tools["searchGrants"]["handler"] == "GrantTools.search_grants"
-    assert tools["searchInternet"]["status"] == "mock"
+    assert tools["searchGrants"]["handler"] == "agent.service.search_grants"
+    assert tools["startApplication"]["status"] == "live"
+    assert tools["rewriteSection"]["status"] == "live"
+    assert tools["searchInternet"]["status"] == "planned"
     assert tools["getGrantDetails"]["status"] == "planned"
 
 

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, Wand2 } from "lucide-react";
 import type { OrganisationProfile } from "@/types";
+import { SAMPLE_PROFILES } from "@/data/sampleProfiles";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const SECTORS = [
   "Education",
   "Culture & creative",
   "Social innovation",
+  "Innovation",
   "Other",
 ];
 
@@ -181,19 +183,59 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
     onSubmit(profile);
   };
 
+  const applySampleProfile = (sampleId: string) => {
+    const sample = SAMPLE_PROFILES.find(({ id }) => id === sampleId);
+    if (!sample) return;
+    setProfile(sample.profile);
+    setTouched(false);
+    setStep(3);
+  };
+
+  const fillSampleProfile = () => applySampleProfile(SAMPLE_PROFILES[0].id);
+
   return (
     <Card ref={cardRef} className="rounded-2xl p-4 shadow-sm sm:p-5">
       <CardHeader className="mb-4 flex flex-col gap-3 space-y-0 p-0">
         <StepIndicator step={step} />
-        <div>
-          <h3
-            ref={headingRef}
-            tabIndex={-1}
-            className="text-sm font-semibold text-foreground outline-none"
-          >
-            {STEP_COPY[step].title}
-          </h3>
-          <p className="mt-1 text-xs text-muted-foreground">{STEP_COPY[step].subtitle}</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3
+              ref={headingRef}
+              tabIndex={-1}
+              className="text-sm font-semibold text-foreground outline-none"
+            >
+              {STEP_COPY[step].title}
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">{STEP_COPY[step].subtitle}</p>
+          </div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Select onValueChange={applySampleProfile} disabled={disabled}>
+              <SelectTrigger
+                aria-label="Sample profile"
+                className="w-full rounded-lg sm:min-w-[190px]"
+              >
+                <SelectValue placeholder="Choose a sample" />
+              </SelectTrigger>
+              <SelectContent>
+                {SAMPLE_PROFILES.map(({ id, label }) => (
+                  <SelectItem key={id} value={id}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={fillSampleProfile}
+              disabled={disabled}
+              className="w-full shrink-0 gap-2 rounded-lg sm:w-auto"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              Fill default
+            </Button>
+          </div>
         </div>
       </CardHeader>
 

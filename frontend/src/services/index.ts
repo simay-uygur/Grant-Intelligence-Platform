@@ -1,4 +1,5 @@
 import { ApiGrantService } from "./ApiGrantService";
+import { ApiApplicationService } from "./ApiApplicationService";
 import { ApiBackendService } from "./ApiBackendService";
 import { ApiChatService } from "./ApiChatService";
 import type { ApplicationService } from "./ApplicationService";
@@ -9,7 +10,7 @@ import { LocalApplicationService } from "./LocalApplicationService";
 import { MockGrantService } from "./MockGrantService";
 import { ApiClient } from "./apiClient";
 
-const mode = (import.meta.env.VITE_API_MODE as string | undefined) ?? "mock";
+const mode = (import.meta.env.VITE_API_MODE as string | undefined) ?? "api";
 // Only read/used when mode === "api" — mock mode never touches this and
 // never makes a network request.
 const apiBaseUrl = import.meta.env.VITE_API_URL as string | undefined;
@@ -17,7 +18,10 @@ const apiClient = mode === "api" ? new ApiClient(apiBaseUrl) : undefined;
 
 export const grantService: GrantService =
   mode === "api" && apiClient ? new ApiGrantService(apiBaseUrl, apiClient) : new MockGrantService();
-export const applicationService: ApplicationService = new LocalApplicationService();
+export const applicationService: ApplicationService =
+  mode === "api" && apiClient
+    ? new ApiApplicationService(apiBaseUrl, apiClient)
+    : new LocalApplicationService();
 export const chatService: ChatService | undefined = apiClient
   ? new ApiChatService(apiClient)
   : undefined;

@@ -114,7 +114,7 @@ function SidebarContent({
       <div className="mt-auto flex items-center border-t border-sidebar-border/60 px-4 py-3">
         <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/50">
           <span className="h-1.5 w-1.5 rounded-full bg-success/70" />
-          {isMockMode ? "Local / mock mode" : "Live search / local drafts"}
+          {isMockMode ? "Local / mock mode" : "Live search / AI drafts"}
         </div>
       </div>
     </div>

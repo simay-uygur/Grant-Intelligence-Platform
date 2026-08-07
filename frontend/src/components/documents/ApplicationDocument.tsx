@@ -204,8 +204,8 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                 {doc.grantTitle}
               </h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                A local writing workspace for this application — edit each section, try the
-                simulated local rewrite tool, then export.
+                Edit each section, use the AI rewrite tool when connected, then export your
+                application.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 sm:shrink-0">
@@ -497,11 +497,11 @@ function SectionEditor({
                 ) : (
                   <Sparkles className="h-3 w-3" />
                 )}
-                Rewrite (local simulation)
+                Rewrite with AI
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              Simulated rewrite using local demo logic — not a real AI model
+              Rewrite this section with the connected grant agent
             </TooltipContent>
           </Tooltip>
           {!editing ? (
