@@ -1,11 +1,9 @@
-# API contract proposal (draft)
+# API contract notes
 
-This is a **proposal**, not a finalised contract — it exists so the frontend
-and backend teams have a shared starting point to negotiate from. Nothing
-described here is implemented; no backend exists yet, and this document does
-not change that. See `README.md` for the current mock-only state, and
-`src/services/ApiGrantIntelligenceService.ts` for the (also stub) client
-side.
+This document began as a frontend/backend proposal. The FastAPI backend now
+implements the core chat, grant search, application drafting, and application
+storage calls; sections that still describe future work are labelled as such.
+See `README.md` for the runnable endpoint list.
 
 The team backend is expected to use **FastAPI**. Response shapes below are
 written against the existing frontend types in `src/types/index.ts` — reusing
@@ -74,23 +72,35 @@ Already partly stubbed in `ApiGrantIntelligenceService.searchGrants`:
 
 ## 5. Applications
 
-Already stubbed in `ApiGrantIntelligenceService`:
+Implemented with the SQLite database configured by `SQLITE_DB_PATH`:
 
-- `POST /grants/{grantId}/start-application` → `{ profile }` →
-  `ApplicationDocument`.
-- `PATCH /documents/{documentId}/sections/{sectionId}` → `{ content }` →
-  updated `DocumentSection`. (Frontend today calls
-  `onSectionChange`/`updateDocumentSection` purely locally — see
-  `useConversations.ts`.)
-- `POST /documents/{documentId}/sections/{sectionId}/rewrite` → `{
-currentContent, profile, grant }` → `{ content: string }`. Replaces
-  `MockGrantIntelligenceService.rewriteSection`; `ApiGrantIntelligenceService`
-  currently throws for this on purpose (fails loudly rather than pretending
-  to work) until it exists.
-- `GET /documents/{documentId}/export?format=pdf|docx` — the frontend
-  currently generates both exports client-side
-  (`src/utils/export.ts`); this would only be needed if that moves
-  server-side (e.g. for higher-fidelity Word/PDF output).
+- `POST /api/v1/grants/{grantId}/start-application` accepts `{ grant, profile }`,
+  returns the existing `ApplicationDocument` shape, and persists the generated
+  draft.
+- `GET /api/v1/grants/{grantId}/applications/latest` returns the latest
+  non-archived application linked by `grantId`. The normal chat uses this before
+  starting generation, preventing duplicate drafts when the user clicks the
+  same grant again.
+- `GET /api/v1/applications` returns dashboard summaries ordered by most recent
+  update. Optional query parameters: `status=draft|completed|archived`, `limit`,
+  and `offset`.
+- `GET /api/v1/applications/{applicationId}` returns the complete stored output,
+  lifecycle status, and the grant/profile generation context.
+- `PATCH /api/v1/applications/{applicationId}` accepts
+  `{ "status": "draft|completed|archived" }`.
+- `PUT /api/v1/applications/{applicationId}/sections/{sectionId}` accepts
+  `{ "content": "..." }` for manual edits.
+- `PATCH /api/v1/documents/{documentId}/sections/{sectionId}` runs the current AI
+  rewrite flow and updates the stored section when the document exists.
+
+PDF/DOCX export remains client-side in `frontend/src/utils/export.ts`. A future
+server-side or S3-backed export endpoint can be added without changing the
+stored application contract.
+
+The current MVP has no authentication, so application records are scoped to the
+configured SQLite database rather than to an individual user. Multi-user
+deployment requires an owner/user identifier and authorization checks on these
+routes.
 
 ## 6. File upload
 

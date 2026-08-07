@@ -21,7 +21,10 @@ def create_app() -> FastAPI:
         },
         {
             "name": "documents",
-            "description": "Application drafting and section rewrite endpoints backed by the local agent layer.",
+            "description": (
+                "SQLite-backed application storage plus drafting and section "
+                "rewrite endpoints backed by the local agent layer."
+            ),
         },
         {
             "name": "meta",

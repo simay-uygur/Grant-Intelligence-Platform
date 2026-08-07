@@ -428,13 +428,23 @@ export function App() {
       setAskingAboutGrant(null);
       setBusy(true);
       try {
-        const doc = await applicationService.startApplication(grant, c.activeConversation.profile);
+        const currentDocument = c.activeConversation.document;
+        let doc =
+          currentDocument?.grantId === grant.id
+            ? currentDocument
+            : await applicationService.findSavedApplication(grant.id);
+        const reopened = Boolean(doc);
+        if (!doc) {
+          doc = await applicationService.startApplication(grant, c.activeConversation.profile);
+        }
         c.setDocument(doc, grant.id);
         c.setStage("application");
         askAssistant([
           {
             type: "success",
-            message: `${isMockMode ? "Local" : "AI-generated"} application draft created for ${grant.title}. Edit any section, try a rewrite, or export it.`,
+            message: reopened
+              ? `Saved application reopened for ${grant.title}. Continue editing, try a rewrite, or export it.`
+              : `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
           },
           { type: "document", documentId: doc.id },
         ]);

@@ -38,6 +38,27 @@ def test_frontend_config_advertises_live_frontend_endpoints() -> None:
         "/api/v1/grants/{grant_id}/start-application",
     ) in endpoints
     assert (
+        "latest_grant_application",
+        "GET",
+        "/api/v1/grants/{grant_id}/applications/latest",
+    ) in endpoints
+    assert ("list_applications", "GET", "/api/v1/applications") in endpoints
+    assert (
+        "get_application",
+        "GET",
+        "/api/v1/applications/{application_id}",
+    ) in endpoints
+    assert (
+        "update_application_status",
+        "PATCH",
+        "/api/v1/applications/{application_id}",
+    ) in endpoints
+    assert (
+        "save_application_section",
+        "PUT",
+        "/api/v1/applications/{application_id}/sections/{section_id}",
+    ) in endpoints
+    assert (
         "rewrite_section",
         "PATCH",
         "/api/v1/documents/{document_id}/sections/{section_id}",

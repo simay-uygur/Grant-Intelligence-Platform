@@ -64,6 +64,6 @@ storage/generated/*
 !storage/generated/.gitkeep
 /.postman/
 /postman/
-/storage/app.db
+/storage/*.db
 /.lovable/
 /.lovable/

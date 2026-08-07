@@ -27,7 +27,7 @@ grant search, and supporting API endpoints.
 
 - FastAPI
 - Pydantic v2 / pydantic-settings
-- SQLite for local conversation storage
+- SQLite for local conversation and application storage
 - boto3 and requests for the Bedrock-backed agent and EU Funding & Tenders Portal client
 - httpx for outbound HTTP clients and test transport stubs
 
@@ -132,7 +132,7 @@ place secret keys in this repository.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `USE_MOCK_BEDROCK` | `true` | Controls the legacy chat preview flow; grant search and application drafting use the Bedrock agent. |
-| `SQLITE_DB_PATH` | `storage/app.db` | SQLite file used for chat conversations and messages. |
+| `SQLITE_DB_PATH` | `storage/backend.db` | SQLite file shared by chat history and persisted application drafts. |
 | `CHAT_HISTORY_WINDOW` | `10` | Number of recent user/assistant messages sent back into the model context. |
 
 ## Agent layer
@@ -166,6 +166,21 @@ Required functions:
 ### Grants
 
 - `POST /api/v1/grants/search`
+- `POST /api/v1/grants/{grant_id}/start-application`
+
+### Applications
+
+- `GET /api/v1/grants/{grant_id}/applications/latest` — reopen the latest non-archived application linked to a grant
+- `GET /api/v1/applications` — paginated dashboard summaries; accepts `status`, `limit`, and `offset`
+- `GET /api/v1/applications/{application_id}` — full stored output plus its grant/profile context
+- `PATCH /api/v1/applications/{application_id}` — set `draft`, `completed`, or `archived` status
+- `PUT /api/v1/applications/{application_id}/sections/{section_id}` — persist a manual section edit
+- `PATCH /api/v1/documents/{document_id}/sections/{section_id}` — AI rewrite and persist a section
+
+The normal chat flow checks the grant-specific lookup first. When a saved
+application exists it is reopened; otherwise the existing
+`POST /api/v1/grants/{grant_id}/start-application` call generates and stores a
+new draft.
 
 ### Metadata / frontend config
 
@@ -180,6 +195,7 @@ Required functions:
 
 ## Notes
 
-- `storage/app.db` is a local SQLite database file and should not be committed.
+- `storage/backend.db` is a local SQLite database file and should not be committed.
+- The MVP has no authentication or user ownership model, so the application list covers the entire configured local database. Add an owner/user key before multi-tenant deployment.
 - The frontend still supports mock mode, which is useful when the backend is not running.
 - This repository contains working code plus some design notes in top-level `*.md` files; those notes are kept separate from the main setup instructions above.

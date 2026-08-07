@@ -25,6 +25,47 @@ const grant: Grant = {
   provenance: "live",
 };
 
+test("finds the latest saved application for a grant", async () => {
+  let requestedUrl = "";
+  const fetchImpl: typeof fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        id: "doc-saved",
+        grantId: "MOCK-1",
+        grantTitle: "Manufacturing Research and Innovation Action",
+        sections: [{ id: "executive-summary", title: "Executive Summary", content: "Saved" }],
+        updatedAt: "2026-08-06T00:00:00Z",
+        status: "draft",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  const document = await service.findSavedApplication("MOCK-1");
+
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/applications/latest");
+  expect(document?.id).toBe("doc-saved");
+});
+
+test("returns no saved application when the grant lookup is not found", async () => {
+  const fetchImpl: typeof fetch = async () =>
+    new Response(JSON.stringify({ detail: "Not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  expect(await service.findSavedApplication("MOCK-1")).toBeUndefined();
+});
+
 test("starts an application through the backend document endpoint", async () => {
   let requestedUrl = "";
   let requestedInit: RequestInit | undefined;
@@ -75,10 +116,16 @@ test("rewrites a section through the backend document endpoint", async () => {
     new ApiClient("http://localhost:8000/", fetchImpl),
   );
 
-  const content = await service.rewriteSection("Executive Summary", "Draft", profile, grant);
+  const content = await service.rewriteSection(
+    "Executive Summary",
+    "Draft",
+    profile,
+    grant,
+    "doc-1",
+  );
 
   expect(requestedUrl).toBe(
-    "http://localhost:8000/api/v1/documents/MOCK-1/sections/executive-summary",
+    "http://localhost:8000/api/v1/documents/doc-1/sections/executive-summary",
   );
   expect(requestedInit?.method).toBe("PATCH");
   expect(JSON.parse(String(requestedInit?.body))).toEqual({

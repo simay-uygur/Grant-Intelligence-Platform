@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
 import type { ApplicationService } from "./ApplicationService";
-import { ApiClient } from "./apiClient";
+import { ApiClient, ApiError } from "./apiClient";
 
 const documentSectionSchema = z.object({
   id: z.string().min(1),
@@ -37,6 +37,20 @@ export class ApiApplicationService implements ApplicationService {
     this.client = client ?? new ApiClient(baseUrl);
   }
 
+  async findSavedApplication(grantId: string): Promise<ApplicationDocument | undefined> {
+    try {
+      const payload = await this.client.request<unknown>(
+        `/api/v1/grants/${encodeURIComponent(grantId)}/applications/latest`,
+      );
+      const result = applicationDocumentSchema.safeParse(payload);
+      if (!result.success) throw new ApplicationApiContractError();
+      return result.data;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return undefined;
+      throw error;
+    }
+  }
+
   async startApplication(grant: Grant, profile: OrganisationProfile): Promise<ApplicationDocument> {
     const payload = await this.client.request<unknown>(
       `/api/v1/grants/${encodeURIComponent(grant.id)}/start-application`,
@@ -55,11 +69,12 @@ export class ApiApplicationService implements ApplicationService {
     currentContent: string,
     profile: OrganisationProfile,
     grant: Grant | undefined,
+    documentId?: string,
   ): Promise<string> {
     const sectionId = sectionTitle.toLowerCase().replace(/\s+/g, "-");
-    const documentId = grant?.id ?? "active-document";
+    const storedDocumentId = documentId ?? grant?.id ?? "active-document";
     const payload = await this.client.request<unknown>(
-      `/api/v1/documents/${encodeURIComponent(documentId)}/sections/${encodeURIComponent(sectionId)}`,
+      `/api/v1/documents/${encodeURIComponent(storedDocumentId)}/sections/${encodeURIComponent(sectionId)}`,
       {
         method: "PATCH",
         body: JSON.stringify({
