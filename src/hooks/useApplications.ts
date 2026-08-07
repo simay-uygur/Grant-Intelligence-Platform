@@ -31,7 +31,7 @@ const STATUSES: readonly ApplicationStatus[] = [
  * is checked against the union because an unrecognised one would belong to
  * no column and the card would silently vanish from the board.
  */
-function isApplication(value: unknown): value is DemoApplication {
+export function isApplication(value: unknown): value is DemoApplication {
   if (typeof value !== "object" || value === null) return false;
   const a = value as Record<string, unknown>;
   return (
@@ -48,15 +48,28 @@ function isApplication(value: unknown): value is DemoApplication {
   );
 }
 
+/**
+ * Decides whether a raw stored string is usable, or whether the caller should
+ * fall back to the demo seed. Split out from the storage read so the rules —
+ * missing, unparseable, not an array, empty, or wrong-shaped all mean "seed" —
+ * can be tested without a browser. Pure.
+ */
+export function parseStoredApplications(raw: string | null): DemoApplication[] | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed.every(isApplication) ? (parsed as DemoApplication[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Reads the stored applications, or null when there's nothing usable to read. */
 function loadApplications(): DemoApplication[] | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(KEY_APPLICATIONS);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
-    return parsed.every(isApplication) ? (parsed as DemoApplication[]) : null;
+    return parseStoredApplications(window.localStorage.getItem(KEY_APPLICATIONS));
   } catch {
     return null;
   }

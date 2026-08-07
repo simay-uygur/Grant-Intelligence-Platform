@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ApplicationDocument } from "@/types";
+import type { ApplicationDocument, DocumentSection } from "@/types";
 
 /**
  * UNSAVED EDIT BUFFER — semantics
@@ -38,7 +38,7 @@ const DEBOUNCE_MS = 500;
 /** Buffers for older documents are pruned so the key can't grow forever. */
 const MAX_DOCUMENTS = 20;
 
-interface DraftEntry {
+export interface DraftEntry {
   text: string;
   /** Hash of the committed text this draft was based on. */
   baseHash: string;
@@ -59,13 +59,39 @@ export interface DraftRestore {
 }
 
 /** FNV-1a — small, stable, and enough to spot "this text changed". */
-function hashText(value: string): string {
+export function hashText(value: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < value.length; i++) {
     hash ^= value.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0).toString(36);
+}
+
+/**
+ * The restore decision, extracted from the bootstrap effect so it can be
+ * tested without React or storage. Pure: same inputs, same output.
+ *
+ * Returns null when there is nothing worth restoring.
+ */
+export function computeRestore(
+  buffered: Record<string, DraftEntry>,
+  sections: readonly DocumentSection[],
+): DraftRestore | null {
+  const restored: Record<string, string> = {};
+  const conflictSectionIds: string[] = [];
+
+  for (const [sectionId, entry] of Object.entries(buffered)) {
+    const section = sections.find((s) => s.id === sectionId);
+    // A section that no longer exists has nothing to restore into.
+    if (!section) continue;
+    if (entry.text === section.content) continue; // already committed
+    restored[sectionId] = entry.text;
+    if (entry.baseHash !== hashText(section.content)) conflictSectionIds.push(sectionId);
+  }
+
+  if (Object.keys(restored).length === 0) return null;
+  return { sections: restored, conflictSectionIds };
 }
 
 function isDraftEntry(value: unknown): value is DraftEntry {
@@ -182,19 +208,7 @@ export function useDrafts(doc: ApplicationDocument, drafts: Record<string, strin
     setRestore(null);
 
     const buffer = loadStore()[doc.id];
-    if (buffer) {
-      const sections: Record<string, string> = {};
-      const conflictSectionIds: string[] = [];
-      for (const [sectionId, entry] of Object.entries(buffer.sections)) {
-        const section = doc.sections.find((s) => s.id === sectionId);
-        // A section that no longer exists has nothing to restore into.
-        if (!section) continue;
-        if (entry.text === section.content) continue; // already committed
-        sections[sectionId] = entry.text;
-        if (entry.baseHash !== hashText(section.content)) conflictSectionIds.push(sectionId);
-      }
-      if (Object.keys(sections).length > 0) setRestore({ sections, conflictSectionIds });
-    }
+    if (buffer) setRestore(computeRestore(buffer.sections, doc.sections));
     setHydrated(true);
   }, [doc.id, doc.sections]);
 
