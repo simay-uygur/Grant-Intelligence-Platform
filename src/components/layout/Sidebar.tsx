@@ -1,5 +1,14 @@
-import { useId, useMemo, useState } from "react";
-import { KanbanSquare, Landmark, MessagesSquare, Plus, Search, Trash2, X } from "lucide-react";
+import { useId, useMemo, useRef, useState } from "react";
+import {
+  KanbanSquare,
+  Landmark,
+  MessagesSquare,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
@@ -21,6 +30,7 @@ interface SidebarProps {
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
   mainView: MainView;
   onSelectView: (view: MainView) => void;
@@ -36,13 +46,47 @@ function SidebarContent({
   activeId,
   onSelect,
   onNew,
+  onRename,
   onDelete,
   mainView,
   onSelectView,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   const searchId = useId();
+  const renameId = useId();
   const [query, setQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  // Set on Escape so the blur that follows the input unmounting doesn't
+  // commit the very edit the user just cancelled.
+  const cancelledRef = useRef(false);
+  // Marks the row whose select button should take focus once editing ends,
+  // so focus never falls back to the document body.
+  const restoreFocusRef = useRef<string | null>(null);
+
+  const startRename = (id: string, currentTitle: string) => {
+    cancelledRef.current = false;
+    setDraftTitle(currentTitle);
+    setEditingId(id);
+  };
+
+  const endRename = (id: string) => {
+    restoreFocusRef.current = id;
+    setEditingId(null);
+    setDraftTitle("");
+  };
+
+  // A blank or unchanged title is rejected by renameConversation itself, so
+  // committing one is simply a no-op — no storage write, no title lost.
+  const commitRename = (id: string) => {
+    onRename(id, draftTitle);
+    endRename(id);
+  };
+
+  const cancelRename = (id: string) => {
+    cancelledRef.current = true;
+    endRename(id);
+  };
 
   // Display-side only: `conversations` arrives already loaded, and filtering
   // it for render never mutates, reorders, or persists anything. An empty
@@ -163,17 +207,65 @@ function SidebarContent({
         <ul className="space-y-1">
           {visible.map((c) => {
             const active = c.id === activeId;
+            const editing = editingId === c.id;
+
+            if (editing) {
+              return (
+                <li key={c.id} className="relative">
+                  <label htmlFor={`${renameId}-${c.id}`} className="sr-only">
+                    Rename conversation
+                  </label>
+                  <Input
+                    id={`${renameId}-${c.id}`}
+                    // Focus and select on mount, so typing replaces the old
+                    // title immediately and Escape is always one key away.
+                    ref={(el) => {
+                      el?.select();
+                    }}
+                    value={draftTitle}
+                    maxLength={200}
+                    onChange={(e) => setDraftTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        commitRename(c.id);
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        cancelRename(c.id);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (cancelledRef.current) {
+                        cancelledRef.current = false;
+                        return;
+                      }
+                      commitRename(c.id);
+                    }}
+                    className="border-sidebar-border bg-sidebar-accent/30 text-sm placeholder:text-sidebar-foreground/40 focus-visible:ring-sidebar-ring"
+                  />
+                </li>
+              );
+            }
+
             return (
               <li key={c.id} className="group relative">
                 <button
                   type="button"
                   aria-current={active ? "true" : undefined}
+                  // Takes focus back when this row's rename ends, so focus
+                  // never lands on the body after a commit or cancel.
+                  ref={(el) => {
+                    if (el && restoreFocusRef.current === c.id) {
+                      restoreFocusRef.current = null;
+                      el.focus();
+                    }
+                  }}
                   onClick={() => {
                     onSelect(c.id);
                     onNavigate?.();
                   }}
                   className={cn(
-                    "block w-full cursor-pointer rounded-lg px-3 py-2 pr-9 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                    "block w-full cursor-pointer rounded-lg px-3 py-2 pr-16 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                     active
                       ? "bg-sidebar-accent text-white"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-white",
@@ -186,18 +278,34 @@ function SidebarContent({
                     })}
                   </div>
                 </button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(c.id);
-                  }}
-                  aria-label="Delete conversation"
-                  className="absolute right-2 top-2 h-auto w-auto rounded-md p-1.5 text-sidebar-foreground/70 opacity-100 transition-opacity hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                {/* Row actions share one revealed-on-hover container, so
+                    keyboard focus on either one keeps both visible. */}
+                <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRename(c.id, c.title);
+                    }}
+                    aria-label={`Rename conversation: ${c.title}`}
+                    className="h-auto w-auto rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-white/10 hover:text-white"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(c.id);
+                    }}
+                    aria-label="Delete conversation"
+                    className="h-auto w-auto rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-white/10 hover:text-white"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </li>
             );
           })}

@@ -499,6 +499,7 @@ export function App() {
         activeId={c.activeId}
         onSelect={selectConversationInChat}
         onNew={newConversationInChat}
+        onRename={c.renameConversation}
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
@@ -510,6 +511,7 @@ export function App() {
         activeId={c.activeId}
         onSelect={selectConversationInChat}
         onNew={newConversationInChat}
+        onRename={c.renameConversation}
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}

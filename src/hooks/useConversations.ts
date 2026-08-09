@@ -9,6 +9,28 @@ import type {
   OrganisationProfile,
 } from "@/types";
 
+/** Upper bound on a stored title — a long sentence, not an essay. */
+const MAX_TITLE_LENGTH = 200;
+
+/**
+ * The rename step, as a pure function over the conversation list, so the
+ * data-safety properties can be asserted in a test rather than assumed:
+ * only the target's `title` may differ, every other conversation comes back
+ * by reference, and a rename that shouldn't happen returns the SAME array —
+ * which means the persist effect never re-runs and storage isn't rewritten.
+ */
+export function applyRename(
+  conversations: Conversation[],
+  id: string,
+  title: string,
+): Conversation[] {
+  const next = title.trim().slice(0, MAX_TITLE_LENGTH).trimEnd();
+  if (!next) return conversations;
+  const target = conversations.find((c) => c.id === id);
+  if (!target || target.title === next) return conversations;
+  return conversations.map((c) => (c.id === id ? { ...c, title: next } : c));
+}
+
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -109,6 +131,20 @@ export function useConversations() {
     setActiveId(id);
   }, []);
 
+  /**
+   * Renames one conversation and nothing else.
+   *
+   * Deliberately not routed through updateActive: that targets whichever
+   * conversation is active (rename works on any row) and force-bumps
+   * updatedAt, whereas a rename must leave every other field exactly as it
+   * was. Persistence is the existing effect — same key, same shape, same
+   * safeWrite, so a failed write still just flips persistenceOk to false and
+   * leaves React state intact.
+   */
+  const renameConversation = useCallback((id: string, title: string) => {
+    setConversations((prev) => applyRename(prev, id, title));
+  }, []);
+
   const deleteConversation = useCallback(
     (id: string) => {
       setConversations((prev) => {
@@ -201,6 +237,7 @@ export function useConversations() {
     activeId,
     newConversation,
     selectConversation,
+    renameConversation,
     deleteConversation,
     appendMessage,
     updateMessageBlocks,
