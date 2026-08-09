@@ -1,8 +1,10 @@
-import { KanbanSquare, Landmark, MessagesSquare, Plus, Trash2 } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import { KanbanSquare, Landmark, MessagesSquare, Plus, Search, Trash2, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -39,6 +41,20 @@ function SidebarContent({
   onSelectView,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
+  const searchId = useId();
+  const [query, setQuery] = useState("");
+
+  // Display-side only: `conversations` arrives already loaded, and filtering
+  // it for render never mutates, reorders, or persists anything. An empty
+  // query passes the original array straight through, so the default list is
+  // byte-for-byte what it was before — same order, same active highlight.
+  const needle = query.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      needle ? conversations.filter((c) => c.title.toLowerCase().includes(needle)) : conversations,
+    [conversations, needle],
+  );
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-5 py-5">
@@ -102,9 +118,50 @@ function SidebarContent({
         Conversations
       </div>
 
+      {/* Only worth showing once there's something to search through. */}
+      {conversations.length > 0 && (
+        <div className="px-4 pb-3">
+          <label htmlFor={searchId} className="sr-only">
+            Search conversations
+          </label>
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-sidebar-foreground/50"
+            />
+            <Input
+              id={searchId}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search conversations…"
+              // Sidebar palette rather than the main surface's input tokens,
+              // and the WebKit clear affordance is suppressed in favour of the
+              // button below, so there's never a second × in Chrome/Safari.
+              className="border-sidebar-border bg-sidebar-accent/30 pl-8 pr-8 text-sm placeholder:text-sidebar-foreground/40 focus-visible:ring-sidebar-ring [&::-webkit-search-cancel-button]:appearance-none"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-md p-1 text-sidebar-foreground/60 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          {/* Polite: the count is read after the keystroke echo, and focus
+              stays in the field the whole time. */}
+          <p role="status" aria-live="polite" className="sr-only">
+            {needle ? `${visible.length} of ${conversations.length} conversations match` : ""}
+          </p>
+        </div>
+      )}
+
       <nav className="min-h-0 flex-1 overflow-y-auto px-2">
         <ul className="space-y-1">
-          {conversations.map((c) => {
+          {visible.map((c) => {
             const active = c.id === activeId;
             return (
               <li key={c.id} className="group relative">
@@ -147,6 +204,13 @@ function SidebarContent({
           {conversations.length === 0 && (
             <li className="px-3 py-4 text-xs text-sidebar-foreground/50">
               You don&apos;t have any conversations yet. Use the button above to start one.
+            </li>
+          )}
+          {/* A search that finds nothing is a normal outcome, not a failure —
+              same muted treatment as the "no conversations yet" line. */}
+          {conversations.length > 0 && visible.length === 0 && (
+            <li className="px-3 py-4 text-xs text-sidebar-foreground/50">
+              No conversations match &ldquo;{query.trim()}&rdquo;.
             </li>
           )}
         </ul>
