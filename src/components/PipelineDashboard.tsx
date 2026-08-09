@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Building2, CalendarClock, Coins, MessagesSquare, Rows3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
@@ -115,18 +115,43 @@ function StatusBadge({ status }: { status: ApplicationStatus }) {
   );
 }
 
+/**
+ * Motion vocabulary for a status change, all of it `motion-safe:`-gated so
+ * `prefers-reduced-motion: reduce` gets the state change and nothing else.
+ * ~200ms: long enough for the eye to follow, short enough that it never feels
+ * like waiting.
+ */
+const CARD_ENTER_CLASSES =
+  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-top-1 motion-safe:duration-200 motion-safe:ease-out";
+
+/**
+ * The departing copy. `fill-mode-forwards` holds it invisible until React
+ * drops it a moment later, so it can't flash back at the end of the keyframes.
+ * `motion-reduce:hidden` means it never appears at all under reduced motion.
+ */
+const CARD_GHOST_CLASSES =
+  "pointer-events-none motion-reduce:hidden motion-safe:animate-out motion-safe:fade-out-0 motion-safe:zoom-out-95 motion-safe:duration-200 motion-safe:ease-in motion-safe:fill-mode-forwards";
+
 function ApplicationCard({
   application,
   onStatusChange,
+  /** Rendering the card as it leaves its old column — visual only, never interactive. */
+  ghost,
+  /** Rendering the card as it arrives in its new column. */
+  entering,
 }: {
   application: DemoApplication;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
+  ghost?: boolean;
+  entering?: boolean;
 }) {
   return (
     <Card
       className={cn(
         "flex h-full flex-col border-l-4 transition-shadow hover:shadow-md",
         STATUS_ACCENT[application.status],
+        entering && CARD_ENTER_CLASSES,
+        ghost && CARD_GHOST_CLASSES,
       )}
     >
       {/* Stacked rather than badge-beside-org: columns get narrow on tablet,
@@ -174,27 +199,33 @@ function ApplicationCard({
           <p className="text-[11px] text-muted-foreground">
             Updated {formatDistanceToNow(new Date(application.updatedAt), { addSuffix: true })}
           </p>
-          <Select
-            value={application.status}
-            onValueChange={(value) => {
-              // Radix hands back a plain string; only act on one of ours.
-              if (isStatus(value)) onStatusChange(application.id, value);
-            }}
-          >
-            <SelectTrigger
-              aria-label={`Change status for ${application.grantTitle}`}
-              className="mt-2 h-8 px-2 text-xs"
+          {ghost ? (
+            // Stands in for the Select so the ghost keeps the card's exact
+            // silhouette while it fades — a shorter ghost would read as a jump.
+            <div className="mt-2 h-8 rounded-md border border-input" />
+          ) : (
+            <Select
+              value={application.status}
+              onValueChange={(value) => {
+                // Radix hands back a plain string; only act on one of ours.
+                if (isStatus(value)) onStatusChange(application.id, value);
+              }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_ORDER.map((status) => (
-                <SelectItem key={status} value={status} className="text-xs">
-                  {STATUS_LABEL[status]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                aria-label={`Change status for ${application.grantTitle}`}
+                className="mt-2 h-8 px-2 text-xs transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_ORDER.map((status) => (
+                  <SelectItem key={status} value={status} className="text-xs">
+                    {STATUS_LABEL[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -211,17 +242,43 @@ function StatusColumn({
   status,
   applications,
   onStatusChange,
+  ghost,
+  enteringId,
+  isDestination,
 }: {
   status: ApplicationStatus;
   applications: DemoApplication[];
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
+  /** A card leaving this column, still drawn in the slot it just vacated. */
+  ghost?: { application: DemoApplication; index: number };
+  /** The card that just arrived in this column. */
+  enteringId?: string;
+  isDestination?: boolean;
 }) {
   const headingId = `pipeline-group-${status}`;
+
+  // The ghost sits back in its original slot rather than at the end, so the
+  // card fades from where it actually was instead of jumping first.
+  const items = useMemo(() => {
+    const list = applications.map((application) => ({ application, isGhost: false }));
+    if (ghost) {
+      list.splice(Math.min(ghost.index, list.length), 0, {
+        application: ghost.application,
+        isGhost: true,
+      });
+    }
+    return list;
+  }, [applications, ghost]);
 
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-w-0 flex-col rounded-xl border border-border bg-muted/40 p-3"
+      className={cn(
+        "flex min-w-0 flex-col rounded-xl border border-border bg-muted/40 p-3 transition-shadow",
+        // Brief ring so the eye follows the card to where it landed. Ring is a
+        // box-shadow, so it can't shift layout or widen the board.
+        isDestination && "motion-safe:ring-2 motion-safe:ring-ring/60",
+      )}
     >
       <div className="mb-3">
         <h3
@@ -251,15 +308,26 @@ function StatusColumn({
         </p>
       </div>
 
-      {applications.length === 0 ? (
+      {items.length === 0 ? (
         // Inline variant: the column's own heading and description already
         // explain the stage, so this stays to a single specific line.
         <EmptyState variant="inline" headingLevel="h4" title={STATUS_EMPTY[status]} />
       ) : (
         <ul role="list" className="flex flex-1 flex-col gap-3">
-          {applications.map((application) => (
-            <li key={application.id}>
-              <ApplicationCard application={application} onStatusChange={onStatusChange} />
+          {items.map(({ application, isGhost }) => (
+            <li
+              key={isGhost ? `ghost-${application.id}` : application.id}
+              // The ghost is a duplicate of a card that has already moved:
+              // hidden from assistive tech so it isn't announced or counted
+              // twice, and it renders no focusable control of its own.
+              aria-hidden={isGhost || undefined}
+            >
+              <ApplicationCard
+                application={application}
+                onStatusChange={onStatusChange}
+                ghost={isGhost}
+                entering={!isGhost && application.id === enteringId}
+              />
             </li>
           ))}
         </ul>
@@ -280,8 +348,58 @@ function StatusColumn({
  * demo data on first run. Changing a card's status re-groups it into the
  * target column and persists.
  */
+/** Slightly longer than the 200ms keyframes, so the ghost is never cut short. */
+const MOVE_ANIMATION_MS = 220;
+
+interface CardMove {
+  /** Snapshot taken before the change, so the ghost still shows the old status. */
+  application: DemoApplication;
+  fromStatus: ApplicationStatus;
+  /** Where it sat in the old column, so the ghost fades from that exact slot. */
+  fromIndex: number;
+  toStatus: ApplicationStatus;
+}
+
 export function PipelineDashboard({ onGoToChat }: { onGoToChat: () => void }) {
   const { applications, hydrated, persistenceOk, updateStatus } = useApplications();
+  const [move, setMove] = useState<CardMove | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Presentation only. `updateStatus` is called first and unchanged, so the
+   * change is committed and persisted exactly as before — the animation is
+   * never in the path of the write, and can't delay or drop it.
+   */
+  const handleStatusChange = useCallback(
+    (applicationId: string, status: ApplicationStatus) => {
+      const current = applications.find((a) => a.id === applicationId);
+      updateStatus(applicationId, status);
+      if (!current || current.status === status) return;
+
+      const fromIndex = applications
+        .filter((a) => a.status === current.status)
+        .findIndex((a) => a.id === applicationId);
+
+      setMove({
+        application: current,
+        fromStatus: current.status,
+        fromIndex: Math.max(0, fromIndex),
+        toStatus: status,
+      });
+      setAnnouncement(`${current.grantTitle} moved to ${STATUS_LABEL[status]}`);
+
+      if (moveTimer.current) clearTimeout(moveTimer.current);
+      moveTimer.current = setTimeout(() => setMove(null), MOVE_ANIMATION_MS);
+    },
+    [applications, updateStatus],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (moveTimer.current) clearTimeout(moveTimer.current);
+    };
+  }, []);
 
   // Grouped from live state, so a status change moves the card between
   // columns and both counts update on the next render.
@@ -300,6 +418,12 @@ export function PipelineDashboard({ onGoToChat }: { onGoToChat: () => void }) {
     // the chat's centred reading column (which lives in MessageList/Composer
     // and is deliberately left alone).
     <section aria-labelledby="pipeline-heading" className="w-full px-4 py-6 sm:px-6">
+      {/* Polite, so a status change is read out after whatever the user is
+          doing — never interrupting, never moving focus off the Select. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
+
       <header className="mb-6">
         <h2 id="pipeline-heading" className="text-lg font-semibold text-foreground">
           Application pipeline
@@ -371,7 +495,14 @@ export function PipelineDashboard({ onGoToChat }: { onGoToChat: () => void }) {
               key={status}
               status={status}
               applications={grouped.get(status) ?? []}
-              onStatusChange={updateStatus}
+              onStatusChange={handleStatusChange}
+              ghost={
+                move?.fromStatus === status
+                  ? { application: move.application, index: move.fromIndex }
+                  : undefined
+              }
+              enteringId={move?.toStatus === status ? move.application.id : undefined}
+              isDestination={move?.toStatus === status}
             />
           ))}
         </div>
