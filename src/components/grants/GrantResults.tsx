@@ -30,6 +30,7 @@ import { DeadlineBadge } from "./DeadlineBadge";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
+import { useShortlist } from "@/hooks/useShortlist";
 import { MATCH_TIER_CLASSES, type MatchTier, matchTierFor } from "./grantPresentation";
 import { formatDeadline } from "@/utils/deadline";
 
@@ -44,7 +45,9 @@ interface Props {
 const MAX_COMPARE = 3;
 
 export function GrantResults({ grants, onAsk, onStart, onRetryResearch }: Props) {
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  // Saved grants are durable (gi.shortlist.v1) and shared across every
+  // GrantResults on screen; compare below stays deliberately ephemeral.
+  const { isSaved, toggleSave } = useShortlist();
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
   // Kept separate from `detailsOpen` so the sheet's exit animation still has
@@ -55,15 +58,6 @@ export function GrantResults({ grants, onAsk, onStart, onRetryResearch }: Props)
   const openDetails = (grant: Grant) => {
     setSelectedGrant(grant);
     setDetailsOpen(true);
-  };
-
-  const toggleSaved = (id: string) => {
-    setSavedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   };
 
   const toggleCompare = (id: string) => {
@@ -121,8 +115,8 @@ export function GrantResults({ grants, onAsk, onStart, onRetryResearch }: Props)
             onAsk={onAsk}
             onStart={onStart}
             onViewDetails={openDetails}
-            saved={savedIds.has(g.id)}
-            onToggleSaved={() => toggleSaved(g.id)}
+            saved={isSaved(g.id)}
+            onToggleSaved={() => toggleSave(g)}
             compareChecked={compareIds.has(g.id)}
             onToggleCompare={() => toggleCompare(g.id)}
             compareDisabled={!compareIds.has(g.id) && compareIds.size >= MAX_COMPARE}
