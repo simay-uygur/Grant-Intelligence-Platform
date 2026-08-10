@@ -57,7 +57,43 @@ def frontend_config() -> FrontendConfigResponse:
                 name="start_application",
                 method="POST",
                 path=f"{settings.api_prefix}/grants/{{grant_id}}/start-application",
-                purpose="Draft a full application for one selected grant and profile.",
+                purpose="Draft and persist a full application for one selected grant and profile.",
+            ),
+            FrontendEndpointInfo(
+                name="latest_grant_application",
+                method="GET",
+                path=(
+                    f"{settings.api_prefix}/grants/{{grant_id}}"
+                    "/applications/latest"
+                ),
+                purpose="Reopen the latest non-archived saved application for a grant.",
+            ),
+            FrontendEndpointInfo(
+                name="list_applications",
+                method="GET",
+                path=f"{settings.api_prefix}/applications",
+                purpose="List stored application summaries for the application dashboard.",
+            ),
+            FrontendEndpointInfo(
+                name="get_application",
+                method="GET",
+                path=f"{settings.api_prefix}/applications/{{application_id}}",
+                purpose="Read one stored application output and its generation context.",
+            ),
+            FrontendEndpointInfo(
+                name="update_application_status",
+                method="PATCH",
+                path=f"{settings.api_prefix}/applications/{{application_id}}",
+                purpose="Change a stored application's draft, completed, or archived status.",
+            ),
+            FrontendEndpointInfo(
+                name="save_application_section",
+                method="PUT",
+                path=(
+                    f"{settings.api_prefix}/applications/{{application_id}}"
+                    "/sections/{section_id}"
+                ),
+                purpose="Persist manual edits to one application section.",
             ),
             FrontendEndpointInfo(
                 name="rewrite_section",

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from backend.schemas.grants import AgentProfile, GrantResult
@@ -17,6 +19,41 @@ class ApplicationDocument(BaseModel):
     updatedAt: str = Field(description="Last update timestamp returned by the agent.")
 
 
+ApplicationStatus = Literal["draft", "completed", "archived"]
+
+
+class ApplicationSummary(BaseModel):
+    id: str = Field(description="Stored application identifier.")
+    grantId: str = Field(description="Grant identifier associated with the application.")
+    grantTitle: str = Field(description="Grant title shown in application lists.")
+    status: ApplicationStatus = Field(description="Current application lifecycle status.")
+    sectionCount: int = Field(ge=0, description="Number of stored output sections.")
+    createdAt: str = Field(description="Application creation timestamp in ISO-8601 format.")
+    updatedAt: str = Field(description="Application last update timestamp in ISO-8601 format.")
+
+
+class StoredApplication(ApplicationDocument):
+    status: ApplicationStatus = Field(description="Current application lifecycle status.")
+    grant: dict = Field(description="Grant input used to generate the application.")
+    profile: dict = Field(description="Organisation profile used for generation.")
+    createdAt: str = Field(description="Application creation timestamp in ISO-8601 format.")
+
+
+class ApplicationListResponse(BaseModel):
+    applications: list[ApplicationSummary] = Field(default_factory=list)
+    total: int = Field(ge=0, description="Total matching applications before pagination.")
+    limit: int = Field(ge=1, description="Maximum number of applications returned.")
+    offset: int = Field(ge=0, description="Number of matching applications skipped.")
+
+
+class UpdateApplicationStatusRequest(BaseModel):
+    status: ApplicationStatus = Field(description="New application lifecycle status.")
+
+
+class UpdateApplicationSectionRequest(BaseModel):
+    content: str = Field(description="Complete replacement content for the stored section.")
+
+
 class StartApplicationRequest(BaseModel):
     grant: GrantResult | dict = Field(description="Grant selected by the frontend.")
     profile: AgentProfile = Field(description="Organization profile collected by the frontend.")
@@ -34,4 +71,3 @@ class RewriteSectionResponse(BaseModel):
     sectionId: str = Field(description="Path section identifier.")
     title: str = Field(description="Section title used for the rewrite.")
     content: str = Field(description="Rewritten section content.")
-

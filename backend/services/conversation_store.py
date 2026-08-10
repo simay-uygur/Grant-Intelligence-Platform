@@ -47,17 +47,23 @@ class ConversationStore:
                 )
                 """
             )
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(conversations)")}
+            if "user_id" not in columns:
+                connection.execute("ALTER TABLE conversations ADD COLUMN user_id TEXT")
+            message_columns = {row["name"] for row in connection.execute("PRAGMA table_info(messages)")}
+            if "user_id" not in message_columns:
+                connection.execute("ALTER TABLE messages ADD COLUMN user_id TEXT")
 
-    def create_conversation(self) -> dict[str, str]:
+    def create_conversation(self, user_id: str | None = None) -> dict[str, str]:
         conversation_id = str(uuid4())
         timestamp = self._timestamp()
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO conversations (id, created_at, updated_at)
-                VALUES (?, ?, ?)
+                INSERT INTO conversations (id, user_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
                 """,
-                (conversation_id, timestamp, timestamp),
+                (conversation_id, user_id, timestamp, timestamp),
             )
         return {
             "conversation_id": conversation_id,
@@ -65,15 +71,15 @@ class ConversationStore:
             "updated_at": timestamp,
         }
 
-    def get_conversation(self, conversation_id: str) -> dict[str, str] | None:
+    def get_conversation(self, conversation_id: str, user_id: str | None = None) -> dict[str, str] | None:
         with self._connect() as connection:
             row = connection.execute(
                 """
                 SELECT id, created_at, updated_at
                 FROM conversations
-                WHERE id = ?
+                WHERE id = ? AND (user_id = ? OR ? IS NULL)
                 """,
-                (conversation_id,),
+                (conversation_id, user_id, user_id),
             ).fetchone()
         if row is None:
             return None
@@ -83,18 +89,18 @@ class ConversationStore:
             "updated_at": row["updated_at"],
         }
 
-    def append_message(self, conversation_id: str, role: str, content: str) -> dict[str, str | int]:
-        if self.get_conversation(conversation_id) is None:
+    def append_message(self, conversation_id: str, role: str, content: str, user_id: str | None = None) -> dict[str, str | int]:
+        if self.get_conversation(conversation_id, user_id) is None:
             raise ValueError(f"Conversation '{conversation_id}' does not exist.")
 
         timestamp = self._timestamp()
         with self._connect() as connection:
             cursor = connection.execute(
                 """
-                INSERT INTO messages (conversation_id, role, content, created_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO messages (conversation_id, user_id, role, content, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (conversation_id, role, content, timestamp),
+                (conversation_id, user_id, role, content, timestamp),
             )
             connection.execute(
                 """
@@ -113,8 +119,8 @@ class ConversationStore:
             "created_at": timestamp,
         }
 
-    def list_messages(self, conversation_id: str) -> list[dict[str, str | int]]:
-        if self.get_conversation(conversation_id) is None:
+    def list_messages(self, conversation_id: str, user_id: str | None = None) -> list[dict[str, str | int]]:
+        if self.get_conversation(conversation_id, user_id) is None:
             raise ValueError(f"Conversation '{conversation_id}' does not exist.")
 
         with self._connect() as connection:
@@ -122,10 +128,10 @@ class ConversationStore:
                 """
                 SELECT id, conversation_id, role, content, created_at
                 FROM messages
-                WHERE conversation_id = ?
+                WHERE conversation_id = ? AND (user_id = ? OR ? IS NULL)
                 ORDER BY id ASC
                 """,
-                (conversation_id,),
+                (conversation_id, user_id, user_id),
             ).fetchall()
         return [
             {
@@ -138,17 +144,18 @@ class ConversationStore:
             for row in rows
         ]
 
-    def get_recent_model_messages(self, conversation_id: str, limit: int) -> list[dict[str, str]]:
+    def get_recent_model_messages(self, conversation_id: str, limit: int, user_id: str | None = None) -> list[dict[str, str]]:
         with self._connect() as connection:
             rows = connection.execute(
                 """
                 SELECT role, content
                 FROM messages
                 WHERE conversation_id = ? AND role IN ('user', 'assistant')
+                  AND (user_id = ? OR ? IS NULL)
                 ORDER BY id DESC
                 LIMIT ?
                 """,
-                (conversation_id, limit),
+                (conversation_id, user_id, user_id, limit),
             ).fetchall()
         return [
             {

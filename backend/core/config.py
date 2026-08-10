@@ -1,4 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+import json
 
 
 class Settings(BaseSettings):
@@ -17,12 +19,25 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8080",
     ]
     use_mock_bedrock: bool = True
+    auth_required: bool = False
+    auth_secret_key: str = "development-only-secret-change-before-hosting-9f4c2e7a"
+    auth_token_ttl_hours: int = 168
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("frontend_cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return [x.strip() for x in v.split(",")]
+        return v
 
 
 settings = Settings()

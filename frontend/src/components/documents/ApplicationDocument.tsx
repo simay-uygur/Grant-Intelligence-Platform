@@ -140,6 +140,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
         currentText,
         profile,
         grant,
+        doc.id,
       );
       setLastRewrite({
         sectionId: section.id,

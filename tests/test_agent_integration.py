@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import sys
 import types
+from pathlib import Path
 
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
+from backend.api.routes import documents as document_routes
 from backend.main import create_app
+from backend.services.document_service import DocumentService
 
 
 def _install_fake_agent() -> dict:
@@ -108,8 +112,16 @@ def test_search_grants_calls_agent_service() -> None:
     assert calls["search_grants"]["profile"]["organisationName"] == "VisionWorks Robotics"
 
 
-def test_start_application_and_rewrite_section_call_agent_service() -> None:
+def test_start_application_and_rewrite_section_call_agent_service(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
     calls = _install_fake_agent()
+    monkeypatch.setattr(
+        document_routes,
+        "document_service",
+        DocumentService(database_path=str(tmp_path / "agent_applications.db")),
+    )
     client = TestClient(create_app())
     profile = {
         "organisationName": "VisionWorks Robotics",

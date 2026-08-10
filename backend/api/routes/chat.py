@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from backend.api.dependencies import get_current_user
 from backend.schemas.chat import (
     ChatLoopPreviewResponse,
     ChatMessageRequest,
@@ -20,8 +21,8 @@ chat_service = ChatService()
     description="Create an anonymous backend conversation and return its identifier.",
     response_description="Created conversation metadata.",
 )
-def create_conversation() -> ConversationResponse:
-    return chat_service.create_conversation()
+def create_conversation(current_user: dict[str, str] | None = Depends(get_current_user)) -> ConversationResponse:
+    return chat_service.create_conversation(current_user["id"] if current_user else None)
 
 
 @router.post(
@@ -34,9 +35,9 @@ def create_conversation() -> ConversationResponse:
     ),
     response_description="Assistant response with next-step guidance and tool output.",
 )
-def send_message(payload: ChatMessageRequest) -> ChatMessageResponse:
+def send_message(payload: ChatMessageRequest, current_user: dict[str, str] | None = Depends(get_current_user)) -> ChatMessageResponse:
     try:
-        return chat_service.handle_message(payload)
+        return chat_service.handle_message(payload, current_user["id"] if current_user else None)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -48,9 +49,9 @@ def send_message(payload: ChatMessageRequest) -> ChatMessageResponse:
     description="Return the persisted user and assistant messages for one conversation.",
     response_description="Stored messages for the requested conversation.",
 )
-def get_conversation_messages(conversation_id: str) -> ConversationMessagesResponse:
+def get_conversation_messages(conversation_id: str, current_user: dict[str, str] | None = Depends(get_current_user)) -> ConversationMessagesResponse:
     try:
-        return chat_service.get_messages(conversation_id)
+        return chat_service.get_messages(conversation_id, current_user["id"] if current_user else None)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
