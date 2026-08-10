@@ -1,7 +1,8 @@
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from backend.api.dependencies import get_current_user
 from backend.schemas.documents import (
     ApplicationDocument,
     ApplicationListResponse,
@@ -34,9 +35,9 @@ document_service = DocumentService()
     ),
     response_description="Latest saved application for the grant.",
 )
-def get_latest_application_for_grant(grant_id: str) -> StoredApplication:
+def get_latest_application_for_grant(grant_id: str, current_user: dict[str, str] | None = Depends(get_current_user)) -> StoredApplication:
     try:
-        return document_service.get_latest_application_for_grant(grant_id)
+        return document_service.get_latest_application_for_grant(grant_id, current_user["id"] if current_user else None)
     except ApplicationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -55,11 +56,13 @@ def list_applications(
     status: ApplicationStatus | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> ApplicationListResponse:
     return document_service.list_applications(
         status=status,
         limit=limit,
         offset=offset,
+        user_id=current_user["id"] if current_user else None,
     )
 
 
@@ -73,9 +76,9 @@ def list_applications(
     ),
     response_description="Stored application output and generation context.",
 )
-def get_application(application_id: str) -> StoredApplication:
+def get_application(application_id: str, current_user: dict[str, str] | None = Depends(get_current_user)) -> StoredApplication:
     try:
-        return document_service.get_application(application_id)
+        return document_service.get_application(application_id, current_user["id"] if current_user else None)
     except ApplicationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -90,9 +93,10 @@ def get_application(application_id: str) -> StoredApplication:
 def update_application_status(
     application_id: str,
     payload: UpdateApplicationStatusRequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> StoredApplication:
     try:
-        return document_service.update_application_status(application_id, payload.status)
+        return document_service.update_application_status(application_id, payload.status, current_user["id"] if current_user else None)
     except ApplicationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -108,12 +112,14 @@ def update_application_section(
     application_id: str,
     section_id: str,
     payload: UpdateApplicationSectionRequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> StoredApplication:
     try:
         return document_service.update_application_section(
             application_id,
             section_id,
             payload.content,
+            current_user["id"] if current_user else None,
         )
     except (ApplicationNotFoundError, ApplicationSectionNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -128,6 +134,7 @@ def update_application_section(
 async def start_application(
     grant_id: str,
     payload: StartApplicationRequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> ApplicationDocument:
     payload_grant_id = (
         payload.grant.id
@@ -143,7 +150,7 @@ async def start_application(
             ),
         )
     try:
-        return await asyncio.to_thread(document_service.start_application, payload)
+        return await asyncio.to_thread(document_service.start_application, payload, current_user["id"] if current_user else None)
     except AgentUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -158,6 +165,7 @@ async def rewrite_section(
     document_id: str,
     section_id: str,
     payload: RewriteSectionRequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> RewriteSectionResponse:
     try:
         return await asyncio.to_thread(
@@ -165,6 +173,7 @@ async def rewrite_section(
             document_id,
             section_id,
             payload,
+            current_user["id"] if current_user else None,
         )
     except AgentUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

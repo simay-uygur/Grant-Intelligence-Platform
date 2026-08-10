@@ -193,6 +193,21 @@ new draft.
 3. Switch the frontend to API mode when you are ready to test integration.
 4. Run the backend tests and a frontend build/lint check before pushing.
 
+## Lightsail deployment
+
+The repository includes a GitHub Actions workflow for automatic deployment to
+two AWS Lightsail Container Services: `main` is production and `develop` is
+staging. See [`deploy/lightsail/README.md`](deploy/lightsail/README.md) for the
+required AWS secrets and service setup.
+
+The deployment intentionally has no persistent disk. SQLite data is therefore
+ephemeral; use an external database or storage service before treating saved
+applications and conversations as durable data.
+
+When `AUTH_REQUIRED=true`, users can register and log in from the application.
+Account records and salted password hashes are stored in the backend SQLite
+database; passwords are never stored directly.
+
 ## Notes
 
 - `storage/backend.db` is a local SQLite database file and should not be committed.

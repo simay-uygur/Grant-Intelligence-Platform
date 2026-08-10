@@ -43,7 +43,13 @@ export class ApiClient {
       // any network request is made.
       res = await this.fetchImpl.call(globalThis, url, {
         ...init,
-        headers: { "Content-Type": "application/json", ...init?.headers },
+        headers: {
+          "Content-Type": "application/json",
+          ...(localStorage.getItem("gi.auth.token")
+            ? { Authorization: `Bearer ${localStorage.getItem("gi.auth.token")}` }
+            : {}),
+          ...init?.headers,
+        },
       });
     } catch {
       throw new ApiError(
@@ -52,6 +58,7 @@ export class ApiClient {
     }
 
     if (!res.ok) {
+      if (res.status === 401) localStorage.removeItem("gi.auth.token");
       const detail = await errorDetail(res);
       throw new ApiError(
         detail ?? `Grant backend request failed (${res.status}). Please try again.`,

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8080",
     ]
     use_mock_bedrock: bool = True
+    auth_required: bool = False
+    auth_secret_key: str = "development-only-secret-change-before-hosting-9f4c2e7a"
+    auth_token_ttl_hours: int = 168
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,7 +1,8 @@
 import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from backend.api.dependencies import get_current_user
 from backend.schemas.grants import GrantSearchRequest, GrantSearchResponse
 from backend.services.agent_service import AgentUnavailableError
 from backend.services.grant_search import GrantSearchService
@@ -20,7 +21,7 @@ grant_search_service = GrantSearchService()
     ),
     response_description="Agent-shaped grant search results for frontend rendering.",
 )
-async def search_grants(payload: GrantSearchRequest) -> GrantSearchResponse:
+async def search_grants(payload: GrantSearchRequest, _current_user: dict[str, str] | None = Depends(get_current_user)) -> GrantSearchResponse:
     try:
         return await asyncio.to_thread(grant_search_service.search, payload)
     except AgentUnavailableError as exc:

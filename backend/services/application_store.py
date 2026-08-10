@@ -50,6 +50,9 @@ class ApplicationStore:
                 )
                 """
             )
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(applications)")}
+            if "user_id" not in columns:
+                connection.execute("ALTER TABLE applications ADD COLUMN user_id TEXT")
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_applications_updated_at
@@ -69,6 +72,7 @@ class ApplicationStore:
         *,
         grant: dict,
         profile: dict,
+        user_id: str | None = None,
     ) -> dict:
         timestamp = self._timestamp()
         sections_json = json.dumps(
@@ -80,6 +84,7 @@ class ApplicationStore:
                 """
                 INSERT INTO applications (
                     id,
+                    user_id,
                     grant_id,
                     grant_title,
                     status,
@@ -89,17 +94,19 @@ class ApplicationStore:
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     grant_id = excluded.grant_id,
                     grant_title = excluded.grant_title,
                     sections_json = excluded.sections_json,
                     grant_json = excluded.grant_json,
                     profile_json = excluded.profile_json,
-                    updated_at = excluded.updated_at
+                    updated_at = excluded.updated_at,
+                    user_id = excluded.user_id
                 """,
                 (
                     document.id,
+                    user_id,
                     document.grantId,
                     document.grantTitle,
                     sections_json,
@@ -120,13 +127,21 @@ class ApplicationStore:
         status: ApplicationStatus | None = None,
         limit: int = 50,
         offset: int = 0,
+        user_id: str | None = None,
     ) -> tuple[list[dict], int]:
-        where_clause = "WHERE status = ?" if status is not None else ""
-        parameters: tuple = (status,) if status is not None else ()
+        conditions = []
+        parameters: list = []
+        if status is not None:
+            conditions.append("status = ?")
+            parameters.append(status)
+        if user_id is not None:
+            conditions.append("user_id = ?")
+            parameters.append(user_id)
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         with self._connect() as connection:
             total = connection.execute(
                 f"SELECT COUNT(*) FROM applications {where_clause}",
-                parameters,
+                tuple(parameters),
             ).fetchone()[0]
             rows = connection.execute(
                 f"""
@@ -141,20 +156,20 @@ class ApplicationStore:
             ).fetchall()
         return [self._summary_from_row(row) for row in rows], int(total)
 
-    def get_application(self, application_id: str) -> dict | None:
+    def get_application(self, application_id: str, user_id: str | None = None) -> dict | None:
         with self._connect() as connection:
             row = connection.execute(
                 """
                 SELECT id, grant_id, grant_title, status, sections_json,
                        grant_json, profile_json, created_at, updated_at
                 FROM applications
-                WHERE id = ?
+                WHERE id = ? AND (user_id = ? OR ? IS NULL)
                 """,
-                (application_id,),
+                (application_id, user_id, user_id),
             ).fetchone()
         return self._application_from_row(row) if row is not None else None
 
-    def get_latest_application_for_grant(self, grant_id: str) -> dict | None:
+    def get_latest_application_for_grant(self, grant_id: str, user_id: str | None = None) -> dict | None:
         with self._connect() as connection:
             row = connection.execute(
                 """
@@ -162,10 +177,11 @@ class ApplicationStore:
                        grant_json, profile_json, created_at, updated_at
                 FROM applications
                 WHERE grant_id = ? AND status != 'archived'
+                  AND (user_id = ? OR ? IS NULL)
                 ORDER BY updated_at DESC, id ASC
                 LIMIT 1
                 """,
-                (grant_id,),
+                (grant_id, user_id, user_id),
             ).fetchone()
         return self._application_from_row(row) if row is not None else None
 
@@ -173,6 +189,7 @@ class ApplicationStore:
         self,
         application_id: str,
         status: ApplicationStatus,
+        user_id: str | None = None,
     ) -> dict | None:
         timestamp = self._timestamp()
         with self._connect() as connection:
@@ -180,9 +197,9 @@ class ApplicationStore:
                 """
                 UPDATE applications
                 SET status = ?, updated_at = ?
-                WHERE id = ?
+                WHERE id = ? AND (user_id = ? OR ? IS NULL)
                 """,
-                (status, timestamp, application_id),
+                (status, timestamp, application_id, user_id, user_id),
             )
         if cursor.rowcount == 0:
             return None
@@ -193,13 +210,14 @@ class ApplicationStore:
         application_id: str,
         section_id: str,
         content: str,
+        user_id: str | None = None,
     ) -> dict | None:
         timestamp = self._timestamp()
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
-                "SELECT sections_json FROM applications WHERE id = ?",
-                (application_id,),
+                "SELECT sections_json FROM applications WHERE id = ? AND (user_id = ? OR ? IS NULL)",
+                (application_id, user_id, user_id),
             ).fetchone()
             if row is None:
                 return None
