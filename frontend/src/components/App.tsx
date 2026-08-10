@@ -163,6 +163,7 @@ const DEMO_PROFILE: OrganisationProfile = {
 
 export function App() {
   const c = useConversations();
+  const { synchronizeBackendMessages } = c;
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -259,7 +260,7 @@ export function App() {
       try {
         const messages = await chatService.getMessages(backendConversationId);
         if (historySyncRequest.current !== requestId) return;
-        c.synchronizeBackendMessages(conversationId, messages);
+        synchronizeBackendMessages(conversationId, messages);
         setBackendHistorySync({ status: "synced", conversationId });
       } catch (error) {
         if (historySyncRequest.current !== requestId) return;
@@ -273,7 +274,7 @@ export function App() {
         });
       }
     },
-    [c.synchronizeBackendMessages],
+    [synchronizeBackendMessages],
   );
 
   useEffect(() => {

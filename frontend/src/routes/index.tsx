@@ -31,6 +31,7 @@ export const Route = createFileRoute("/")({
 });
 
 function ProtectedApp() {
-  const hasToken = typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
+  const hasToken =
+    typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
   return hasToken ? <App /> : <AuthScreen />;
 }

@@ -22,12 +22,15 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ (github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name) == 'main' && 'production' || 'staging' }}
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_PAGER: ""
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name }}
-      SERVICE_NAME: ${{ (github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name) == 'main' && secrets.LIGHTSAIL_MAIN_SERVICE || secrets.LIGHTSAIL_DEVELOP_SERVICE }}
+      SERVICE_NAME: ${{ secrets.LIGHTSAIL_SERVICE || ((github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name) == 'main' && 'grant-intelligence-main' || 'grant-intelligence-develop') }}
       IMAGE_TAG: ${{ github.sha }}
+      LIGHTSAIL_POWER: micro
+      LIGHTSAIL_SCALE: "1"
 
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +48,38 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create Lightsail service if missing
+        run: |
+          if aws lightsail get-container-services --service-name "$SERVICE_NAME" >/dev/null 2>&1; then
+            echo "Lightsail service already exists: $SERVICE_NAME"
+          else
+            echo "Creating Lightsail service: $SERVICE_NAME"
+            aws lightsail create-container-service \
+              --service-name "$SERVICE_NAME" \
+              --power "$LIGHTSAIL_POWER" \
+              --scale "$LIGHTSAIL_SCALE"
+          fi
+
+      - name: Wait for Lightsail service
+        run: |
+          for attempt in $(seq 1 36); do
+            state=$(aws lightsail get-container-services \
+              --service-name "$SERVICE_NAME" \
+              --query 'containerServices[0].state' \
+              --output text)
+            echo "Lightsail service state: $state"
+            if [ "$state" = "READY" ] || [ "$state" = "RUNNING" ]; then
+              exit 0
+            fi
+            if [ "$state" = "DISABLED" ] || [ "$state" = "DELETING" ]; then
+              echo "Lightsail service entered an unusable state: $state"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for Lightsail service: $SERVICE_NAME"
+          exit 1
 
       - name: Build and test frontend
         working-directory: frontend

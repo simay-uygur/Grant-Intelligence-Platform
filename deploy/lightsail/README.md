@@ -14,15 +14,15 @@ No Lightsail disk or persistent volume is configured. SQLite therefore lives
 inside the backend container and should be treated as disposable. A service
 deployment or replacement can lose conversations and saved applications.
 
-## GitHub secrets
+## GitHub environments and secrets
 
-Configure these repository secrets before enabling the workflow:
+Create two GitHub Environments: `production` and `staging`. Configure these
+secrets separately inside each environment:
 
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `AWS_REGION`
-- `LIGHTSAIL_MAIN_SERVICE`
-- `LIGHTSAIL_DEVELOP_SERVICE`
+- `LIGHTSAIL_SERVICE` — optional override; defaults from the branch name
 - `LIGHTSAIL_BACKEND_ENV` — multiline `KEY=value` pairs for backend runtime settings
 
 The AWS identity needs permission to push Lightsail container images and create
@@ -35,8 +35,10 @@ backend environment. Users register through the app's login screen. Their
 email and salted password hash are stored in SQLite; the browser keeps only a
 signed session token. Tokens expire after `AUTH_TOKEN_TTL_HOURS`.
 
-Create both container services in Lightsail first. The workflow will update
-their deployments on every push to the corresponding branch.
+The workflow automatically selects `production` for `main` and `staging` for
+`develop`. If the service named by `LIGHTSAIL_SERVICE` does not exist, the
+workflow creates it with Micro power and scale 1, waits for it to become ready,
+and then deploys the images.
 
 ## Run locally with Docker
 
