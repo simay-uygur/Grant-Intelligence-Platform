@@ -12,6 +12,26 @@ export class ApiError extends Error {
   }
 }
 
+const AUTH_TOKEN_KEY = "gi.auth.token";
+
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function clearAuthToken(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    // Storage can be unavailable in private browsing or restricted runtimes.
+  }
+}
+
 export function joinApiUrl(baseUrl: string | undefined, path: string): string {
   const normalizedBase = (baseUrl ?? "").trim().replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -35,6 +55,7 @@ export class ApiClient {
 
   async request<T>(path: string, init?: RequestInit): Promise<T> {
     const url = joinApiUrl(this.baseUrl, path);
+    const token = getAuthToken();
     let res: Response;
     try {
       // Browser fetch is a Web API method with a Window/Worker receiver.
@@ -45,9 +66,7 @@ export class ApiClient {
         ...init,
         headers: {
           "Content-Type": "application/json",
-          ...(localStorage.getItem("gi.auth.token")
-            ? { Authorization: `Bearer ${localStorage.getItem("gi.auth.token")}` }
-            : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...init?.headers,
         },
       });
@@ -58,7 +77,7 @@ export class ApiClient {
     }
 
     if (!res.ok) {
-      if (res.status === 401) localStorage.removeItem("gi.auth.token");
+      if (res.status === 401) clearAuthToken();
       const detail = await errorDetail(res);
       throw new ApiError(
         detail ?? `Grant backend request failed (${res.status}). Please try again.`,
