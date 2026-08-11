@@ -81,6 +81,13 @@ jobs:
           echo "Timed out waiting for Lightsail service: $SERVICE_NAME"
           exit 1
 
+      - name: Install Lightsail Control plugin
+        run: |
+          sudo curl "https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl" \
+            -o /usr/local/bin/lightsailctl
+          sudo chmod +x /usr/local/bin/lightsailctl
+          lightsailctl --version || true
+
       - name: Build and test frontend
         working-directory: frontend
         run: |
