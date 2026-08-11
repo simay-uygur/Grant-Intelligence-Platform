@@ -163,6 +163,7 @@ const DEMO_PROFILE: OrganisationProfile = {
 
 export function App() {
   const c = useConversations();
+  const { synchronizeBackendMessages } = c;
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -259,7 +260,7 @@ export function App() {
       try {
         const messages = await chatService.getMessages(backendConversationId);
         if (historySyncRequest.current !== requestId) return;
-        c.synchronizeBackendMessages(conversationId, messages);
+        synchronizeBackendMessages(conversationId, messages);
         setBackendHistorySync({ status: "synced", conversationId });
       } catch (error) {
         if (historySyncRequest.current !== requestId) return;
@@ -273,7 +274,7 @@ export function App() {
         });
       }
     },
-    [c.synchronizeBackendMessages],
+    [synchronizeBackendMessages],
   );
 
   useEffect(() => {
@@ -428,13 +429,23 @@ export function App() {
       setAskingAboutGrant(null);
       setBusy(true);
       try {
-        const doc = await applicationService.startApplication(grant, c.activeConversation.profile);
+        const currentDocument = c.activeConversation.document;
+        let doc =
+          currentDocument?.grantId === grant.id
+            ? currentDocument
+            : await applicationService.findSavedApplication(grant.id);
+        const reopened = Boolean(doc);
+        if (!doc) {
+          doc = await applicationService.startApplication(grant, c.activeConversation.profile);
+        }
         c.setDocument(doc, grant.id);
         c.setStage("application");
         askAssistant([
           {
             type: "success",
-            message: `${isMockMode ? "Local" : "AI-generated"} application draft created for ${grant.title}. Edit any section, try a rewrite, or export it.`,
+            message: reopened
+              ? `Saved application reopened for ${grant.title}. Continue editing, try a rewrite, or export it.`
+              : `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
           },
           { type: "document", documentId: doc.id },
         ]);

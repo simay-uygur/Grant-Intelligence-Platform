@@ -21,7 +21,7 @@ class ChatService:
             database_path=database_path or settings.sqlite_db_path
         )
 
-    def handle_message(self, payload: ChatMessageRequest) -> ChatMessageResponse:
+    def handle_message(self, payload: ChatMessageRequest, user_id: str | None = None) -> ChatMessageResponse:
         tool_definitions = [
             {
                 "name": "searchGrants",
@@ -36,15 +36,17 @@ class ChatService:
                 },
             }
         ]
-        conversation = self._resolve_conversation(payload.conversation_id)
+        conversation = self._resolve_conversation(payload.conversation_id, user_id)
         self.conversation_store.append_message(
             conversation["conversation_id"],
             "user",
             payload.user_message,
+            user_id,
         )
         messages = self.conversation_store.get_recent_model_messages(
             conversation["conversation_id"],
             settings.chat_history_window,
+            user_id,
         )
 
         first_response = self.bedrock_service.converse(messages, tool_definitions)
@@ -76,6 +78,7 @@ class ChatService:
                 conversation["conversation_id"],
                 "assistant",
                 assistant_message,
+                user_id,
             )
             return ChatMessageResponse(
                 conversation_id=conversation["conversation_id"],
@@ -93,6 +96,7 @@ class ChatService:
             conversation["conversation_id"],
             "assistant",
             assistant_message,
+            user_id,
         )
         return ChatMessageResponse(
             conversation_id=conversation["conversation_id"],
@@ -136,22 +140,22 @@ class ChatService:
             ],
         )
 
-    def create_conversation(self) -> ConversationResponse:
-        conversation = self.conversation_store.create_conversation()
+    def create_conversation(self, user_id: str | None = None) -> ConversationResponse:
+        conversation = self.conversation_store.create_conversation(user_id)
         return ConversationResponse(**conversation)
 
-    def get_messages(self, conversation_id: str) -> ConversationMessagesResponse:
-        messages = self.conversation_store.list_messages(conversation_id)
+    def get_messages(self, conversation_id: str, user_id: str | None = None) -> ConversationMessagesResponse:
+        messages = self.conversation_store.list_messages(conversation_id, user_id)
         return ConversationMessagesResponse(
             conversation_id=conversation_id,
             messages=[StoredChatMessage(**message) for message in messages],
         )
 
-    def _resolve_conversation(self, conversation_id: str | None) -> dict[str, str]:
+    def _resolve_conversation(self, conversation_id: str | None, user_id: str | None = None) -> dict[str, str]:
         if conversation_id is None:
-            return self.conversation_store.create_conversation()
+            return self.conversation_store.create_conversation(user_id)
 
-        conversation = self.conversation_store.get_conversation(conversation_id)
+        conversation = self.conversation_store.get_conversation(conversation_id, user_id)
         if conversation is None:
             raise ValueError(f"Conversation '{conversation_id}' does not exist.")
         return conversation

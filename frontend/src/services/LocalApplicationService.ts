@@ -79,6 +79,10 @@ function makeSections(grant: Grant, profile: OrganisationProfile): DocumentSecti
 }
 
 export class LocalApplicationService implements ApplicationService {
+  async findSavedApplication(_grantId: string): Promise<ApplicationDocument | undefined> {
+    return undefined;
+  }
+
   async startApplication(grant: Grant, profile: OrganisationProfile): Promise<ApplicationDocument> {
     await wait(300);
     return {
@@ -95,6 +99,7 @@ export class LocalApplicationService implements ApplicationService {
     currentContent: string,
     profile: OrganisationProfile,
     grant: Grant | undefined,
+    _documentId?: string,
   ): Promise<string> {
     await wait(700);
     const org = profile.organisationName || "Our organisation";

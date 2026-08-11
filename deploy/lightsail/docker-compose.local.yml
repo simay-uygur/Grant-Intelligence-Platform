@@ -1,0 +1,42 @@
+services:
+  nginx:
+    image: nginx:1.29-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/templates/nginx.conf.template:ro
+    environment:
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+      FRONTEND_HOST: frontend
+      FRONTEND_PORT: "3000"
+      BACKEND_HOST: backend
+      BACKEND_PORT: "8000"
+    depends_on:
+      - frontend
+      - backend
+
+  frontend:
+    build:
+      context: ../../frontend
+      args:
+        VITE_API_MODE: api
+        VITE_API_URL: ""
+        VITE_AUTH_REQUIRED: "false"
+    expose:
+      - "3000"
+    environment:
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    expose:
+      - "8000"
+    env_file:
+      - ../../.env
+    environment:
+      SQLITE_DB_PATH: /app/storage/backend.db
+      FRONTEND_CORS_ORIGINS: '["http://localhost:8080"]'
+      DEBUG: "false"

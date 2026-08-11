@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { App } from "@/components/App";
+import { AuthScreen } from "@/components/AuthScreen";
+
+const authRequired = import.meta.env.VITE_AUTH_REQUIRED === "true";
+const apiMode = (import.meta.env.VITE_API_MODE as string | undefined) ?? "api";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,5 +27,11 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: App,
+  component: authRequired && apiMode === "api" ? ProtectedApp : App,
 });
+
+function ProtectedApp() {
+  const hasToken =
+    typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
+  return hasToken ? <App /> : <AuthScreen />;
+}
