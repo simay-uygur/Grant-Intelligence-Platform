@@ -1,5 +1,6 @@
 import type { ApplicationDocument, DocumentSection, Grant, OrganisationProfile } from "@/types";
 import type { ApplicationService } from "./ApplicationService";
+import { isMockScenario } from "./mockScenario";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -85,6 +86,11 @@ export class LocalApplicationService implements ApplicationService {
 
   async startApplication(grant: Grant, profile: OrganisationProfile): Promise<ApplicationDocument> {
     await wait(300);
+    if (isMockScenario("generate-error")) {
+      throw new Error(
+        "Simulated failure (?mock=generate-error): the draft couldn't be generated. Nothing was sent anywhere.",
+      );
+    }
     return {
       id: `doc-${grant.id}-${Date.now()}`,
       grantId: grant.id,
@@ -102,6 +108,11 @@ export class LocalApplicationService implements ApplicationService {
     _documentId?: string,
   ): Promise<string> {
     await wait(700);
+    if (isMockScenario("rewrite-error")) {
+      throw new Error(
+        "Simulated failure (?mock=rewrite-error): the mock rewrite didn't finish. Your text is unchanged.",
+      );
+    }
     const org = profile.organisationName || "Our organisation";
     const programme = grant ? grantContext(grant) : "the target programme";
     const openings: Record<string, string> = {

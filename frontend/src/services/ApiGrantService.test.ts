@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { OrganisationProfile } from "../types";
 import { ApiGrantService } from "./ApiGrantService";
 import { ApiClient } from "./apiClient";

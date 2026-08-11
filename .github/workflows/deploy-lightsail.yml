@@ -105,7 +105,7 @@ jobs:
           docker build -t backend:${IMAGE_TAG} -f backend/Dockerfile .
           docker build -t nginx:${IMAGE_TAG} -f- deploy/lightsail <<'EOF'
           FROM nginx:1.29-alpine
-          COPY nginx.conf /etc/nginx/nginx.conf
+          COPY nginx.conf /etc/nginx/templates/nginx.conf.template
           EOF
 
       - name: Push images to Lightsail
@@ -134,6 +134,13 @@ jobs:
               "nginx": {
                   "image": ":%s.nginx.latest" % os.environ["SERVICE_NAME"],
                   "ports": {"80": "HTTP"},
+                  "environment": {
+                      "NGINX_ENVSUBST_OUTPUT_DIR": "/etc/nginx",
+                      "FRONTEND_HOST": "localhost",
+                      "FRONTEND_PORT": "3000",
+                      "BACKEND_HOST": "localhost",
+                      "BACKEND_PORT": "8000",
+                  },
               },
               "frontend": {
                   "image": ":%s.frontend.latest" % os.environ["SERVICE_NAME"],

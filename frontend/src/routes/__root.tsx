@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { THEME_INIT_SCRIPT } from "../lib/theme";
 
 function NotFoundComponent() {
   return (
@@ -95,8 +96,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the inline script below sets the `dark` class
+    // on <html> before hydration, which is an intentional server/client
+    // difference React shouldn't warn about.
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Runs synchronously before first paint to apply the stored theme,
+            preventing a light→dark flash on load (see lib/theme.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>

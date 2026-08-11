@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   Check,
   ChevronLeft,
@@ -19,6 +19,7 @@ import type {
 } from "@/types";
 import { exportAsPdf, exportAsWord } from "@/utils/export";
 import { applicationService } from "@/services";
+import { useDrafts } from "@/hooks/useDrafts";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineNotice } from "@/components/common/InlineNotice";
+import { DemoBadge } from "@/components/common/DemoBadge";
 import { wordCount } from "@/utils/text";
 
 interface Props {
@@ -72,11 +74,63 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
   // sections (or the mobile dropdown) never discards an unsaved draft.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [rewritingId, setRewritingId] = useState<string | null>(null);
+  const [rewriteError, setRewriteError] = useState<{ sectionId: string; message: string } | null>(
+    null,
+  );
   const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
   const [pendingRewriteId, setPendingRewriteId] = useState<string | null>(null);
   const [lastRewrite, setLastRewrite] = useState<LastRewrite | null>(null);
   const [exportError, setExportError] = useState<"pdf" | "word" | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sections whose text came back from the unsaved-edit buffer on this load.
+  // Kept so the restore notice can name them and disappear once they're all
+  // resolved — it isn't a toast that fires and forgets.
+  const [restoredIds, setRestoredIds] = useState<string[]>([]);
+  const [conflictIds, setConflictIds] = useState<string[]>([]);
+  const [restoreDismissed, setRestoreDismissed] = useState(false);
+
+  const {
+    restore,
+    persistenceOk: draftsPersistenceOk,
+    flush: flushDrafts,
+  } = useDrafts(doc, drafts);
+
+  // Put the buffer back once, on load. Existing keys win: if the user has
+  // already started typing before hydration finished, their live text is
+  // newer than anything on disk and must not be clobbered.
+  useEffect(() => {
+    if (!restore) return;
+    setDrafts((prev) => {
+      const merged = { ...prev };
+      for (const [sectionId, text] of Object.entries(restore.sections)) {
+        if (!(sectionId in merged)) merged[sectionId] = text;
+      }
+      return merged;
+    });
+    setRestoredIds(Object.keys(restore.sections));
+    setConflictIds(restore.conflictSectionIds);
+    setRestoreDismissed(false);
+  }, [restore]);
+
+  const forgetRestored = (id: string) => {
+    setRestoredIds((prev) => prev.filter((restoredId) => restoredId !== id));
+    setConflictIds((prev) => prev.filter((conflictId) => conflictId !== id));
+  };
+
+  // Save/Cancel need the buffer written *after* React has applied the new
+  // drafts map, not with the stale one the handler can still see. The flag is
+  // consumed by an effect that runs after the hook's own mirror effect has
+  // staged the new value.
+  const flushRequestedRef = useRef(false);
+  const requestDraftFlush = () => {
+    flushRequestedRef.current = true;
+  };
+
+  useEffect(() => {
+    if (!flushRequestedRef.current) return;
+    flushRequestedRef.current = false;
+    flushDrafts();
+  }, [drafts, flushDrafts]);
 
   const activeIndex = Math.max(
     0,
@@ -90,6 +144,12 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     return draft !== undefined && draft !== savedContentOf(id);
   };
   const dirtyCount = doc.sections.filter((s) => isDirty(s.id)).length;
+
+  const titleOf = (id: string) => doc.sections.find((s) => s.id === id)?.title ?? "a section";
+  const restoredSummary =
+    restoredIds.length === 1
+      ? `"${titleOf(restoredIds[0])}"`
+      : `${restoredIds.length} sections (${restoredIds.map(titleOf).join(", ")})`;
 
   const flashSaved = (id: string) => {
     setSavedFlashId(id);
@@ -118,6 +178,10 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
   const cancelEdit = (id: string) => {
     clearDraft(id);
     if (lastRewrite?.sectionId === id) setLastRewrite(null);
+    forgetRestored(id);
+    // Discarded text must not outlive the click, even for the 500ms of the
+    // debounce — a reload inside that window would bring it back.
+    requestDraftFlush();
   };
 
   const save = (id: string) => {
@@ -126,6 +190,10 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     onSectionChange(id, draft);
     clearDraft(id);
     if (lastRewrite?.sectionId === id) setLastRewrite(null);
+    forgetRestored(id);
+    // The text now lives in the committed document, so drop the buffer
+    // entry immediately rather than leaving a duplicate on disk.
+    requestDraftFlush();
     flashSaved(id);
   };
 
@@ -134,6 +202,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     const isEditingSection = drafts[section.id] !== undefined;
     const currentText = isEditingSection ? drafts[section.id] : section.content;
     setRewritingId(section.id);
+    setRewriteError(null);
     try {
       const next = await applicationService.rewriteSection(
         section.title,
@@ -153,6 +222,14 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
         onSectionChange(section.id, next);
         flashSaved(section.id);
       }
+    } catch (err) {
+      // The rewrite is the only step here that can fail, and it fails
+      // harmlessly — the section still holds whatever it held before, so the
+      // notice says so rather than implying lost work.
+      setRewriteError({
+        sectionId: section.id,
+        message: err instanceof Error ? err.message : "The rewrite didn't finish.",
+      });
     } finally {
       setRewritingId(null);
     }
@@ -200,7 +277,12 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
         <CardHeader className="mb-5 flex flex-col gap-3 border-b border-border p-0 pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
             <div className="min-w-0 sm:flex-1">
-              <div className="text-[11px] font-medium text-brand">Grant application draft</div>
+              {/* The whole document is generated prose. Marked once, at the
+                  top, rather than on all twelve sections. */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-[11px] font-medium text-brand">Grant application draft</span>
+                <DemoBadge marker="mock-draft" compact />
+              </div>
               <h3 className="mt-1 break-words text-lg font-semibold text-foreground">
                 {doc.grantTitle}
               </h3>
@@ -252,6 +334,49 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                   Retry
                 </Button>
               </div>
+            </InlineNotice>
+          )}
+
+          {/* InlineNotice gives non-error tones role="status", so both of
+              these are announced politely and neither steals focus. */}
+          {restoredIds.length > 0 && !restoreDismissed && (
+            <InlineNotice tone={conflictIds.length > 0 ? "warning" : "empty"}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0">
+                  {conflictIds.length > 0 ? (
+                    <>
+                      Unsaved edits restored to {restoredSummary} — but{" "}
+                      {conflictIds.length === 1
+                        ? "that section has"
+                        : "some of those sections have"}{" "}
+                      also been saved since, so the two versions differ. Check the text before
+                      saving; Cancel keeps the saved version instead.
+                    </>
+                  ) : (
+                    <>
+                      Draft restored — unsaved changes to {restoredSummary} were carried over from
+                      your last visit. Save to keep them, or Cancel to go back to the saved text.
+                    </>
+                  )}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRestoreDismissed(true)}
+                  className="h-auto shrink-0 rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </InlineNotice>
+          )}
+
+          {!draftsPersistenceOk && (
+            <InlineNotice tone="warning">
+              Unsaved edits can&apos;t be backed up in this browser right now — local storage may be
+              full or unavailable (for example, in private browsing). What you see here is intact,
+              but a reload could lose anything you haven&apos;t saved.
             </InlineNotice>
           )}
 
@@ -357,6 +482,10 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                 draft={drafts[activeSection.id]}
                 dirty={isDirty(activeSection.id)}
                 rewriting={rewritingId === activeSection.id}
+                rewriteError={
+                  rewriteError?.sectionId === activeSection.id ? rewriteError.message : undefined
+                }
+                onDismissRewriteError={() => setRewriteError(null)}
                 savedFlash={savedFlashId === activeSection.id}
                 canUndoRewrite={lastRewrite?.sectionId === activeSection.id}
                 rewriteAvailable={Boolean(profile)}
@@ -418,6 +547,8 @@ function SectionEditor({
   draft,
   dirty,
   rewriting,
+  rewriteError,
+  onDismissRewriteError,
   savedFlash,
   canUndoRewrite,
   rewriteAvailable,
@@ -433,6 +564,8 @@ function SectionEditor({
   draft: string | undefined;
   dirty: boolean;
   rewriting: boolean;
+  rewriteError?: string;
+  onDismissRewriteError: () => void;
   savedFlash: boolean;
   canUndoRewrite: boolean;
   rewriteAvailable: boolean;
@@ -462,6 +595,9 @@ function SectionEditor({
                 Saved
               </span>
             )}
+            {/* Shown exactly while a rewrite is undoable — i.e. while this
+                section's text is the one the mock rewriter just produced. */}
+            {canUndoRewrite && <DemoBadge marker="mock-draft" compact />}
           </div>
         </div>
 
@@ -539,6 +675,44 @@ function SectionEditor({
           )}
         </div>
       </div>
+
+      {/* Announced politely so a screen reader hears the rewrite start and
+          finish; the visible signal is the spinner in the toolbar button. */}
+      <span aria-live="polite" className="sr-only">
+        {rewriting ? `Rewriting ${section.title}…` : ""}
+      </span>
+
+      {/* role="alert" comes from InlineNotice's error tone, so a failed
+          rewrite is announced without moving focus out of the editor. */}
+      {rewriteError && !rewriting && (
+        <InlineNotice tone="error" className="mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+              {rewriteError} This section still has the text it had before, so nothing was lost.
+            </span>
+            <div className="flex shrink-0 gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onRewrite}
+                className="h-auto rounded-md border-destructive/40 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+              >
+                Try again
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onDismissRewriteError}
+                className="h-auto rounded-md px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </InlineNotice>
+      )}
 
       {editing ? (
         <textarea

@@ -11,6 +11,7 @@ import {
   isMockMode,
 } from "@/services";
 import type { ChatReply } from "@/services/ChatService";
+import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
   ApplicationStage,
@@ -20,7 +21,9 @@ import type {
   OrganisationProfile,
   ResearchState,
 } from "@/types";
-import { Sidebar, MobileSidebar } from "@/components/layout/Sidebar";
+import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { PipelineDashboard } from "@/components/PipelineDashboard";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -167,6 +170,10 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  // Which main view is showing. Local, non-persisted UI state: the pipeline
+  // dashboard is global across conversations, so it's a sibling view of the
+  // chat rather than a block inside one — the app still has a single route.
+  const [mainView, setMainView] = useState<MainView>("chat");
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
   const [backendConnection, setBackendConnection] = useState<BackendConnection>(
@@ -345,9 +352,12 @@ export function App() {
         askAssistant([
           {
             type: "text",
-            text: isMockMode
-              ? `I found ${grants.length} demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
-              : `I found ${grants.length} live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results were ranked by the backend grant agent.`,
+            text:
+              grants.length === 0
+                ? `I couldn't find any ${isMockMode ? "demo matches" : "live opportunities"} for ${profile.organisationName}. Here's what usually helps:`
+                : isMockMode
+                  ? `I found ${grants.length} demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
+                  : `I found ${grants.length} live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results were ranked by the backend grant agent.`,
           },
           { type: "grant_results", grants, sourceSummary: result.sourceSummary },
         ]);
@@ -448,6 +458,16 @@ export function App() {
               : `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
           },
           { type: "document", documentId: doc.id },
+        ]);
+      } catch (err) {
+        // Previously uncaught: a rejection here left the UI sitting on the
+        // results with no explanation. The stage is deliberately not moved,
+        // so "Start application" on the grant card is still there to retry.
+        askAssistant([
+          {
+            type: "error",
+            message: `${err instanceof Error ? err.message : "The draft couldn't be generated."} Nothing was saved — use "Start application" on ${grant.title} to try again.`,
+          },
         ]);
       } finally {
         setBusy(false);
@@ -586,6 +606,25 @@ export function App() {
     }
   }, [askAssistant, askUser, busy, c, demoRunning, handleStartApplication, runResearch]);
 
+  // Picking a conversation from the sidebar implies you want to read it, so
+  // these pair the existing (untouched) conversation actions with a switch
+  // back to the chat view. View state only — no conversation logic changes.
+  const selectConversation = c.selectConversation;
+  const newConversation = c.newConversation;
+
+  const selectConversationInChat = useCallback(
+    (id: string) => {
+      setMainView("chat");
+      selectConversation(id);
+    },
+    [selectConversation],
+  );
+
+  const newConversationInChat = useCallback(() => {
+    setMainView("chat");
+    newConversation();
+  }, [newConversation]);
+
   const callbacks: BlockCallbacks = useMemo(
     () => ({
       onSubmitProfile: handleSubmitProfile,
@@ -608,7 +647,11 @@ export function App() {
         c.activeConversation?.grants?.find((g) => g.id === id) ??
         MOCK_GRANTS.find((g) => g.id === id),
       formDisabled: busy,
-      hasGrantResults: Boolean(c.activeConversation?.grants?.length),
+      // "Has the search finished", not "did it find anything" — a completed
+      // search that matched nothing must still stop the research card's
+      // preparing-results skeletons, or they'd spin forever above the
+      // no-matches state.
+      hasGrantResults: c.activeConversation?.grants !== undefined,
     }),
     [
       busy,
@@ -671,6 +714,9 @@ export function App() {
     active && active.stage === "welcome" && active.messages.length <= 1 && !demoRunning,
   );
 
+  const headerTitle =
+    mainView === "pipeline" ? "Application pipeline" : (active?.title ?? "No conversation");
+
   return (
     <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
       <a
@@ -682,20 +728,26 @@ export function App() {
       <Sidebar
         conversations={c.conversations}
         activeId={c.activeId}
-        onSelect={c.selectConversation}
-        onNew={c.newConversation}
+        onSelect={selectConversationInChat}
+        onNew={newConversationInChat}
+        onRename={c.renameConversation}
         onDelete={c.deleteConversation}
         isMockMode={isMockMode}
+        mainView={mainView}
+        onSelectView={setMainView}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
         onOpenChange={setMobileSidebarOpen}
         conversations={c.conversations}
         activeId={c.activeId}
-        onSelect={c.selectConversation}
+        onSelect={selectConversationInChat}
         isMockMode={isMockMode}
-        onNew={c.newConversation}
+        onNew={newConversationInChat}
+        onRename={c.renameConversation}
         onDelete={c.deleteConversation}
+        mainView={mainView}
+        onSelectView={setMainView}
       />
 
       <main
@@ -716,18 +768,15 @@ export function App() {
               <Menu className="h-4 w-4" />
             </Button>
             <div className="min-w-0">
-              <h1
-                className="truncate text-sm font-semibold text-foreground"
-                title={active?.title ?? "No conversation"}
-              >
-                {active?.title ?? "No conversation"}
+              <h1 className="truncate text-sm font-semibold text-foreground" title={headerTitle}>
+                {headerTitle}
               </h1>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span className={`h-1.5 w-1.5 rounded-full ${connectionDotClass}`} />
                   {connectionLabel}
                 </span>
-                {active && (
+                {mainView === "chat" && active && (
                   <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
                 )}
                 {activeHistorySync?.status === "syncing" && (
@@ -748,17 +797,20 @@ export function App() {
               </div>
             </div>
           </div>
-          {isMockMode && active?.stage === "welcome" && (
-            <button
-              type="button"
-              onClick={runDemo}
-              disabled={demoRunning || busy}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-            >
-              <Play className="h-3.5 w-3.5" />
-              {demoRunning ? "Running demo…" : "Run demo"}
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {isMockMode && mainView === "chat" && active?.stage === "welcome" && (
+              <button
+                type="button"
+                onClick={runDemo}
+                disabled={demoRunning || busy}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              >
+                <Play className="h-3.5 w-3.5" />
+                {demoRunning ? "Running demo…" : "Run demo"}
+              </button>
+            )}
+            <ThemeToggle />
+          </div>
         </header>
 
         {!c.persistenceOk && (
@@ -773,7 +825,10 @@ export function App() {
           </div>
         )}
 
-        <div className="relative min-h-0 flex-1">
+        {/* Chat and pipeline are sibling main views. The chat stays mounted
+            (just hidden) while the pipeline is open so the message list keeps
+            its scroll position and stick-to-bottom listener across switches. */}
+        <div className={cn("relative min-h-0 flex-1", mainView !== "chat" && "hidden")}>
           <div ref={scrollContainerRef} className="h-full overflow-y-auto">
             {active ? (
               isFreshWelcome ? (
@@ -830,16 +885,26 @@ export function App() {
           )}
         </div>
 
-        <Composer
-          value={composerValue}
-          onValueChange={setComposerValue}
-          disabled={busy || !active}
-          onSend={handleUserSend}
-          placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
-          isMockMode={isMockMode}
-          grantContext={askingAboutGrant}
-          onClearGrantContext={() => setAskingAboutGrant(null)}
-        />
+        {mainView === "pipeline" && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {/* The pipeline's empty state sends people back to the chat; it
+                reuses this same view toggle rather than adding a route. */}
+            <PipelineDashboard onGoToChat={() => setMainView("chat")} />
+          </div>
+        )}
+
+        <div className={cn("shrink-0", mainView !== "chat" && "hidden")}>
+          <Composer
+            value={composerValue}
+            onValueChange={setComposerValue}
+            disabled={busy || !active}
+            onSend={handleUserSend}
+            placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
+            isMockMode={isMockMode}
+            grantContext={askingAboutGrant}
+            onClearGrantContext={() => setAskingAboutGrant(null)}
+          />
+        </div>
       </main>
     </div>
   );

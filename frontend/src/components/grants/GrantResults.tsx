@@ -7,7 +7,9 @@ import {
   ExternalLink,
   Globe2,
   MessageSquare,
+  RefreshCw,
   Scale,
+  SearchX,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -26,6 +28,7 @@ import {
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { InlineNotice } from "@/components/common/InlineNotice";
+import { EmptyState } from "@/components/EmptyState";
 import {
   grantResultProvenance,
   MATCH_TIER_CLASSES,
@@ -39,11 +42,13 @@ interface Props {
   sourceSummary?: string;
   onAsk: (grant: Grant) => void;
   onStart: (grant: Grant) => void;
+  /** Re-runs the search from the stored profile; absent if there's nothing to retry from. */
+  onRetryResearch?: () => void;
 }
 
 const MAX_COMPARE = 3;
 
-export function GrantResults({ grants, sourceSummary, onAsk, onStart }: Props) {
+export function GrantResults({ grants, sourceSummary, onAsk, onStart, onRetryResearch }: Props) {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
@@ -81,15 +86,22 @@ export function GrantResults({ grants, sourceSummary, onAsk, onStart }: Props) {
   );
   const provenance = grantResultProvenance(grants);
 
-  // Defensive empty state — grants is always populated by the mock service
-  // today, but an empty array is a perfectly valid value of the existing
-  // Grant[] contract, so it deserves a clear message rather than a blank grid.
+  // Zero matches is a real outcome for a real grant-seeker, not an edge case:
+  // it needs to say what to change next, not just report the absence. Reachable
+  // via ?mock=search-empty (see services/mockScenario.ts).
   if (grants.length === 0) {
     return (
-      <InlineNotice tone="empty">
-        No matching grants were found for this profile. Try adjusting your project details, or ask
-        to run the research again.
-      </InlineNotice>
+      <EmptyState
+        headingLevel="h3"
+        icon={SearchX}
+        title="No grants matched this profile"
+        description="Nothing in the demo dataset fits every criterion you gave. Widening the funding range, allowing a longer project, or relaxing the country and sector usually opens things up — tell me what to change in the chat below, or search again as-is."
+        action={
+          onRetryResearch
+            ? { label: "Search again", onClick: onRetryResearch, icon: RefreshCw }
+            : undefined
+        }
+      />
     );
   }
 
