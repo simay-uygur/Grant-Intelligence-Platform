@@ -131,20 +131,18 @@ jobs:
               raise SystemExit("LIGHTSAIL_BACKEND_ENV must contain AUTH_SECRET_KEY with at least 32 characters")
 
           spec = {
-              "containers": {
-                  "nginx": {
-                      "image": ":%s.nginx.latest" % os.environ["SERVICE_NAME"],
-                      "ports": {"80": "HTTP"},
-                  },
-                  "frontend": {
-                      "image": ":%s.frontend.latest" % os.environ["SERVICE_NAME"],
-                      "ports": {"3000": "HTTP"},
-                  },
-                  "backend": {
-                      "image": ":%s.backend.latest" % os.environ["SERVICE_NAME"],
-                      "ports": {"8000": "HTTP"},
-                      "environment": env,
-                  },
+              "nginx": {
+                  "image": ":%s.nginx.latest" % os.environ["SERVICE_NAME"],
+                  "ports": {"80": "HTTP"},
+              },
+              "frontend": {
+                  "image": ":%s.frontend.latest" % os.environ["SERVICE_NAME"],
+                  "ports": {"3000": "HTTP"},
+              },
+              "backend": {
+                  "image": ":%s.backend.latest" % os.environ["SERVICE_NAME"],
+                  "ports": {"8000": "HTTP"},
+                  "environment": env,
               },
           }
           with open("lightsail-deployment.json", "w") as f:
