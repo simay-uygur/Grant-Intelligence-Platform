@@ -29,7 +29,7 @@ jobs:
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name }}
       SERVICE_NAME: ${{ secrets.LIGHTSAIL_SERVICE || ((github.event_name == 'workflow_dispatch' && inputs.branch || github.ref_name) == 'main' && 'grant-intelligence-main' || 'grant-intelligence-develop') }}
       IMAGE_TAG: ${{ github.sha }}
-      LIGHTSAIL_POWER: micro
+      LIGHTSAIL_POWER: small
       LIGHTSAIL_SCALE: "1"
 
     steps:
@@ -151,7 +151,7 @@ jobs:
               json.dump({
                   "containerName": "nginx",
                   "containerPort": 80,
-                  "healthCheck": {"path": "/", "successCodes": "200-399"},
+                  "healthCheck": {"path": "/api/v1/health", "successCodes": "200-399"},
               }, f)
           PY
 
@@ -161,3 +161,31 @@ jobs:
             --service-name "$SERVICE_NAME" \
             --containers file://lightsail-deployment.json \
             --public-endpoint file://lightsail-public-endpoint.json
+
+      - name: Wait for Lightsail deployment
+        run: |
+          for attempt in $(seq 1 60); do
+            state=$(aws lightsail get-container-service-deployments \
+              --service-name "$SERVICE_NAME" \
+              --query 'deployments[0].state' \
+              --output text)
+            echo "Lightsail deployment state: $state"
+            if [ "$state" = "ACTIVE" ]; then
+              exit 0
+            fi
+            if [ "$state" = "FAILED" ]; then
+              echo "Lightsail deployment failed. Recent container logs:"
+              for container in nginx frontend backend; do
+                echo "Logs for $container"
+                aws lightsail get-container-log \
+                  --service-name "$SERVICE_NAME" \
+                  --container-name "$container" \
+                  --query 'logEvents[].message' \
+                  --output text || true
+              done
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for Lightsail deployment to become ACTIVE"
+          exit 1

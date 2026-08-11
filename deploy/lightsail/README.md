@@ -1,5 +1,11 @@
 # Lightsail deployment
 
+For a visual explanation of the deployment, container routing, endpoint access,
+and current capacity settings, see
+[`docs/lightsail-deployment-guide.md`](../../docs/lightsail-deployment-guide.md).
+For the release checklist, see
+[`docs/release-guide.md`](../../docs/release-guide.md).
+
 This deployment uses one Lightsail Container Service per branch:
 
 - `main`: production
