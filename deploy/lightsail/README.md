@@ -43,7 +43,7 @@ signed session token. Tokens expire after `AUTH_TOKEN_TTL_HOURS`.
 
 The workflow automatically selects `production` for `main` and `staging` for
 `develop`. If the service named by `LIGHTSAIL_SERVICE` does not exist, the
-workflow creates it with Micro power and scale 1, waits for it to become ready,
+workflow creates it with Small power and scale 1, waits for it to become ready,
 and then deploys the images.
 
 ## Run locally with Docker
@@ -58,6 +58,10 @@ docker compose -f deploy/lightsail/docker-compose.local.yml up --build
 Open `http://localhost:8080`. nginx exposes the app, while the frontend and
 backend remain internal to the Compose network. Stop it with `Ctrl+C`, or run
 `docker compose -f deploy/lightsail/docker-compose.local.yml down`.
+
+The Nginx config is a template. Local Compose substitutes `frontend` and
+`backend` as upstream hosts, while the Lightsail deployment substitutes
+`localhost` for both upstream hosts.
 
 The local Compose setup stores SQLite inside the backend container. It is useful
 for testing the deployment shape, but it is disposable by design.
