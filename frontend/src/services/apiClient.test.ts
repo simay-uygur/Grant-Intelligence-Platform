@@ -12,12 +12,15 @@ describe("ApiClient", () => {
   test("defaults API mode to the local backend during development", () => {
     const env = import.meta.env as Record<string, string | boolean | undefined>;
     const originalBaseUrl = env.VITE_API_URL;
+    const originalDev = env.DEV;
     env.VITE_API_URL = "";
+    env.DEV = true;
 
     try {
       expect(getApiBaseUrl()).toBe("http://127.0.0.1:8000");
     } finally {
       env.VITE_API_URL = originalBaseUrl;
+      env.DEV = originalDev;
     }
   });
 
