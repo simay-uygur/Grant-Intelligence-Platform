@@ -55,11 +55,18 @@ def test_create_conversation_and_persist_messages(tmp_path: Path) -> None:
         json={
             "conversation_id": conversation_id,
             "user_message": "We need an AI grant for our project.",
+            "context": {
+                "organization_type": "SME",
+                "country": "Kosovo",
+                "budget_range": "500,000 - 1,000,000 EUR",
+                "project_goal": "AI quality inspection for factories",
+            },
         },
     )
     assert message_response.status_code == 200
     payload = message_response.json()
     assert payload["conversation_id"] == conversation_id
+    assert payload["next_step"] == "show_results"
     assert payload["tool_results"][0]["tool_name"] == "searchGrants"
 
     history_response = client.get(f"/api/v1/chat/conversations/{conversation_id}/messages")
@@ -83,6 +90,7 @@ def test_send_message_without_conversation_id_creates_anonymous_conversation(tmp
     payload = message_response.json()
     assert payload["conversation_id"]
     assert payload["next_step"] == "collect_information"
+    assert payload["tool_results"] == []
 
 
 def test_missing_conversation_returns_404(tmp_path: Path) -> None:
