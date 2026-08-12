@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { Grant, OrganisationProfile } from "@/types";
 import { ApiApplicationService } from "./ApiApplicationService";
 import { ApiClient } from "./apiClient";
@@ -36,7 +36,7 @@ test("finds the latest saved application for a grant", async () => {
         grantTitle: "Manufacturing Research and Innovation Action",
         sections: [{ id: "executive-summary", title: "Executive Summary", content: "Saved" }],
         updatedAt: "2026-08-06T00:00:00Z",
-        status: "draft",
+        status: "drafting",
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
@@ -50,6 +50,160 @@ test("finds the latest saved application for a grant", async () => {
 
   expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/applications/latest");
   expect(document?.id).toBe("doc-saved");
+});
+
+test("lists stored applications for the pipeline dashboard", async () => {
+  let requestedUrl = "";
+  const fetchImpl: typeof fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        applications: [
+          {
+            id: "doc-1",
+            grantId: "MOCK-1",
+            grantTitle: "Manufacturing Research and Innovation Action",
+            grantOrganisation: "Horizon Europe",
+            applicantOrganisation: "Northlight",
+            status: "drafting",
+            fundingAmount: "EUR 500 000",
+            deadline: "2026-12-31",
+            sectionCount: 12,
+            createdAt: "2026-08-06T00:00:00Z",
+            updatedAt: "2026-08-06T00:00:00Z",
+          },
+        ],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  const applications = await service.listApplications();
+
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/applications");
+  expect(applications).toEqual([
+    {
+      id: "doc-1",
+      grantId: "MOCK-1",
+      grantTitle: "Manufacturing Research and Innovation Action",
+      grantOrganisation: "Horizon Europe",
+      applicantOrganisation: "Northlight",
+      status: "drafting",
+      fundingAmount: "EUR 500 000",
+      deadline: "2026-12-31",
+      updatedAt: "2026-08-06T00:00:00Z",
+    },
+  ]);
+});
+
+test("opens a stored application with grant and profile context", async () => {
+  let requestedUrl = "";
+  const fetchImpl: typeof fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        id: "doc-1",
+        grantId: "MOCK-1",
+        grantTitle: "Manufacturing Research and Innovation Action",
+        status: "drafting",
+        sections: [{ id: "executive-summary", title: "Executive Summary", content: "Draft" }],
+        grant,
+        profile,
+        createdAt: "2026-08-06T00:00:00Z",
+        updatedAt: "2026-08-07T00:00:00Z",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  const opened = await service.getApplication("doc-1");
+
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/applications/doc-1");
+  expect(opened.document.id).toBe("doc-1");
+  expect(opened.grant?.id).toBe("MOCK-1");
+  expect(opened.profile?.organisationName).toBe("Northlight");
+});
+
+test("updates application status through the backend pipeline endpoint", async () => {
+  let requestedUrl = "";
+  let requestedInit: RequestInit | undefined;
+  const fetchImpl: typeof fetch = async (input, init) => {
+    requestedUrl = String(input);
+    requestedInit = init;
+    return new Response(
+      JSON.stringify({
+        id: "doc-1",
+        grantId: "MOCK-1",
+        grantTitle: "Manufacturing Research and Innovation Action",
+        status: "submitted",
+        sections: [{ id: "executive-summary", title: "Executive Summary", content: "Draft" }],
+        grant: {
+          programme: "Horizon Europe",
+          fundingAmount: "EUR 500 000",
+          deadline: "2026-12-31",
+        },
+        profile: { organisationName: "Northlight" },
+        createdAt: "2026-08-06T00:00:00Z",
+        updatedAt: "2026-08-07T00:00:00Z",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  const application = await service.updateApplicationStatus("doc-1", "submitted");
+
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/applications/doc-1");
+  expect(requestedInit?.method).toBe("PATCH");
+  expect(JSON.parse(String(requestedInit?.body))).toEqual({ status: "submitted" });
+  expect(application.status).toBe("submitted");
+  expect(application.grantOrganisation).toBe("Horizon Europe");
+});
+
+test("saves edited application sections through the backend endpoint", async () => {
+  let requestedUrl = "";
+  let requestedInit: RequestInit | undefined;
+  const fetchImpl: typeof fetch = async (input, init) => {
+    requestedUrl = String(input);
+    requestedInit = init;
+    return new Response(
+      JSON.stringify({
+        id: "doc-1",
+        grantId: "MOCK-1",
+        grantTitle: "Manufacturing Research and Innovation Action",
+        status: "drafting",
+        sections: [{ id: "executive-summary", title: "Executive Summary", content: "Edited" }],
+        updatedAt: "2026-08-07T00:00:00Z",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  await service.saveSection("doc-1", "executive-summary", "Edited");
+
+  expect(requestedUrl).toBe(
+    "http://localhost:8000/api/v1/applications/doc-1/sections/executive-summary",
+  );
+  expect(requestedInit?.method).toBe("PUT");
+  expect(JSON.parse(String(requestedInit?.body))).toEqual({ content: "Edited" });
 });
 
 test("returns no saved application when the grant lookup is not found", async () => {

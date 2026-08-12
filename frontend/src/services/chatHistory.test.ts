@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { ChatHistoryMessage } from "./ChatService";
 import { mergeBackendHistory } from "./chatHistory";
 import type { ChatMessage } from "@/types";

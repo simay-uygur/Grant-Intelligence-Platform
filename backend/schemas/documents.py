@@ -19,14 +19,25 @@ class ApplicationDocument(BaseModel):
     updatedAt: str = Field(description="Last update timestamp returned by the agent.")
 
 
-ApplicationStatus = Literal["draft", "completed", "archived"]
+ApplicationStatus = Literal[
+    "drafting",
+    "submitted",
+    "under_review",
+    "approved",
+    "rejected",
+    "archived",
+]
 
 
 class ApplicationSummary(BaseModel):
     id: str = Field(description="Stored application identifier.")
     grantId: str = Field(description="Grant identifier associated with the application.")
     grantTitle: str = Field(description="Grant title shown in application lists.")
+    grantOrganisation: str = Field(description="Funder, programme, or source shown on pipeline cards.")
+    applicantOrganisation: str = Field(description="Applicant organisation shown on pipeline cards.")
     status: ApplicationStatus = Field(description="Current application lifecycle status.")
+    fundingAmount: str = Field(description="Funding amount shown on pipeline cards.")
+    deadline: str = Field(description="Grant deadline shown on pipeline cards.")
     sectionCount: int = Field(ge=0, description="Number of stored output sections.")
     createdAt: str = Field(description="Application creation timestamp in ISO-8601 format.")
     updatedAt: str = Field(description="Application last update timestamp in ISO-8601 format.")
