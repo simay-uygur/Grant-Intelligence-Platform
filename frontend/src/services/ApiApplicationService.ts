@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
+import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import type { ApplicationService } from "./ApplicationService";
 import { ApiClient, ApiError } from "./apiClient";
 
@@ -23,6 +24,49 @@ const rewriteSectionResponseSchema = z.object({
   content: z.string(),
 });
 
+const applicationStatusSchema = z.enum([
+  "drafting",
+  "submitted",
+  "under_review",
+  "approved",
+  "rejected",
+  "archived",
+]);
+
+const pipelineStatusSchema = z.enum([
+  "drafting",
+  "submitted",
+  "under_review",
+  "approved",
+  "rejected",
+]);
+
+const applicationSummarySchema = z.object({
+  id: z.string().min(1),
+  grantId: z.string().min(1),
+  grantTitle: z.string().min(1),
+  grantOrganisation: z.string(),
+  applicantOrganisation: z.string(),
+  status: applicationStatusSchema,
+  fundingAmount: z.string(),
+  deadline: z.string(),
+  updatedAt: z.string(),
+});
+
+const applicationListResponseSchema = z.object({
+  applications: z.array(applicationSummarySchema),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
+
+const storedApplicationSchema = applicationDocumentSchema.extend({
+  status: applicationStatusSchema,
+  grant: z.record(z.unknown()).optional(),
+  profile: z.record(z.unknown()).optional(),
+  createdAt: z.string().optional(),
+});
+
 export class ApplicationApiContractError extends Error {
   constructor() {
     super("The application backend returned data in an unexpected format.");
@@ -35,6 +79,56 @@ export class ApiApplicationService implements ApplicationService {
 
   constructor(baseUrl?: string, client?: ApiClient) {
     this.client = client ?? new ApiClient(baseUrl);
+  }
+
+  async listApplications(): Promise<DemoApplication[]> {
+    const payload = await this.client.request<unknown>("/api/v1/applications");
+    const result = applicationListResponseSchema.safeParse(payload);
+    if (!result.success) throw new ApplicationApiContractError();
+    return result.data.applications
+      .filter((application) => application.status !== "archived")
+      .map(toDemoApplication);
+  }
+
+  async updateApplicationStatus(
+    applicationId: string,
+    status: ApplicationStatus,
+  ): Promise<DemoApplication> {
+    const payload = await this.client.request<unknown>(
+      `/api/v1/applications/${encodeURIComponent(applicationId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      },
+    );
+    const result = storedApplicationSchema.safeParse(payload);
+    if (!result.success) throw new ApplicationApiContractError();
+    if (!pipelineStatusSchema.safeParse(result.data.status).success) {
+      throw new ApplicationApiContractError();
+    }
+    return toDemoApplication({
+      id: result.data.id,
+      grantId: result.data.grantId,
+      grantTitle: result.data.grantTitle,
+      grantOrganisation: grantOrganisation(result.data.grant),
+      applicantOrganisation: applicantOrganisation(result.data.profile),
+      status: result.data.status,
+      fundingAmount: fundingAmount(result.data.grant, result.data.profile),
+      deadline: deadline(result.data.grant),
+      updatedAt: result.data.updatedAt,
+    });
+  }
+
+  async saveSection(applicationId: string, sectionId: string, content: string): Promise<void> {
+    const payload = await this.client.request<unknown>(
+      `/api/v1/applications/${encodeURIComponent(applicationId)}/sections/${encodeURIComponent(sectionId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      },
+    );
+    const result = storedApplicationSchema.safeParse(payload);
+    if (!result.success) throw new ApplicationApiContractError();
   }
 
   async findSavedApplication(grantId: string): Promise<ApplicationDocument | undefined> {
@@ -89,4 +183,54 @@ export class ApiApplicationService implements ApplicationService {
     if (!result.success) throw new ApplicationApiContractError();
     return result.data.content;
   }
+}
+
+function toDemoApplication(application: z.infer<typeof applicationSummarySchema>): DemoApplication {
+  const status = pipelineStatusSchema.safeParse(application.status);
+  if (!status.success) throw new ApplicationApiContractError();
+  return {
+    id: application.id,
+    grantId: application.grantId,
+    grantTitle: application.grantTitle,
+    grantOrganisation: application.grantOrganisation,
+    applicantOrganisation: application.applicantOrganisation,
+    status: status.data,
+    fundingAmount: application.fundingAmount,
+    deadline: application.deadline,
+    updatedAt: application.updatedAt,
+  };
+}
+
+function stringField(record: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = record?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function grantOrganisation(grant: Record<string, unknown> | undefined): string {
+  return (
+    stringField(grant, "programme") ??
+    stringField(grant, "source") ??
+    stringField(grant, "fundingType") ??
+    "Unknown funder"
+  );
+}
+
+function applicantOrganisation(profile: Record<string, unknown> | undefined): string {
+  return stringField(profile, "organisationName") ?? "Unknown applicant";
+}
+
+function fundingAmount(
+  grant: Record<string, unknown> | undefined,
+  profile: Record<string, unknown> | undefined,
+): string {
+  return (
+    stringField(grant, "fundingAmount") ??
+    stringField(grant, "amount") ??
+    stringField(profile, "fundingAmount") ??
+    "Not specified"
+  );
+}
+
+function deadline(grant: Record<string, unknown> | undefined): string {
+  return stringField(grant, "deadline") ?? "";
 }

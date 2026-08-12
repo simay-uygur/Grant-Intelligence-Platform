@@ -1,8 +1,14 @@
 import type { ApplicationDocument, DocumentSection, Grant, OrganisationProfile } from "@/types";
+import {
+  MOCK_APPLICATIONS,
+  type ApplicationStatus,
+  type DemoApplication,
+} from "@/data/mockApplications";
 import type { ApplicationService } from "./ApplicationService";
 import { isMockScenario } from "./mockScenario";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const KEY_APPLICATIONS = "gi.applications.v1";
 
 const grantContext = (grant: Grant): string =>
   grant.programme?.trim() || grant.source?.trim() || grant.title;
@@ -80,6 +86,33 @@ function makeSections(grant: Grant, profile: OrganisationProfile): DocumentSecti
 }
 
 export class LocalApplicationService implements ApplicationService {
+  async listApplications(): Promise<DemoApplication[]> {
+    await wait(50);
+    const stored = readLocalApplications();
+    if (stored) return stored;
+    writeLocalApplications(MOCK_APPLICATIONS);
+    return MOCK_APPLICATIONS;
+  }
+
+  async updateApplicationStatus(
+    applicationId: string,
+    status: ApplicationStatus,
+  ): Promise<DemoApplication> {
+    const applications = readLocalApplications() ?? MOCK_APPLICATIONS;
+    const updatedAt = new Date().toISOString();
+    const updated = applications.map((application) =>
+      application.id === applicationId ? { ...application, status, updatedAt } : application,
+    );
+    writeLocalApplications(updated);
+    const application = updated.find((item) => item.id === applicationId);
+    if (!application) throw new Error(`Application '${applicationId}' does not exist.`);
+    return application;
+  }
+
+  async saveSection(_applicationId: string, _sectionId: string, _content: string): Promise<void> {
+    await wait(50);
+  }
+
   async findSavedApplication(_grantId: string): Promise<ApplicationDocument | undefined> {
     return undefined;
   }
@@ -139,5 +172,45 @@ export class LocalApplicationService implements ApplicationService {
       openings[sectionTitle] ??
       `This section on ${sectionTitle.toLowerCase()} has been refined for clarity and evaluator focus.`;
     return `${opener}\n\n${currentContent.trim()}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
+  }
+}
+
+function isLocalApplication(value: unknown): value is DemoApplication {
+  if (typeof value !== "object" || value === null) return false;
+  const application = value as Record<string, unknown>;
+  return (
+    typeof application.id === "string" &&
+    typeof application.grantId === "string" &&
+    typeof application.grantTitle === "string" &&
+    typeof application.grantOrganisation === "string" &&
+    typeof application.applicantOrganisation === "string" &&
+    typeof application.status === "string" &&
+    typeof application.fundingAmount === "string" &&
+    typeof application.deadline === "string" &&
+    typeof application.updatedAt === "string"
+  );
+}
+
+function readLocalApplications(): DemoApplication[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(KEY_APPLICATIONS);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.every(isLocalApplication)
+      ? (parsed as DemoApplication[])
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalApplications(applications: DemoApplication[]): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    window.localStorage.setItem(KEY_APPLICATIONS, JSON.stringify(applications));
+    return true;
+  } catch {
+    return false;
   }
 }

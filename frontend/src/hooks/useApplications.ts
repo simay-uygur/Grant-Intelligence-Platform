@@ -4,13 +4,7 @@ import {
   type ApplicationStatus,
   type DemoApplication,
 } from "@/data/mockApplications";
-
-/**
- * Dedicated, versioned key. Deliberately separate from the conversation keys
- * ("gi.conversations.v1" / "gi.activeConversationId.v1") and from the theme
- * key ("gi.theme.v1") — this hook never reads or writes any of them.
- */
-const KEY_APPLICATIONS = "gi.applications.v1";
+import { applicationService, isMockMode } from "@/services";
 
 /**
  * Kept here rather than imported from the dashboard: the component's
@@ -65,33 +59,6 @@ export function parseStoredApplications(raw: string | null): DemoApplication[] |
   }
 }
 
-/** Reads the stored applications, or null when there's nothing usable to read. */
-function loadApplications(): DemoApplication[] | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return parseStoredApplications(window.localStorage.getItem(KEY_APPLICATIONS));
-  } catch {
-    return null;
-  }
-}
-
-/** Returns whether the write actually succeeded, so callers can surface a status if needed. */
-function saveApplications(applications: DemoApplication[]): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    window.localStorage.setItem(KEY_APPLICATIONS, JSON.stringify(applications));
-    return true;
-  } catch {
-    // Reachable in practice: storage disabled (some private-browsing modes),
-    // or the quota is full. Nothing to invent here — just report it.
-    return false;
-  }
-}
-
-// TODO(api): entirely local (React state + localStorage), same as
-// useConversations. Once a backend exists these would be GET /applications
-// and PATCH /applications/{id} rather than a seeded local list — see
-// docs/api-contract.md. The seed below is demo data, not a real pipeline.
 export function useApplications() {
   const [applications, setApplications] = useState<DemoApplication[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -106,33 +73,51 @@ export function useApplications() {
   useEffect(() => {
     if (bootstrappedRef.current) return;
     bootstrappedRef.current = true;
-    const existing = loadApplications();
-    if (existing) {
-      setApplications(existing);
-    } else {
-      // Nothing stored, or what was stored is unusable: fall back to the demo
-      // seed and write it, so a fresh browser opens on a populated board.
-      setApplications(MOCK_APPLICATIONS);
-      setPersistenceOk(saveApplications(MOCK_APPLICATIONS));
-    }
-    setHydrated(true);
+    let active = true;
+    applicationService
+      .listApplications()
+      .then((loaded) => {
+        if (!active) return;
+        setApplications(loaded);
+        setPersistenceOk(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setApplications(isMockMode ? MOCK_APPLICATIONS : []);
+        setPersistenceOk(false);
+      })
+      .finally(() => {
+        if (active) setHydrated(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  // Every state change is persisted, so updateStatus can't forget to save.
-  useEffect(() => {
-    if (hydrated) setPersistenceOk(saveApplications(applications));
-  }, [applications, hydrated]);
-
   const updateStatus = useCallback((applicationId: string, status: ApplicationStatus) => {
-    setApplications((prev) =>
-      prev.map((a) =>
+    let previous: DemoApplication[] = [];
+    setApplications((prev) => {
+      previous = prev;
+      return prev.map((a) =>
         a.id === applicationId && a.status !== status
           ? // updatedAt is documented as the last edit *or status change*, so
             // moving a card counts — and the card surfaces it as "Updated …".
             { ...a, status, updatedAt: new Date().toISOString() }
           : a,
-      ),
-    );
+      );
+    });
+    void applicationService
+      .updateApplicationStatus(applicationId, status)
+      .then((updated) => {
+        setApplications((current) =>
+          current.map((application) => (application.id === applicationId ? updated : application)),
+        );
+        setPersistenceOk(true);
+      })
+      .catch(() => {
+        setApplications(previous);
+        setPersistenceOk(false);
+      });
   }, []);
 
   return { applications, hydrated, persistenceOk, updateStatus };

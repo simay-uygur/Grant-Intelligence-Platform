@@ -77,6 +77,8 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
   const [rewriteError, setRewriteError] = useState<{ sectionId: string; message: string } | null>(
     null,
   );
+  const [saveError, setSaveError] = useState<{ sectionId: string; message: string } | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
   const [pendingRewriteId, setPendingRewriteId] = useState<string | null>(null);
   const [lastRewrite, setLastRewrite] = useState<LastRewrite | null>(null);
@@ -184,17 +186,29 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     requestDraftFlush();
   };
 
-  const save = (id: string) => {
+  const save = async (id: string) => {
     const draft = drafts[id];
     if (draft === undefined) return;
-    onSectionChange(id, draft);
-    clearDraft(id);
-    if (lastRewrite?.sectionId === id) setLastRewrite(null);
-    forgetRestored(id);
-    // The text now lives in the committed document, so drop the buffer
-    // entry immediately rather than leaving a duplicate on disk.
-    requestDraftFlush();
-    flashSaved(id);
+    setSavingId(id);
+    setSaveError(null);
+    try {
+      await applicationService.saveSection(doc.id, id, draft);
+      onSectionChange(id, draft);
+      clearDraft(id);
+      if (lastRewrite?.sectionId === id) setLastRewrite(null);
+      forgetRestored(id);
+      // The text now lives in the committed document, so drop the buffer
+      // entry immediately rather than leaving a duplicate on disk.
+      requestDraftFlush();
+      flashSaved(id);
+    } catch (err) {
+      setSaveError({
+        sectionId: id,
+        message: err instanceof Error ? err.message : "The section could not be saved.",
+      });
+    } finally {
+      setSavingId(null);
+    }
   };
 
   const performRewrite = async (section: DocSection) => {
@@ -485,14 +499,19 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                 rewriteError={
                   rewriteError?.sectionId === activeSection.id ? rewriteError.message : undefined
                 }
+                saveError={
+                  saveError?.sectionId === activeSection.id ? saveError.message : undefined
+                }
                 onDismissRewriteError={() => setRewriteError(null)}
+                onDismissSaveError={() => setSaveError(null)}
                 savedFlash={savedFlashId === activeSection.id}
+                saving={savingId === activeSection.id}
                 canUndoRewrite={lastRewrite?.sectionId === activeSection.id}
                 rewriteAvailable={Boolean(profile)}
                 onStartEdit={() => startEdit(activeSection.id)}
                 onChangeDraft={(value) => updateDraft(activeSection.id, value)}
                 onCancel={() => cancelEdit(activeSection.id)}
-                onSave={() => save(activeSection.id)}
+                onSave={() => void save(activeSection.id)}
                 onRewrite={() => requestRewrite(activeSection)}
                 onUndoRewrite={undoRewrite}
               />
@@ -548,8 +567,11 @@ function SectionEditor({
   dirty,
   rewriting,
   rewriteError,
+  saveError,
   onDismissRewriteError,
+  onDismissSaveError,
   savedFlash,
+  saving,
   canUndoRewrite,
   rewriteAvailable,
   onStartEdit,
@@ -565,8 +587,11 @@ function SectionEditor({
   dirty: boolean;
   rewriting: boolean;
   rewriteError?: string;
+  saveError?: string;
   onDismissRewriteError: () => void;
+  onDismissSaveError: () => void;
   savedFlash: boolean;
+  saving: boolean;
   canUndoRewrite: boolean;
   rewriteAvailable: boolean;
   onStartEdit: () => void;
@@ -665,10 +690,14 @@ function SectionEditor({
               <Button
                 type="button"
                 onClick={onSave}
-                disabled={!dirty}
+                disabled={!dirty || saving}
                 className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-white hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground"
               >
-                <Check className="h-3 w-3" />
+                {saving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Check className="h-3 w-3" />
+                )}
                 Save
               </Button>
             </>
@@ -705,6 +734,36 @@ function SectionEditor({
                 variant="ghost"
                 size="sm"
                 onClick={onDismissRewriteError}
+                className="h-auto rounded-md px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </InlineNotice>
+      )}
+
+      {saveError && !saving && (
+        <InlineNotice tone="error" className="mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+              {saveError} Your draft is still in the editor, so nothing was lost.
+            </span>
+            <div className="flex shrink-0 gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onSave}
+                className="h-auto rounded-md border-destructive/40 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+              >
+                Try again
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onDismissSaveError}
                 className="h-auto rounded-md px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
               >
                 Dismiss
