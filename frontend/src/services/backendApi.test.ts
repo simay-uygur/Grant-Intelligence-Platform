@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { BackendApiContractError, parseBackendInfo, parseHealthResponse } from "./backendApi";
 
 describe("backend bootstrap API mapping", () => {

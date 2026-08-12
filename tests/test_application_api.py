@@ -19,6 +19,8 @@ GRANT = {
     "id": "HORIZON-APP-001",
     "title": "Robotics Quality Inspection",
     "programme": "Horizon Europe",
+    "fundingAmount": "EUR 500 000",
+    "deadline": "2026-12-31",
 }
 
 
@@ -75,7 +77,11 @@ def test_started_application_is_persisted_for_dashboard(
             "id": document["id"],
             "grantId": GRANT["id"],
             "grantTitle": GRANT["title"],
-            "status": "draft",
+            "grantOrganisation": "Horizon Europe",
+            "applicantOrganisation": "Northlight Robotics",
+            "status": "drafting",
+            "fundingAmount": "EUR 500 000",
+            "deadline": "2026-12-31",
             "sectionCount": 1,
             "createdAt": payload["applications"][0]["createdAt"],
             "updatedAt": "2026-08-06T08:00:00Z",
@@ -89,7 +95,7 @@ def test_started_application_is_persisted_for_dashboard(
     assert stored["sections"] == document["sections"]
     assert stored["grant"] == GRANT
     assert stored["profile"] == PROFILE
-    assert stored["status"] == "draft"
+    assert stored["status"] == "drafting"
 
     grant_application_response = client.get(
         "/api/v1/grants/HORIZON-APP-001/applications/latest"
@@ -118,9 +124,9 @@ def test_application_status_and_output_sections_can_be_updated(
     document = _start_application(client)
     application_path = f"/api/v1/applications/{document['id']}"
 
-    status_response = client.patch(application_path, json={"status": "completed"})
+    status_response = client.patch(application_path, json={"status": "submitted"})
     assert status_response.status_code == 200
-    assert status_response.json()["status"] == "completed"
+    assert status_response.json()["status"] == "submitted"
 
     section_response = client.put(
         f"{application_path}/sections/executive-summary",
@@ -129,13 +135,13 @@ def test_application_status_and_output_sections_can_be_updated(
     assert section_response.status_code == 200
     assert section_response.json()["sections"][0]["content"] == "Manually edited output."
 
-    completed_response = client.get("/api/v1/applications?status=completed")
-    assert completed_response.status_code == 200
-    assert completed_response.json()["total"] == 1
+    submitted_response = client.get("/api/v1/applications?status=submitted")
+    assert submitted_response.status_code == 200
+    assert submitted_response.json()["total"] == 1
 
-    draft_response = client.get("/api/v1/applications?status=draft")
-    assert draft_response.status_code == 200
-    assert draft_response.json()["applications"] == []
+    drafting_response = client.get("/api/v1/applications?status=drafting")
+    assert drafting_response.status_code == 200
+    assert drafting_response.json()["applications"] == []
 
 
 def test_ai_rewrite_updates_the_stored_application_output(
@@ -173,7 +179,7 @@ def test_missing_application_and_section_return_not_found(
     ).status_code == 404
     assert client.patch(
         "/api/v1/applications/missing",
-        json={"status": "completed"},
+        json={"status": "submitted"},
     ).status_code == 404
 
     document = _start_application(client)

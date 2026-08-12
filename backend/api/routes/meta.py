@@ -84,7 +84,7 @@ def frontend_config() -> FrontendConfigResponse:
                 name="update_application_status",
                 method="PATCH",
                 path=f"{settings.api_prefix}/applications/{{application_id}}",
-                purpose="Change a stored application's draft, completed, or archived status.",
+                purpose="Change a stored application's pipeline lifecycle status.",
             ),
             FrontendEndpointInfo(
                 name="save_application_section",

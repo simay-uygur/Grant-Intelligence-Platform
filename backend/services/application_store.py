@@ -40,8 +40,15 @@ class ApplicationStore:
                     id TEXT PRIMARY KEY,
                     grant_id TEXT NOT NULL,
                     grant_title TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'draft'
-                        CHECK (status IN ('draft', 'completed', 'archived')),
+                    status TEXT NOT NULL DEFAULT 'drafting'
+                        CHECK (status IN (
+                            'drafting',
+                            'submitted',
+                            'under_review',
+                            'approved',
+                            'rejected',
+                            'archived'
+                        )),
                     sections_json TEXT NOT NULL,
                     grant_json TEXT NOT NULL,
                     profile_json TEXT NOT NULL,
@@ -53,6 +60,16 @@ class ApplicationStore:
             columns = {row["name"] for row in connection.execute("PRAGMA table_info(applications)")}
             if "user_id" not in columns:
                 connection.execute("ALTER TABLE applications ADD COLUMN user_id TEXT")
+            create_sql_row = connection.execute(
+                """
+                SELECT sql
+                FROM sqlite_master
+                WHERE type = 'table' AND name = 'applications'
+                """
+            ).fetchone()
+            create_sql = create_sql_row["sql"] if create_sql_row else ""
+            if "'under_review'" not in create_sql:
+                self._migrate_status_values(connection)
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_applications_updated_at
@@ -94,7 +111,7 @@ class ApplicationStore:
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, 'drafting', ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     grant_id = excluded.grant_id,
                     grant_title = excluded.grant_title,
@@ -116,7 +133,7 @@ class ApplicationStore:
                     document.updatedAt,
                 ),
             )
-        stored = self.get_application(document.id)
+        stored = self.get_application(document.id, user_id)
         if stored is None:  # pragma: no cover - protects against unexpected SQLite failures
             raise RuntimeError(f"Application '{document.id}' was not persisted.")
         return stored
@@ -146,7 +163,7 @@ class ApplicationStore:
             rows = connection.execute(
                 f"""
                 SELECT id, grant_id, grant_title, status, sections_json,
-                       created_at, updated_at
+                       grant_json, profile_json, created_at, updated_at
                 FROM applications
                 {where_clause}
                 ORDER BY updated_at DESC, id ASC
@@ -203,7 +220,7 @@ class ApplicationStore:
             )
         if cursor.rowcount == 0:
             return None
-        return self.get_application(application_id)
+        return self.get_application(application_id, user_id)
 
     def update_section(
         self,
@@ -246,15 +263,26 @@ class ApplicationStore:
                     application_id,
                 ),
             )
-        return self.get_application(application_id)
+        return self.get_application(application_id, user_id)
 
     def _summary_from_row(self, row: sqlite3.Row) -> dict:
         sections = json.loads(row["sections_json"])
+        grant = json.loads(row["grant_json"])
+        profile = json.loads(row["profile_json"])
         return {
             "id": row["id"],
             "grantId": row["grant_id"],
             "grantTitle": row["grant_title"],
+            "grantOrganisation": self._grant_organisation(grant),
+            "applicantOrganisation": str(profile.get("organisationName") or "Unknown applicant"),
             "status": row["status"],
+            "fundingAmount": str(
+                grant.get("fundingAmount")
+                or grant.get("amount")
+                or profile.get("fundingAmount")
+                or "Not specified"
+            ),
+            "deadline": str(grant.get("deadline") or ""),
             "sectionCount": len(sections),
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
@@ -275,3 +303,72 @@ class ApplicationStore:
 
     def _timestamp(self) -> str:
         return datetime.now(UTC).isoformat()
+
+    def _migrate_status_values(self, connection: sqlite3.Connection) -> None:
+        connection.execute("ALTER TABLE applications RENAME TO applications_legacy")
+        connection.execute(
+            """
+            CREATE TABLE applications (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                grant_id TEXT NOT NULL,
+                grant_title TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'drafting'
+                    CHECK (status IN (
+                        'drafting',
+                        'submitted',
+                        'under_review',
+                        'approved',
+                        'rejected',
+                        'archived'
+                    )),
+                sections_json TEXT NOT NULL,
+                grant_json TEXT NOT NULL,
+                profile_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO applications (
+                id,
+                user_id,
+                grant_id,
+                grant_title,
+                status,
+                sections_json,
+                grant_json,
+                profile_json,
+                created_at,
+                updated_at
+            )
+            SELECT
+                id,
+                user_id,
+                grant_id,
+                grant_title,
+                CASE status
+                    WHEN 'draft' THEN 'drafting'
+                    WHEN 'completed' THEN 'approved'
+                    ELSE status
+                END,
+                sections_json,
+                grant_json,
+                profile_json,
+                created_at,
+                updated_at
+            FROM applications_legacy
+            """
+        )
+        connection.execute("DROP TABLE applications_legacy")
+
+    @staticmethod
+    def _grant_organisation(grant: dict) -> str:
+        return str(
+            grant.get("programme")
+            or grant.get("source")
+            or grant.get("fundingType")
+            or "Unknown funder"
+        )
