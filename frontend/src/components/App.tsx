@@ -506,9 +506,7 @@ export function App() {
           {
             type: "error",
             message:
-              error instanceof Error
-                ? error.message
-                : "The saved application could not be opened.",
+              error instanceof Error ? error.message : "The saved application could not be opened.",
           },
         ]);
       } finally {

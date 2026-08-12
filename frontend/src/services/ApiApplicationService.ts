@@ -237,7 +237,9 @@ export class ApiApplicationService implements ApplicationService {
   }
 }
 
-function toApplicationDocument(application: z.infer<typeof applicationDocumentSchema>): ApplicationDocument {
+function toApplicationDocument(
+  application: z.infer<typeof applicationDocumentSchema>,
+): ApplicationDocument {
   return {
     id: application.id,
     grantId: application.grantId,
