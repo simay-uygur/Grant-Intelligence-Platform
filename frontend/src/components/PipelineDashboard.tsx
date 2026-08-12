@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, CalendarClock, Coins, MessagesSquare, Rows3 } from "lucide-react";
+import { Building2, CalendarClock, Coins, FileText, MessagesSquare, Rows3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import { useApplications } from "@/hooks/useApplications";
@@ -134,16 +134,20 @@ const CARD_GHOST_CLASSES =
 
 function ApplicationCard({
   application,
+  onOpenApplication,
   onStatusChange,
   /** Rendering the card as it leaves its old column — visual only, never interactive. */
   ghost,
   /** Rendering the card as it arrives in its new column. */
   entering,
+  opening,
 }: {
   application: DemoApplication;
+  onOpenApplication: (applicationId: string) => void;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   ghost?: boolean;
   entering?: boolean;
+  opening?: boolean;
 }) {
   return (
     <Card
@@ -204,27 +208,39 @@ function ApplicationCard({
             // silhouette while it fades — a shorter ghost would read as a jump.
             <div className="mt-2 h-8 rounded-md border border-input" />
           ) : (
-            <Select
-              value={application.status}
-              onValueChange={(value) => {
-                // Radix hands back a plain string; only act on one of ours.
-                if (isStatus(value)) onStatusChange(application.id, value);
-              }}
-            >
-              <SelectTrigger
-                aria-label={`Change status for ${application.grantTitle}`}
-                className="mt-2 h-8 px-2 text-xs transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+            <div className="mt-2 flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenApplication(application.id)}
+                disabled={opening}
+                className="h-8 shrink-0 gap-1.5 rounded-md px-2 text-xs"
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_ORDER.map((status) => (
-                  <SelectItem key={status} value={status} className="text-xs">
-                    {STATUS_LABEL[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <FileText className="h-3.5 w-3.5" />
+                {opening ? "Opening" : "Open"}
+              </Button>
+              <Select
+                value={application.status}
+                onValueChange={(value) => {
+                  // Radix hands back a plain string; only act on one of ours.
+                  if (isStatus(value)) onStatusChange(application.id, value);
+                }}
+              >
+                <SelectTrigger
+                  aria-label={`Change status for ${application.grantTitle}`}
+                  className="h-8 min-w-0 flex-1 px-2 text-xs transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_ORDER.map((status) => (
+                    <SelectItem key={status} value={status} className="text-xs">
+                      {STATUS_LABEL[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
       </CardContent>
@@ -241,14 +257,18 @@ function ApplicationCard({
 function StatusColumn({
   status,
   applications,
+  onOpenApplication,
   onStatusChange,
+  openingApplicationId,
   ghost,
   enteringId,
   isDestination,
 }: {
   status: ApplicationStatus;
   applications: DemoApplication[];
+  onOpenApplication: (applicationId: string) => void;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
+  openingApplicationId?: string | null;
   /** A card leaving this column, still drawn in the slot it just vacated. */
   ghost?: { application: DemoApplication; index: number };
   /** The card that just arrived in this column. */
@@ -324,7 +344,9 @@ function StatusColumn({
             >
               <ApplicationCard
                 application={application}
+                onOpenApplication={onOpenApplication}
                 onStatusChange={onStatusChange}
+                opening={!isGhost && openingApplicationId === application.id}
                 ghost={isGhost}
                 entering={!isGhost && application.id === enteringId}
               />
@@ -360,10 +382,17 @@ interface CardMove {
   toStatus: ApplicationStatus;
 }
 
-export function PipelineDashboard({ onGoToChat }: { onGoToChat: () => void }) {
+export function PipelineDashboard({
+  onGoToChat,
+  onOpenApplication,
+}: {
+  onGoToChat: () => void;
+  onOpenApplication: (applicationId: string) => Promise<void>;
+}) {
   const { applications, hydrated, persistenceOk, updateStatus } = useApplications();
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [openingApplicationId, setOpeningApplicationId] = useState<string | null>(null);
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
@@ -393,6 +422,18 @@ export function PipelineDashboard({ onGoToChat }: { onGoToChat: () => void }) {
       moveTimer.current = setTimeout(() => setMove(null), MOVE_ANIMATION_MS);
     },
     [applications, updateStatus],
+  );
+
+  const handleOpenApplication = useCallback(
+    async (applicationId: string) => {
+      setOpeningApplicationId(applicationId);
+      try {
+        await onOpenApplication(applicationId);
+      } finally {
+        setOpeningApplicationId(null);
+      }
+    },
+    [onOpenApplication],
   );
 
   useEffect(() => {
@@ -495,7 +536,9 @@ export function PipelineDashboard({ onGoToChat }: { onGoToChat: () => void }) {
               key={status}
               status={status}
               applications={grouped.get(status) ?? []}
+              onOpenApplication={handleOpenApplication}
               onStatusChange={handleStatusChange}
+              openingApplicationId={openingApplicationId}
               ghost={
                 move?.fromStatus === status
                   ? { application: move.application, index: move.fromIndex }

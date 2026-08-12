@@ -8,12 +8,12 @@ import type { ChatService } from "./ChatService";
 import type { GrantService } from "./GrantService";
 import { LocalApplicationService } from "./LocalApplicationService";
 import { MockGrantService } from "./MockGrantService";
-import { ApiClient } from "./apiClient";
+import { ApiClient, getApiBaseUrl } from "./apiClient";
 
 const mode = (import.meta.env.VITE_API_MODE as string | undefined) ?? "api";
 // Only read/used when mode === "api" — mock mode never touches this and
 // never makes a network request.
-const apiBaseUrl = import.meta.env.VITE_API_URL as string | undefined;
+const apiBaseUrl = getApiBaseUrl();
 const apiClient = mode === "api" ? new ApiClient(apiBaseUrl) : undefined;
 
 export const grantService: GrantService =

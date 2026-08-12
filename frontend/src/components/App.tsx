@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
+import { ArrowDown, Menu, MessageSquarePlus, Play, Rows3 } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
@@ -476,6 +476,48 @@ export function App() {
     [askAssistant, c],
   );
 
+  const handleOpenApplication = useCallback(
+    async (applicationId: string) => {
+      setBusy(true);
+      try {
+        const opened = await applicationService.getApplication(applicationId);
+        if (opened.profile) c.setProfile(opened.profile);
+        if (opened.grant) {
+          const grants = c.activeConversation?.grants ?? [];
+          c.setGrants(
+            grants.some((grant) => grant.id === opened.grant?.id)
+              ? grants
+              : [opened.grant, ...grants],
+          );
+        }
+        c.setDocument(opened.document, opened.document.grantId);
+        c.setStage("application");
+        setMainView("chat");
+        askAssistant([
+          {
+            type: "success",
+            message: `Saved application opened for ${opened.document.grantTitle}.`,
+          },
+          { type: "document", documentId: opened.document.id },
+        ]);
+      } catch (error) {
+        setMainView("chat");
+        askAssistant([
+          {
+            type: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : "The saved application could not be opened.",
+          },
+        ]);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [askAssistant, c],
+  );
+
   const sendBackendChatMessage = useCallback(
     async (text: string, includeProfileForm = false) => {
       const activeConversation = c.activeConversation;
@@ -798,6 +840,18 @@ export function App() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant={mainView === "pipeline" ? "default" : "outline"}
+              onClick={() => setMainView(mainView === "pipeline" ? "chat" : "pipeline")}
+              className={cn(
+                "h-auto shrink-0 gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium",
+                mainView === "pipeline" && "bg-brand text-white hover:bg-brand/90",
+              )}
+            >
+              <Rows3 className="h-3.5 w-3.5" />
+              {mainView === "pipeline" ? "Chat" : "Applications"}
+            </Button>
             {isMockMode && mainView === "chat" && active?.stage === "welcome" && (
               <button
                 type="button"
@@ -889,7 +943,10 @@ export function App() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             {/* The pipeline's empty state sends people back to the chat; it
                 reuses this same view toggle rather than adding a route. */}
-            <PipelineDashboard onGoToChat={() => setMainView("chat")} />
+            <PipelineDashboard
+              onGoToChat={() => setMainView("chat")}
+              onOpenApplication={handleOpenApplication}
+            />
           </div>
         )}
 

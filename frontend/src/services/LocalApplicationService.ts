@@ -4,7 +4,7 @@ import {
   type ApplicationStatus,
   type DemoApplication,
 } from "@/data/mockApplications";
-import type { ApplicationService } from "./ApplicationService";
+import type { ApplicationService, OpenedApplication } from "./ApplicationService";
 import { isMockScenario } from "./mockScenario";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -92,6 +92,47 @@ export class LocalApplicationService implements ApplicationService {
     if (stored) return stored;
     writeLocalApplications(MOCK_APPLICATIONS);
     return MOCK_APPLICATIONS;
+  }
+
+  async getApplication(applicationId: string): Promise<OpenedApplication> {
+    await wait(100);
+    const applications = readLocalApplications() ?? MOCK_APPLICATIONS;
+    const application = applications.find((item) => item.id === applicationId);
+    if (!application) throw new Error(`Application '${applicationId}' does not exist.`);
+    return {
+      document: {
+        id: application.id,
+        grantId: application.grantId,
+        grantTitle: application.grantTitle,
+        updatedAt: application.updatedAt,
+        sections: [
+          {
+            id: "application-summary",
+            title: "Application Summary",
+            content: `${application.applicantOrganisation} is preparing an application for ${application.grantTitle} through ${application.grantOrganisation}.`,
+          },
+          {
+            id: "funding-and-deadline",
+            title: "Funding and Deadline",
+            content: `Funding requested: ${application.fundingAmount}\nDeadline: ${application.deadline}`,
+          },
+          {
+            id: "pipeline-status",
+            title: "Pipeline Status",
+            content: `Current status: ${application.status.replace(/_/g, " ")}. This local demo document is generated from the pipeline card.`,
+          },
+        ],
+      },
+      grant: {
+        id: application.grantId,
+        title: application.grantTitle,
+        description: `${application.grantOrganisation} application tracked in the local pipeline.`,
+        programme: application.grantOrganisation,
+        fundingAmount: application.fundingAmount,
+        deadline: application.deadline,
+        provenance: "mock",
+      },
+    };
   }
 
   async updateApplicationStatus(

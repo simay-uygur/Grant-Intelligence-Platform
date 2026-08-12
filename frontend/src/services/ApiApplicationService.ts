@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
-import type { ApplicationService } from "./ApplicationService";
+import type { ApplicationService, OpenedApplication } from "./ApplicationService";
 import { ApiClient, ApiError } from "./apiClient";
 
 const documentSectionSchema = z.object({
@@ -17,6 +17,43 @@ const applicationDocumentSchema = z.object({
   sections: z.array(documentSectionSchema),
   updatedAt: z.string(),
 });
+
+const organisationProfileSchema = z.object({
+  organisationName: z.string(),
+  organisationType: z.string(),
+  organisationDescription: z.string(),
+  country: z.string(),
+  region: z.string(),
+  projectTitle: z.string(),
+  projectDescription: z.string(),
+  sector: z.string(),
+  fundingAmount: z.string(),
+  projectStartDate: z.string(),
+  projectDuration: z.string(),
+  eligibilityConstraints: z.string(),
+});
+
+const grantSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    description: z.string(),
+    source: z.string().optional(),
+    provenance: z.enum(["mock", "live"]).optional(),
+    programme: z.string().optional(),
+    matchPercentage: z.number().optional(),
+    fundingAmount: z.string().optional(),
+    deadline: z.string().optional(),
+    eligibleCountries: z.array(z.string()).optional(),
+    organisationEligibility: z.array(z.string()).optional(),
+    fundingType: z.string().optional(),
+    whyItMatches: z.string().optional(),
+    matchReasons: z.array(z.string()).optional(),
+    requirements: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+    sourceUrl: z.string().optional(),
+  })
+  .passthrough();
 
 const rewriteSectionResponseSchema = z.object({
   sectionId: z.string().min(1),
@@ -90,6 +127,21 @@ export class ApiApplicationService implements ApplicationService {
       .map(toDemoApplication);
   }
 
+  async getApplication(applicationId: string): Promise<OpenedApplication> {
+    const payload = await this.client.request<unknown>(
+      `/api/v1/applications/${encodeURIComponent(applicationId)}`,
+    );
+    const result = storedApplicationSchema.safeParse(payload);
+    if (!result.success) throw new ApplicationApiContractError();
+    const grant = grantSchema.safeParse(result.data.grant);
+    const profile = organisationProfileSchema.safeParse(result.data.profile);
+    return {
+      document: toApplicationDocument(result.data),
+      grant: grant.success ? (grant.data as Grant) : undefined,
+      profile: profile.success ? (profile.data as OrganisationProfile) : undefined,
+    };
+  }
+
   async updateApplicationStatus(
     applicationId: string,
     status: ApplicationStatus,
@@ -138,7 +190,7 @@ export class ApiApplicationService implements ApplicationService {
       );
       const result = applicationDocumentSchema.safeParse(payload);
       if (!result.success) throw new ApplicationApiContractError();
-      return result.data;
+      return toApplicationDocument(result.data);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) return undefined;
       throw error;
@@ -155,7 +207,7 @@ export class ApiApplicationService implements ApplicationService {
     );
     const result = applicationDocumentSchema.safeParse(payload);
     if (!result.success) throw new ApplicationApiContractError();
-    return result.data;
+    return toApplicationDocument(result.data);
   }
 
   async rewriteSection(
@@ -183,6 +235,16 @@ export class ApiApplicationService implements ApplicationService {
     if (!result.success) throw new ApplicationApiContractError();
     return result.data.content;
   }
+}
+
+function toApplicationDocument(application: z.infer<typeof applicationDocumentSchema>): ApplicationDocument {
+  return {
+    id: application.id,
+    grantId: application.grantId,
+    grantTitle: application.grantTitle,
+    sections: application.sections,
+    updatedAt: application.updatedAt,
+  };
 }
 
 function toDemoApplication(application: z.infer<typeof applicationSummarySchema>): DemoApplication {

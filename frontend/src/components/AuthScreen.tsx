@@ -1,8 +1,10 @@
 import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getApiBaseUrl, joinApiUrl } from "@/services/apiClient";
 
 type Mode = "login" | "register";
+const apiBaseUrl = getApiBaseUrl();
 
 export function AuthScreen() {
   const [mode, setMode] = useState<Mode>("login");
@@ -16,7 +18,7 @@ export function AuthScreen() {
     setBusy(true);
     setError(undefined);
     try {
-      const response = await fetch("/api/v1/auth/" + mode, {
+      const response = await fetch(joinApiUrl(apiBaseUrl, "/api/v1/auth/" + mode), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

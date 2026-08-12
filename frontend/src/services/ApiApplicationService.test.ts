@@ -103,6 +103,38 @@ test("lists stored applications for the pipeline dashboard", async () => {
   ]);
 });
 
+test("opens a stored application with grant and profile context", async () => {
+  let requestedUrl = "";
+  const fetchImpl: typeof fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        id: "doc-1",
+        grantId: "MOCK-1",
+        grantTitle: "Manufacturing Research and Innovation Action",
+        status: "drafting",
+        sections: [{ id: "executive-summary", title: "Executive Summary", content: "Draft" }],
+        grant,
+        profile,
+        createdAt: "2026-08-06T00:00:00Z",
+        updatedAt: "2026-08-07T00:00:00Z",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  const opened = await service.getApplication("doc-1");
+
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/applications/doc-1");
+  expect(opened.document.id).toBe("doc-1");
+  expect(opened.grant?.id).toBe("MOCK-1");
+  expect(opened.profile?.organisationName).toBe("Northlight");
+});
+
 test("updates application status through the backend pipeline endpoint", async () => {
   let requestedUrl = "";
   let requestedInit: RequestInit | undefined;

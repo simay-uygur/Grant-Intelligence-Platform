@@ -13,6 +13,7 @@ export class ApiError extends Error {
 }
 
 const AUTH_TOKEN_KEY = "gi.auth.token";
+const LOCAL_DEV_API_BASE_URL = "http://127.0.0.1:8000";
 
 function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -36,6 +37,12 @@ export function joinApiUrl(baseUrl: string | undefined, path: string): string {
   const normalizedBase = (baseUrl ?? "").trim().replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${normalizedBase}${normalizedPath}`;
+}
+
+export function getApiBaseUrl(): string | undefined {
+  const configuredBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (configuredBaseUrl) return configuredBaseUrl;
+  return import.meta.env.DEV ? LOCAL_DEV_API_BASE_URL : undefined;
 }
 
 async function errorDetail(response: Response): Promise<string | undefined> {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ApiClient, ApiError, joinApiUrl } from "./apiClient";
+import { ApiClient, ApiError, getApiBaseUrl, joinApiUrl } from "./apiClient";
 
 describe("ApiClient", () => {
   test("normalizes base URL and endpoint slashes", () => {
@@ -7,6 +7,18 @@ describe("ApiClient", () => {
       "http://localhost:8000/api/v1/grants/search",
     );
     expect(joinApiUrl(undefined, "api/v1/grants/search")).toBe("/api/v1/grants/search");
+  });
+
+  test("defaults API mode to the local backend during development", () => {
+    const env = import.meta.env as Record<string, string | boolean | undefined>;
+    const originalBaseUrl = env.VITE_API_URL;
+    env.VITE_API_URL = "";
+
+    try {
+      expect(getApiBaseUrl()).toBe("http://127.0.0.1:8000");
+    } finally {
+      env.VITE_API_URL = originalBaseUrl;
+    }
   });
 
   test("surfaces FastAPI error details", async () => {

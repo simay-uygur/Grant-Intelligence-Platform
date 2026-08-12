@@ -1,8 +1,15 @@
 import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 
+export interface OpenedApplication {
+  document: ApplicationDocument;
+  grant?: Grant;
+  profile?: OrganisationProfile;
+}
+
 export interface ApplicationService {
   listApplications(): Promise<DemoApplication[]>;
+  getApplication(applicationId: string): Promise<OpenedApplication>;
   updateApplicationStatus(
     applicationId: string,
     status: ApplicationStatus,
