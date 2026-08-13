@@ -314,8 +314,17 @@ function GrantCard({
       </CardContent>
 
       <CardFooter className="mt-5 flex flex-wrap items-center gap-2 p-0">
+        {/* Every card repeats these labels, so each accessible name carries
+            the grant title — otherwise a screen reader's button list reads
+            "Open source", "Open source", "Open source"… Each name still
+            contains its visible text, per WCAG 2.5.3 (Label in Name). */}
         <Button asChild variant="outline" size="sm" className="rounded-lg hover:bg-muted">
-          <a href={grant.sourceUrl} target="_blank" rel="noopener noreferrer">
+          <a
+            href={grant.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open source page for ${grant.title} (opens in a new tab)`}
+          >
             <ExternalLink className="h-3.5 w-3.5" />
             Open source
           </a>
@@ -325,6 +334,7 @@ function GrantCard({
           variant="outline"
           size="sm"
           onClick={() => onAsk(grant)}
+          aria-label={`Ask about this grant: ${grant.title}`}
           className="rounded-lg hover:bg-muted"
         >
           <MessageSquare className="h-3.5 w-3.5" />
@@ -343,6 +353,7 @@ function GrantCard({
             checked={compareChecked}
             onCheckedChange={onToggleCompare}
             disabled={compareDisabled && !compareChecked}
+            aria-label={`Compare ${grant.title}`}
           />
           Compare
         </label>
@@ -355,6 +366,7 @@ function GrantCard({
           // the await would append a second success + document block to the
           // chat, even though the pipeline upsert dedupes the row.
           disabled={startDisabled}
+          aria-label={`Start application for ${grant.title}`}
           className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
         >
           {startDisabled ? "Starting…" : "Start application"}

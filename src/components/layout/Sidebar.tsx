@@ -130,7 +130,9 @@ function SidebarContent({
       {/* Switches the main area between the chat and the global pipeline
           dashboard. Purely a view switch — it doesn't touch conversations. */}
       <nav aria-label="Views" className="px-2 pb-3">
-        <ul className="space-y-1">
+        {/* Explicit role: Tailwind's preflight sets list-style:none, which
+            drops list semantics in Safari/VoiceOver. */}
+        <ul role="list" className="space-y-1">
           {VIEWS.map(({ id, label, icon: Icon }) => {
             const current = mainView === id;
             return (
@@ -204,7 +206,7 @@ function SidebarContent({
       )}
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-2">
-        <ul className="space-y-1">
+        <ul role="list" className="space-y-1">
           {visible.map((c) => {
             const active = c.id === activeId;
             const editing = editingId === c.id;
@@ -300,7 +302,10 @@ function SidebarContent({
                       e.stopPropagation();
                       onDelete(c.id);
                     }}
-                    aria-label="Delete conversation"
+                    // Named per row: a screen reader listing the page's
+                    // buttons would otherwise read "Delete conversation" once
+                    // per conversation with no way to tell them apart.
+                    aria-label={`Delete conversation: ${c.title}`}
                     className="h-auto w-auto rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-white/10 hover:text-white"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

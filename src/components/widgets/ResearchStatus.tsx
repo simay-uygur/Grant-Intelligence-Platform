@@ -99,7 +99,9 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
       )}
 
       <CardContent className="p-0">
-        <ol className="mt-3 space-y-2 sm:mt-4">
+        {/* Explicit role: list-style:none from preflight otherwise strips the
+            list semantics, so the step count isn't announced. */}
+        <ol role="list" className="mt-3 space-y-2 sm:mt-4">
           {state.steps.map((step, i) => (
             <li
               key={i}
