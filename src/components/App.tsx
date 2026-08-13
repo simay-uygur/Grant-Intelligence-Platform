@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
+import { useApplications } from "@/hooks/useApplications";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { grantService, isMockMode } from "@/services";
@@ -113,6 +114,11 @@ const DEMO_PROFILE: OrganisationProfile = {
 
 export function App() {
   const c = useConversations();
+  // The single useApplications instance for the whole app. Both writers live
+  // here — the chat (starting an application) and the pipeline (changing a
+  // status) — so neither can overwrite the other with a stale array.
+  const apps = useApplications();
+  const addApplication = apps.addApplication;
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -285,10 +291,26 @@ export function App() {
       if (!c.activeConversation?.profile) return;
       setAskingAboutGrant(null);
       setBusy(true);
+      const profile = c.activeConversation.profile;
       try {
-        const doc = await grantService.startApplication(grant, c.activeConversation.profile);
+        const doc = await grantService.startApplication(grant, profile);
         c.setDocument(doc, grant.id);
         c.setStage("application");
+        // The pipeline row is a SUMMARY: the draft body stays in
+        // conversation.document, and only what the board displays is mirrored
+        // into gi.applications.v1. Upserted on grantId, so a repeat start
+        // refreshes this row rather than adding a second one.
+        addApplication({
+          id: `app-${doc.id}`,
+          grantId: grant.id,
+          grantTitle: grant.title,
+          grantOrganisation: grant.programme,
+          applicantOrganisation: profile.organisationName,
+          status: "drafting",
+          fundingAmount: grant.fundingAmount,
+          deadline: grant.deadline,
+          updatedAt: new Date().toISOString(),
+        });
         askAssistant([
           {
             type: "success",
@@ -310,7 +332,7 @@ export function App() {
         setBusy(false);
       }
     },
-    [askAssistant, c],
+    [addApplication, askAssistant, c],
   );
 
   const handleUserSend = useCallback(
@@ -637,7 +659,13 @@ export function App() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             {/* The pipeline's empty state sends people back to the chat; it
                 reuses this same view toggle rather than adding a route. */}
-            <PipelineDashboard onGoToChat={() => setMainView("chat")} />
+            <PipelineDashboard
+              onGoToChat={() => setMainView("chat")}
+              applications={apps.applications}
+              hydrated={apps.hydrated}
+              persistenceOk={apps.persistenceOk}
+              updateStatus={apps.updateStatus}
+            />
           </div>
         )}
 

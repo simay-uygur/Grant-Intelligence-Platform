@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Building2, CalendarClock, Coins, MessagesSquare, Rows3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
-import { useApplications } from "@/hooks/useApplications";
 import { formatDeadline } from "@/utils/deadline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -360,8 +359,25 @@ interface CardMove {
   toStatus: ApplicationStatus;
 }
 
-export function PipelineDashboard({ onGoToChat }: { onGoToChat: () => void }) {
-  const { applications, hydrated, persistenceOk, updateStatus } = useApplications();
+/**
+ * Applications arrive as props, not from useApplications here: the chat also
+ * writes to that store when an application is started, and two hook instances
+ * over one key would race — each holding its own array and overwriting the
+ * other's changes on the next write. App owns the single instance.
+ */
+export function PipelineDashboard({
+  onGoToChat,
+  applications,
+  hydrated,
+  persistenceOk,
+  updateStatus,
+}: {
+  onGoToChat: () => void;
+  applications: DemoApplication[];
+  hydrated: boolean;
+  persistenceOk: boolean;
+  updateStatus: (applicationId: string, status: ApplicationStatus) => void;
+}) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

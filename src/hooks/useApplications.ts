@@ -50,15 +50,19 @@ export function isApplication(value: unknown): value is DemoApplication {
 
 /**
  * Decides whether a raw stored string is usable, or whether the caller should
- * fall back to the demo seed. Split out from the storage read so the rules —
- * missing, unparseable, not an array, empty, or wrong-shaped all mean "seed" —
- * can be tested without a browser. Pure.
+ * fall back to the demo seed. Split out from the storage read so the rules can
+ * be tested without a browser. Pure.
+ *
+ * The presence of a valid array IS the "already initialised" marker — which is
+ * why an EMPTY array is returned rather than rejected. A user who has cleared
+ * their pipeline must get their empty pipeline back, not the demo seed again.
+ * Only genuinely missing or corrupt storage reseeds.
  */
 export function parseStoredApplications(raw: string | null): DemoApplication[] | null {
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    if (!Array.isArray(parsed)) return null;
     return parsed.every(isApplication) ? (parsed as DemoApplication[]) : null;
   } catch {
     return null;
@@ -73,6 +77,29 @@ function loadApplications(): DemoApplication[] | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Adds an application, or refreshes the one already tracking the same grant.
+ *
+ * Keyed on grantId rather than id: starting an application for the same call
+ * twice is the same real-world application, so a repeat start must not create
+ * a second row. On update, the existing row's `id` and `status` are kept —
+ * a card the user has already moved to "Submitted" must not be yanked back to
+ * "Drafting" just because they reopened the draft. Everything else (title,
+ * funder, funding, deadline, updatedAt) refreshes from the new snapshot.
+ *
+ * Pure, so the dedupe rule can be asserted in a test.
+ */
+export function applyUpsert(
+  applications: DemoApplication[],
+  application: DemoApplication,
+): DemoApplication[] {
+  const existing = applications.find((a) => a.grantId === application.grantId);
+  if (!existing) return [application, ...applications];
+  return applications.map((a) =>
+    a.grantId === application.grantId ? { ...application, id: a.id, status: a.status } : a,
+  );
 }
 
 /** Returns whether the write actually succeeded, so callers can surface a status if needed. */
@@ -135,5 +162,9 @@ export function useApplications() {
     );
   }, []);
 
-  return { applications, hydrated, persistenceOk, updateStatus };
+  const addApplication = useCallback((application: DemoApplication) => {
+    setApplications((prev) => applyUpsert(prev, application));
+  }, []);
+
+  return { applications, hydrated, persistenceOk, updateStatus, addApplication };
 }

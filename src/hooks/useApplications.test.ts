@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_APPLICATIONS, type DemoApplication } from "@/data/mockApplications";
-import { isApplication, parseStoredApplications } from "./useApplications";
+import { applyUpsert, isApplication, parseStoredApplications } from "./useApplications";
 
 const valid: DemoApplication = {
   id: "app-1",
@@ -83,11 +83,73 @@ describe("parseStoredApplications", () => {
     expect(parseStoredApplications("null")).toBeNull();
   });
 
-  it("returns null for an empty array", () => {
-    expect(parseStoredApplications("[]")).toBeNull();
+  // The presence of a valid array is the "already initialised" marker, so an
+  // empty pipeline the user created must survive a reload instead of being
+  // refilled with demo data.
+  it("respects an empty array rather than treating it as uninitialised", () => {
+    expect(parseStoredApplications("[]")).toEqual([]);
   });
 
   it("rejects the whole array if any entry is malformed", () => {
     expect(parseStoredApplications(JSON.stringify([valid, { id: "broken" }]))).toBeNull();
+  });
+
+  // Distinguishing "never initialised" from "initialised but emptied" is the
+  // whole point of the seed rule — these two must not both mean "seed".
+  it("separates missing/corrupt (seed) from empty (respect)", () => {
+    expect(parseStoredApplications(null)).toBeNull(); // never initialised → seed
+    expect(parseStoredApplications("{not json")).toBeNull(); // corrupt → seed
+    expect(parseStoredApplications("[]")).not.toBeNull(); // emptied → respect
+  });
+});
+
+describe("applyUpsert", () => {
+  const started = (grantId: string, overrides: Partial<DemoApplication> = {}): DemoApplication => ({
+    ...valid,
+    id: `app-doc-${grantId}-1`,
+    grantId,
+    grantTitle: `Grant ${grantId}`,
+    ...overrides,
+  });
+
+  it("prepends a new application", () => {
+    const existing = [started("a")];
+    const after = applyUpsert(existing, started("b"));
+    expect(after).toHaveLength(2);
+    expect(after[0].grantId).toBe("b");
+    expect(after[1]).toBe(existing[0]);
+  });
+
+  it("updates in place for a repeat start on the same grant", () => {
+    const before = [started("a", { grantTitle: "Old title" }), started("b")];
+    const after = applyUpsert(before, started("a", { grantTitle: "Refreshed title" }));
+    expect(after).toHaveLength(2);
+    expect(after.filter((a) => a.grantId === "a")).toHaveLength(1);
+    expect(after.find((a) => a.grantId === "a")?.grantTitle).toBe("Refreshed title");
+  });
+
+  // A card already moved to "Submitted" must not be dragged back to
+  // "Drafting" just because the user reopened the draft.
+  it("keeps the existing row's status and id on update", () => {
+    const before = [started("a", { id: "app-original", status: "submitted" })];
+    const after = applyUpsert(before, started("a", { id: "app-new", status: "drafting" }));
+    expect(after[0].status).toBe("submitted");
+    expect(after[0].id).toBe("app-original");
+  });
+
+  it("keeps position and leaves other rows untouched by reference", () => {
+    const other = started("b");
+    const before = [other, started("a")];
+    const after = applyUpsert(before, started("a", { grantTitle: "Refreshed" }));
+    expect(after.map((a) => a.grantId)).toEqual(["b", "a"]);
+    expect(after[0]).toBe(other);
+  });
+
+  it("does not mutate the input array", () => {
+    const before = [started("a")];
+    const snapshot = JSON.stringify(before);
+    applyUpsert(before, started("b"));
+    applyUpsert(before, started("a", { grantTitle: "Refreshed" }));
+    expect(JSON.stringify(before)).toBe(snapshot);
   });
 });

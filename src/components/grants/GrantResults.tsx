@@ -40,11 +40,13 @@ interface Props {
   onStart: (grant: Grant) => void;
   /** Re-runs the search from the stored profile; absent if there's nothing to retry from. */
   onRetryResearch?: () => void;
+  /** True while a start is already in flight, so it can't be fired twice. */
+  startDisabled?: boolean;
 }
 
 const MAX_COMPARE = 3;
 
-export function GrantResults({ grants, onAsk, onStart, onRetryResearch }: Props) {
+export function GrantResults({ grants, onAsk, onStart, onRetryResearch, startDisabled }: Props) {
   // Saved grants are durable (gi.shortlist.v1) and shared across every
   // GrantResults on screen; compare below stays deliberately ephemeral.
   const { isSaved, toggleSave } = useShortlist();
@@ -120,6 +122,7 @@ export function GrantResults({ grants, onAsk, onStart, onRetryResearch }: Props)
             compareChecked={compareIds.has(g.id)}
             onToggleCompare={() => toggleCompare(g.id)}
             compareDisabled={!compareIds.has(g.id) && compareIds.size >= MAX_COMPARE}
+            startDisabled={startDisabled}
           />
         ))}
       </div>
@@ -217,6 +220,7 @@ function GrantCard({
   compareChecked,
   onToggleCompare,
   compareDisabled,
+  startDisabled,
 }: {
   grant: Grant;
   onAsk: (g: Grant) => void;
@@ -227,6 +231,7 @@ function GrantCard({
   compareChecked: boolean;
   onToggleCompare: () => void;
   compareDisabled: boolean;
+  startDisabled?: boolean;
 }) {
   const matchTier = matchTierFor(grant.matchPercentage);
   const compareId = `compare-${grant.id}`;
@@ -346,9 +351,13 @@ function GrantCard({
           type="button"
           size="sm"
           onClick={() => onStart(grant)}
+          // Closes the double-click window at source: a second start during
+          // the await would append a second success + document block to the
+          // chat, even though the pipeline upsert dedupes the row.
+          disabled={startDisabled}
           className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
         >
-          Start application
+          {startDisabled ? "Starting…" : "Start application"}
         </Button>
       </CardFooter>
     </article>
