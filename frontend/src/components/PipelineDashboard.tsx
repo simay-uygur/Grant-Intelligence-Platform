@@ -6,6 +6,7 @@ import { useApplications } from "@/hooks/useApplications";
 import { formatDeadline } from "@/utils/deadline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/EmptyState";
 // The shared deadline badge, reused so grant results and pipeline cards can't
