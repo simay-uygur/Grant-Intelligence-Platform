@@ -152,4 +152,35 @@ describe("applyUpsert", () => {
     applyUpsert(before, started("a", { grantTitle: "Refreshed" }));
     expect(JSON.stringify(before)).toBe(snapshot);
   });
+
+  // Regression: the demo seed covers every grant in the catalogue, so keying
+  // the upsert on grantId alone meant a real chat-created application always
+  // merged into a demo row — the pipeline never gained the new entry.
+  it("adds a real application even when a demo row tracks the same grant", () => {
+    const seeded = started("digital-europe", { id: "app-demo-1", status: "submitted" });
+    const fromChat = started("digital-europe", { id: "app-doc-digital-europe-123" });
+    const after = applyUpsert([seeded], fromChat);
+
+    expect(after).toHaveLength(2);
+    expect(after[0].id).toBe("app-doc-digital-europe-123");
+    expect(after[0].status).toBe("drafting");
+    // The demo row is left exactly as it was, not absorbed or rewritten.
+    expect(after[1]).toBe(seeded);
+  });
+
+  it("still dedupes a repeat start against the real row, not the demo one", () => {
+    const seeded = started("digital-europe", { id: "app-demo-1", status: "approved" });
+    const first = started("digital-europe", { id: "app-doc-digital-europe-123" });
+    const second = started("digital-europe", {
+      id: "app-doc-digital-europe-456",
+      grantTitle: "Refreshed title",
+    });
+
+    const after = applyUpsert(applyUpsert([seeded], first), second);
+    expect(after).toHaveLength(2);
+    expect(after.filter((a) => a.id.startsWith("app-doc-"))).toHaveLength(1);
+    expect(after[0].grantTitle).toBe("Refreshed title");
+    expect(after[0].id).toBe("app-doc-digital-europe-123"); // original id kept
+    expect(after.find((a) => a.id === "app-demo-1")?.status).toBe("approved");
+  });
 });

@@ -80,6 +80,15 @@ function loadApplications(): DemoApplication[] | null {
 }
 
 /**
+ * Seeded demo rows own the reserved `app-demo-` id prefix. (The same
+ * convention is read in utils/applicationLink.ts to decide whether a card can
+ * link back to a conversation.)
+ */
+function isSeededDemoRow(application: DemoApplication): boolean {
+  return application.id.startsWith("app-demo-");
+}
+
+/**
  * Adds an application, or refreshes the one already tracking the same grant.
  *
  * Keyed on grantId rather than id: starting an application for the same call
@@ -89,16 +98,23 @@ function loadApplications(): DemoApplication[] | null {
  * "Drafting" just because they reopened the draft. Everything else (title,
  * funder, funding, deadline, updatedAt) refreshes from the new snapshot.
  *
+ * Seeded demo rows are excluded from that match. They cover every grant in the
+ * demo catalogue, so matching them would mean a real, chat-created application
+ * could never be added — it would silently merge into demo data and inherit
+ * its id and status instead of appearing as the user's own row.
+ *
  * Pure, so the dedupe rule can be asserted in a test.
  */
 export function applyUpsert(
   applications: DemoApplication[],
   application: DemoApplication,
 ): DemoApplication[] {
-  const existing = applications.find((a) => a.grantId === application.grantId);
+  const existing = applications.find(
+    (a) => a.grantId === application.grantId && !isSeededDemoRow(a),
+  );
   if (!existing) return [application, ...applications];
   return applications.map((a) =>
-    a.grantId === application.grantId ? { ...application, id: a.id, status: a.status } : a,
+    a.id === existing.id ? { ...application, id: a.id, status: a.status } : a,
   );
 }
 
