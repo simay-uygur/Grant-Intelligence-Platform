@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, CalendarClock, Coins, MessagesSquare, Rows3 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { CalendarClock, Coins, MessagesSquare, Rows3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import { formatDeadline } from "@/utils/deadline";
@@ -17,6 +17,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 // Pipeline order: how far an application has travelled, with the two terminal
 // outcomes last. Drives both the rendering order and which groups exist.
@@ -134,6 +144,7 @@ const CARD_GHOST_CLASSES =
 function ApplicationCard({
   application,
   onStatusChange,
+  onOpenDetails,
   /** Rendering the card as it leaves its old column — visual only, never interactive. */
   ghost,
   /** Rendering the card as it arrives in its new column. */
@@ -141,13 +152,15 @@ function ApplicationCard({
 }: {
   application: DemoApplication;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
+  onOpenDetails: () => void;
   ghost?: boolean;
   entering?: boolean;
 }) {
   return (
+    // `relative` anchors the title button's stretched hit area below.
     <Card
       className={cn(
-        "flex h-full flex-col border-l-4 transition-shadow hover:shadow-md",
+        "relative flex h-full flex-col border-l-4 transition-shadow hover:shadow-md",
         STATUS_ACCENT[application.status],
         entering && CARD_ENTER_CLASSES,
         ghost && CARD_GHOST_CLASSES,
@@ -163,19 +176,30 @@ function ApplicationCard({
           {application.grantOrganisation}
         </p>
         <h4 className="break-words text-sm font-semibold leading-snug text-card-foreground">
-          {application.grantTitle}
+          {ghost ? (
+            application.grantTitle
+          ) : (
+            /* The card can't be a <button> — it contains the status Select,
+               and interactive controls may not nest. Instead the title is the
+               button, and `after:absolute after:inset-0` stretches its hit
+               area across the whole card: one tab stop, whole-card click,
+               no nested interactives. The Select is raised above it below. */
+            <button
+              type="button"
+              onClick={onOpenDetails}
+              aria-label={`View ${application.grantTitle} application details`}
+              className="rounded-sm text-left after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {application.grantTitle}
+            </button>
+          )}
         </h4>
       </CardHeader>
 
       <CardContent className="mt-auto p-3 pt-0">
         <dl className="space-y-1.5 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <dt className="sr-only">Applicant</dt>
-            <dd className="truncate text-foreground" title={application.applicantOrganisation}>
-              {application.applicantOrganisation}
-            </dd>
-          </div>
+          {/* The applicant organisation lives in the details sheet now — the
+              card face keeps only what's worth scanning across a column. */}
           <div className="flex items-center gap-2">
             <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <dt className="sr-only">Funding</dt>
@@ -194,7 +218,13 @@ function ApplicationCard({
             )}
           </div>
         </dl>
-        <div className="mt-3 border-t border-border pt-2">
+        {/* z-10 lifts the status control above the title button's stretched
+            overlay, and stopPropagation keeps a click on it from ever being
+            read as "open the details sheet". */}
+        <div
+          className="relative z-10 mt-3 border-t border-border pt-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           <p className="text-[11px] text-muted-foreground">
             Updated {formatDistanceToNow(new Date(application.updatedAt), { addSuffix: true })}
           </p>
@@ -231,6 +261,130 @@ function ApplicationCard({
   );
 }
 
+function DetailField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm text-foreground [overflow-wrap:anywhere]">
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * The card's detail slide-over, built on the same Sheet primitive and layout
+ * as GrantDetailsSheet (right side, full-width on mobile / sm:max-w-lg above,
+ * bordered header, scrolling body, footer close) so the two read as one
+ * pattern. Radix handles Escape, the focus trap, and returning focus to the
+ * card title that opened it.
+ *
+ * Takes the application by reference rather than a snapshot, so a status
+ * changed in here re-renders the sheet as well as the board.
+ */
+function ApplicationDetailsSheet({
+  application,
+  open,
+  onOpenChange,
+  onStatusChange,
+}: {
+  application: DemoApplication | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+      >
+        {!application ? (
+          <>
+            <SheetHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
+              <SheetTitle>Application unavailable</SheetTitle>
+              <SheetDescription>
+                This application couldn&apos;t be found — it may have been removed.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 px-5 py-4" />
+          </>
+        ) : (
+          <>
+            <SheetHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-brand">
+                {application.grantOrganisation}
+              </div>
+              <SheetTitle className="text-base leading-snug">{application.grantTitle}</SheetTitle>
+              <SheetDescription>
+                Application summary. Status changes are saved locally in your browser.
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              <dl className="space-y-4">
+                <DetailField label="Status">
+                  <div className="flex flex-col gap-2">
+                    <StatusBadge status={application.status} />
+                    <Select
+                      value={application.status}
+                      onValueChange={(value) => {
+                        if (isStatus(value)) onStatusChange(application.id, value);
+                      }}
+                    >
+                      <SelectTrigger
+                        aria-label={`Change status for ${application.grantTitle}`}
+                        className="h-9 transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_ORDER.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {STATUS_LABEL[status]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      {STATUS_DESCRIPTION[application.status]}
+                    </p>
+                  </div>
+                </DetailField>
+
+                <DetailField label="Applicant">{application.applicantOrganisation}</DetailField>
+                <DetailField label="Funder / programme">
+                  {application.grantOrganisation}
+                </DetailField>
+                <DetailField label="Funding">{application.fundingAmount}</DetailField>
+                <DetailField label="Deadline">
+                  <span className="flex flex-wrap items-center gap-2">
+                    {formatDeadline(application.deadline)}
+                    {showsDeadlineUrgency(application.status) && (
+                      <DeadlineBadge deadline={application.deadline} />
+                    )}
+                  </span>
+                </DetailField>
+                <DetailField label="Last updated">
+                  {formatDistanceToNow(new Date(application.updatedAt), { addSuffix: true })}
+                </DetailField>
+              </dl>
+            </div>
+
+            <SheetFooter className="shrink-0 border-t border-border px-5 py-4">
+              <SheetClose asChild>
+                <Button type="button" variant="outline" className="rounded-lg hover:bg-muted">
+                  Close
+                </Button>
+              </SheetClose>
+            </SheetFooter>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 /**
  * One kanban column. It carries no width of its own: the board's grid track
  * divides the available space, and `min-w-0` lets the column shrink below its
@@ -241,6 +395,7 @@ function StatusColumn({
   status,
   applications,
   onStatusChange,
+  onOpenDetails,
   ghost,
   enteringId,
   isDestination,
@@ -248,6 +403,7 @@ function StatusColumn({
   status: ApplicationStatus;
   applications: DemoApplication[];
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
+  onOpenDetails: (applicationId: string) => void;
   /** A card leaving this column, still drawn in the slot it just vacated. */
   ghost?: { application: DemoApplication; index: number };
   /** The card that just arrived in this column. */
@@ -324,6 +480,7 @@ function StatusColumn({
               <ApplicationCard
                 application={application}
                 onStatusChange={onStatusChange}
+                onOpenDetails={() => onOpenDetails(application.id)}
                 ghost={isGhost}
                 entering={!isGhost && application.id === enteringId}
               />
@@ -380,6 +537,16 @@ export function PipelineDashboard({
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  // The id, not a snapshot, so a status changed inside the sheet re-renders
+  // the sheet too. Deliberately not cleared on close: the sheet needs content
+  // to render while it slides out (same reason GrantResults keeps its grant).
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const openDetails = useCallback((applicationId: string) => {
+    setDetailsId(applicationId);
+    setDetailsOpen(true);
+  }, []);
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
@@ -512,6 +679,7 @@ export function PipelineDashboard({
               status={status}
               applications={grouped.get(status) ?? []}
               onStatusChange={handleStatusChange}
+              onOpenDetails={openDetails}
               ghost={
                 move?.fromStatus === status
                   ? { application: move.application, index: move.fromIndex }
@@ -523,6 +691,13 @@ export function PipelineDashboard({
           ))}
         </div>
       )}
+
+      <ApplicationDetailsSheet
+        application={applications.find((a) => a.id === detailsId) ?? null}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        onStatusChange={handleStatusChange}
+      />
     </section>
   );
 }
