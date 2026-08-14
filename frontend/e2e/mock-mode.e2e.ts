@@ -21,3 +21,15 @@ test("keeps onboarding local and makes no backend requests in mock mode", async 
   ).toBeVisible();
   expect(backendRequests).toEqual([]);
 });
+
+test("renders the application pipeline without runtime crashes", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Applications" }).click();
+
+  await expect(page.getByRole("heading", { level: 2, name: "Application pipeline" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Open$/ }).first()).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
