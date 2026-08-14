@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Menu, MessageSquarePlus, Play, Rows3 } from "lucide-react";
+import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
+import { useApplications } from "@/hooks/useApplications";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import {
@@ -167,6 +168,8 @@ const DEMO_PROFILE: OrganisationProfile = {
 export function App() {
   const c = useConversations();
   const { synchronizeBackendMessages } = c;
+  const apps = useApplications();
+  const addApplication = apps.addApplication;
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -438,6 +441,7 @@ export function App() {
       if (!c.activeConversation?.profile) return;
       setAskingAboutGrant(null);
       setBusy(true);
+      const profile = c.activeConversation.profile;
       try {
         const currentDocument = c.activeConversation.document;
         let doc =
@@ -446,10 +450,21 @@ export function App() {
             : await applicationService.findSavedApplication(grant.id);
         const reopened = Boolean(doc);
         if (!doc) {
-          doc = await applicationService.startApplication(grant, c.activeConversation.profile);
+          doc = await applicationService.startApplication(grant, profile);
         }
         c.setDocument(doc, grant.id);
         c.setStage("application");
+        addApplication({
+          id: doc.id,
+          grantId: grant.id,
+          grantTitle: grant.title,
+          grantOrganisation: grant.programme ?? grant.source ?? "Unknown funder",
+          applicantOrganisation: profile.organisationName || "Unknown applicant",
+          status: "drafting",
+          fundingAmount: grant.fundingAmount ?? profile.fundingAmount ?? "Not specified",
+          deadline: grant.deadline ?? "",
+          updatedAt: doc.updatedAt || new Date().toISOString(),
+        });
         askAssistant([
           {
             type: "success",
@@ -473,7 +488,7 @@ export function App() {
         setBusy(false);
       }
     },
-    [askAssistant, c],
+    [addApplication, askAssistant, c],
   );
 
   const handleOpenApplication = useCallback(
@@ -838,18 +853,6 @@ export function App() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              variant={mainView === "pipeline" ? "default" : "outline"}
-              onClick={() => setMainView(mainView === "pipeline" ? "chat" : "pipeline")}
-              className={cn(
-                "h-auto shrink-0 gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium",
-                mainView === "pipeline" && "bg-brand text-white hover:bg-brand/90",
-              )}
-            >
-              <Rows3 className="h-3.5 w-3.5" />
-              {mainView === "pipeline" ? "Chat" : "Applications"}
-            </Button>
             {isMockMode && mainView === "chat" && active?.stage === "welcome" && (
               <button
                 type="button"
@@ -944,6 +947,10 @@ export function App() {
             <PipelineDashboard
               onGoToChat={() => setMainView("chat")}
               onOpenApplication={handleOpenApplication}
+              applications={apps.applications}
+              hydrated={apps.hydrated}
+              persistenceOk={apps.persistenceOk}
+              updateStatus={apps.updateStatus}
             />
           </div>
         )}
