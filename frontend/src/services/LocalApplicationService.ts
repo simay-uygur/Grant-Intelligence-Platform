@@ -150,6 +150,12 @@ export class LocalApplicationService implements ApplicationService {
     return application;
   }
 
+  async upsertApplicationSummary(application: DemoApplication): Promise<void> {
+    await wait(50);
+    const applications = readLocalApplications() ?? MOCK_APPLICATIONS;
+    writeLocalApplications(upsertLocalApplication(applications, application));
+  }
+
   async saveSection(_applicationId: string, _sectionId: string, _content: string): Promise<void> {
     await wait(50);
   }
@@ -254,4 +260,17 @@ function writeLocalApplications(applications: DemoApplication[]): boolean {
   } catch {
     return false;
   }
+}
+
+function upsertLocalApplication(
+  applications: DemoApplication[],
+  application: DemoApplication,
+): DemoApplication[] {
+  const existing = applications.find((item) => item.grantId === application.grantId);
+  if (!existing) return [application, ...applications];
+  return applications.map((item) =>
+    item.grantId === application.grantId
+      ? { ...application, id: item.id, status: item.status }
+      : item,
+  );
 }

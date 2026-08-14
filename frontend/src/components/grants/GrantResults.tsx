@@ -36,6 +36,7 @@ import {
   matchTierFor,
 } from "./grantPresentation";
 import { formatDeadline } from "@/utils/deadline";
+import { useShortlist } from "@/hooks/useShortlist";
 
 interface Props {
   grants: Grant[];
@@ -44,12 +45,21 @@ interface Props {
   onStart: (grant: Grant) => void;
   /** Re-runs the search from the stored profile; absent if there's nothing to retry from. */
   onRetryResearch?: () => void;
+  /** True while a start is already in flight, so it can't be fired twice. */
+  startDisabled?: boolean;
 }
 
 const MAX_COMPARE = 3;
 
-export function GrantResults({ grants, sourceSummary, onAsk, onStart, onRetryResearch }: Props) {
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+export function GrantResults({
+  grants,
+  sourceSummary,
+  onAsk,
+  onStart,
+  onRetryResearch,
+  startDisabled,
+}: Props) {
+  const { isSaved, toggleSave } = useShortlist();
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
   // Kept separate from `detailsOpen` so the sheet's exit animation still has
@@ -60,15 +70,6 @@ export function GrantResults({ grants, sourceSummary, onAsk, onStart, onRetryRes
   const openDetails = (grant: Grant) => {
     setSelectedGrant(grant);
     setDetailsOpen(true);
-  };
-
-  const toggleSaved = (id: string) => {
-    setSavedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   };
 
   const toggleCompare = (id: string) => {
@@ -146,11 +147,12 @@ export function GrantResults({ grants, sourceSummary, onAsk, onStart, onRetryRes
             onAsk={onAsk}
             onStart={onStart}
             onViewDetails={openDetails}
-            saved={savedIds.has(g.id)}
-            onToggleSaved={() => toggleSaved(g.id)}
+            saved={isSaved(g.id)}
+            onToggleSaved={() => toggleSave(g)}
             compareChecked={compareIds.has(g.id)}
             onToggleCompare={() => toggleCompare(g.id)}
             compareDisabled={!compareIds.has(g.id) && compareIds.size >= MAX_COMPARE}
+            startDisabled={startDisabled}
           />
         ))}
       </div>
@@ -256,6 +258,7 @@ function GrantCard({
   compareChecked,
   onToggleCompare,
   compareDisabled,
+  startDisabled,
 }: {
   grant: Grant;
   onAsk: (g: Grant) => void;
@@ -266,6 +269,7 @@ function GrantCard({
   compareChecked: boolean;
   onToggleCompare: () => void;
   compareDisabled: boolean;
+  startDisabled?: boolean;
 }) {
   const matchTier =
     grant.matchPercentage === undefined ? undefined : matchTierFor(grant.matchPercentage);
@@ -404,9 +408,10 @@ function GrantCard({
           type="button"
           size="sm"
           onClick={() => onStart(grant)}
+          disabled={startDisabled}
           className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
         >
-          Start application
+          {startDisabled ? "Starting..." : "Start application"}
         </Button>
       </CardFooter>
     </article>

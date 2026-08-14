@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Building2, CalendarClock, Coins, FileText, MessagesSquare, Rows3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
-import { useApplications } from "@/hooks/useApplications";
 import { formatDeadline } from "@/utils/deadline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -386,11 +385,18 @@ interface CardMove {
 export function PipelineDashboard({
   onGoToChat,
   onOpenApplication,
+  applications,
+  hydrated,
+  persistenceOk,
+  updateStatus,
 }: {
   onGoToChat: () => void;
   onOpenApplication: (applicationId: string) => Promise<void>;
+  applications: DemoApplication[];
+  hydrated: boolean;
+  persistenceOk: boolean;
+  updateStatus: (applicationId: string, status: ApplicationStatus) => void;
 }) {
-  const { applications, hydrated, persistenceOk, updateStatus } = useApplications();
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [openingApplicationId, setOpeningApplicationId] = useState<string | null>(null);
