@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   MOCK_APPLICATIONS,
   type ApplicationStatus,
@@ -65,14 +65,12 @@ export function useApplications() {
   // Reflects the most recent write attempt only — a later successful write
   // (once storage is available again) clears it automatically.
   const [persistenceOk, setPersistenceOk] = useState(true);
-  const bootstrappedRef = useRef(false);
 
-  // Idempotent bootstrap: run once, in-effect, guarded against StrictMode.
-  // Reading in an effect rather than in a lazy initialiser also keeps the
-  // first client render identical to the server's, so SSR can't mismatch.
+  // Reading in an effect rather than in a lazy initialiser keeps the first
+  // client render identical to the server's, so SSR can't mismatch. The
+  // cleanup guard prevents stale async work from updating state after unmount,
+  // while still allowing React StrictMode's remount pass to hydrate normally.
   useEffect(() => {
-    if (bootstrappedRef.current) return;
-    bootstrappedRef.current = true;
     let active = true;
     applicationService
       .listApplications()

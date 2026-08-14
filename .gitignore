@@ -33,6 +33,7 @@ dist-ssr
 .dev.vars
 
 # Environment variables
+.envrc
 backend/.env
 .env.*
 !.env.example
