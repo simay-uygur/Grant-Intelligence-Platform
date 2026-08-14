@@ -27,7 +27,10 @@ test("renders the application pipeline without runtime crashes", async ({ page }
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Applications" }).click();
+  await page
+    .getByRole("navigation", { name: "Views" })
+    .getByRole("button", { name: "Pipeline" })
+    .click();
 
   await expect(page.getByRole("heading", { level: 2, name: "Application pipeline" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Open$/ }).first()).toBeVisible();
