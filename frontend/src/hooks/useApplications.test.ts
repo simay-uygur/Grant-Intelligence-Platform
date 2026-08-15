@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_APPLICATIONS, type DemoApplication } from "@/data/mockApplications";
-import { isApplication, parseStoredApplications } from "./useApplications";
+import { applyUpsert, isApplication, parseStoredApplications } from "./useApplications";
 
 const valid: DemoApplication = {
   id: "app-1",
@@ -83,11 +83,66 @@ describe("parseStoredApplications", () => {
     expect(parseStoredApplications("null")).toBeNull();
   });
 
-  it("returns null for an empty array", () => {
-    expect(parseStoredApplications("[]")).toBeNull();
+  it("respects an empty array rather than treating it as uninitialised", () => {
+    expect(parseStoredApplications("[]")).toEqual([]);
   });
 
   it("rejects the whole array if any entry is malformed", () => {
     expect(parseStoredApplications(JSON.stringify([valid, { id: "broken" }]))).toBeNull();
+  });
+
+  it("separates missing/corrupt storage from an intentionally empty pipeline", () => {
+    expect(parseStoredApplications(null)).toBeNull();
+    expect(parseStoredApplications("{not json")).toBeNull();
+    expect(parseStoredApplications("[]")).not.toBeNull();
+  });
+});
+
+describe("applyUpsert", () => {
+  const started = (grantId: string, overrides: Partial<DemoApplication> = {}): DemoApplication => ({
+    ...valid,
+    id: `doc-${grantId}-1`,
+    grantId,
+    grantTitle: `Grant ${grantId}`,
+    ...overrides,
+  });
+
+  it("prepends a new application", () => {
+    const existing = [started("a")];
+    const after = applyUpsert(existing, started("b"));
+    expect(after).toHaveLength(2);
+    expect(after[0].grantId).toBe("b");
+    expect(after[1]).toBe(existing[0]);
+  });
+
+  it("updates in place for a repeat start on the same grant", () => {
+    const before = [started("a", { grantTitle: "Old title" }), started("b")];
+    const after = applyUpsert(before, started("a", { grantTitle: "Refreshed title" }));
+    expect(after).toHaveLength(2);
+    expect(after.filter((a) => a.grantId === "a")).toHaveLength(1);
+    expect(after.find((a) => a.grantId === "a")?.grantTitle).toBe("Refreshed title");
+  });
+
+  it("keeps the existing row's status and id on update", () => {
+    const before = [started("a", { id: "doc-original", status: "submitted" })];
+    const after = applyUpsert(before, started("a", { id: "doc-new", status: "drafting" }));
+    expect(after[0].status).toBe("submitted");
+    expect(after[0].id).toBe("doc-original");
+  });
+
+  it("keeps position and leaves other rows untouched by reference", () => {
+    const other = started("b");
+    const before = [other, started("a")];
+    const after = applyUpsert(before, started("a", { grantTitle: "Refreshed" }));
+    expect(after.map((a) => a.grantId)).toEqual(["b", "a"]);
+    expect(after[0]).toBe(other);
+  });
+
+  it("does not mutate the input array", () => {
+    const before = [started("a")];
+    const snapshot = JSON.stringify(before);
+    applyUpsert(before, started("b"));
+    applyUpsert(before, started("a", { grantTitle: "Refreshed" }));
+    expect(JSON.stringify(before)).toBe(snapshot);
   });
 });

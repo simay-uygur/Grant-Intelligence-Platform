@@ -44,19 +44,37 @@ export function isApplication(value: unknown): value is DemoApplication {
 
 /**
  * Decides whether a raw stored string is usable, or whether the caller should
- * fall back to the demo seed. Split out from the storage read so the rules —
- * missing, unparseable, not an array, empty, or wrong-shaped all mean "seed" —
- * can be tested without a browser. Pure.
+ * fall back to the demo seed. Split out from the storage read so the rules can
+ * be tested without a browser. Pure.
+ *
+ * The presence of a valid array is the "already initialised" marker, so an
+ * empty array means "respect the user's empty pipeline", not "seed again".
  */
 export function parseStoredApplications(raw: string | null): DemoApplication[] | null {
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    if (!Array.isArray(parsed)) return null;
     return parsed.every(isApplication) ? (parsed as DemoApplication[]) : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Adds an application, or refreshes the one already tracking the same grant.
+ * Repeat starts keep the existing row id and status, so reopening a draft does
+ * not duplicate it or move a submitted card back to drafting.
+ */
+export function applyUpsert(
+  applications: DemoApplication[],
+  application: DemoApplication,
+): DemoApplication[] {
+  const existing = applications.find((a) => a.grantId === application.grantId);
+  if (!existing) return [application, ...applications];
+  return applications.map((a) =>
+    a.grantId === application.grantId ? { ...application, id: a.id, status: a.status } : a,
+  );
 }
 
 export function useApplications() {
@@ -118,5 +136,13 @@ export function useApplications() {
       });
   }, []);
 
-  return { applications, hydrated, persistenceOk, updateStatus };
+  const addApplication = useCallback((application: DemoApplication) => {
+    setApplications((prev) => applyUpsert(prev, application));
+    void applicationService
+      .upsertApplicationSummary?.(application)
+      .then(() => setPersistenceOk(true))
+      .catch(() => setPersistenceOk(false));
+  }, []);
+
+  return { applications, hydrated, persistenceOk, updateStatus, addApplication };
 }
