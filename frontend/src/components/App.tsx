@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
@@ -834,6 +835,11 @@ export function App() {
               <h1 className="truncate text-sm font-semibold text-foreground" title={headerTitle}>
                 {headerTitle}
               </h1>
+              {mainView === "chat" && active?.updatedAt && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Updated {formatDistanceToNow(new Date(active.updatedAt), { addSuffix: true })}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
