@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { App } from "@/components/App";
 import { AuthScreen } from "@/components/AuthScreen";
+import { AUTH_UNAUTHORIZED_EVENT } from "@/services/apiClient";
 
 const authRequired = import.meta.env.VITE_AUTH_REQUIRED === "true";
 const apiMode = (import.meta.env.VITE_API_MODE as string | undefined) ?? "api";
@@ -31,7 +33,24 @@ export const Route = createFileRoute("/")({
 });
 
 function ProtectedApp() {
-  const hasToken =
-    typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
+  const [hasToken, setHasToken] = useState(
+    () => typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token")),
+  );
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      const tokenExists =
+        typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
+      setHasToken(tokenExists);
+    };
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+    return () => {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
+  }, []);
+
   return hasToken ? <App /> : <AuthScreen />;
 }

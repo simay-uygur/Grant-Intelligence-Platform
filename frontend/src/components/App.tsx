@@ -11,6 +11,7 @@ import {
   grantService,
   isMockMode,
 } from "@/services";
+import { clearAuthToken } from "@/services/apiClient";
 import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -53,6 +54,8 @@ const LIVE_RESEARCH_STEPS = [
   "Preparing search criteria",
   "Searching live EU Horizon opportunities",
 ];
+const AUTH_REQUIRED = import.meta.env.VITE_AUTH_REQUIRED === "true";
+const AUTH_TOKEN_KEY = "gi.auth.token";
 
 type BackendConnection =
   | { status: "local" }
@@ -188,6 +191,10 @@ export function App() {
   const researchInFlight = useRef(false);
   const historySyncRequest = useRef(0);
   const isMobile = useIsMobile();
+
+  const handleSignOut = useCallback(() => {
+    clearAuthToken();
+  }, []);
 
   useEffect(() => {
     if (!backendService) {
@@ -790,6 +797,7 @@ export function App() {
         isMockMode={isMockMode}
         mainView={mainView}
         onSelectView={setMainView}
+        onSignOut={AUTH_REQUIRED && !isMockMode ? handleSignOut : undefined}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
@@ -803,6 +811,7 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
+        onSignOut={AUTH_REQUIRED && !isMockMode ? handleSignOut : undefined}
       />
 
       <main
@@ -951,6 +960,7 @@ export function App() {
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
+              isMockMode={isMockMode}
             />
           </div>
         )}

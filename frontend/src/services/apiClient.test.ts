@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { ApiClient, ApiError, getApiBaseUrl, joinApiUrl } from "./apiClient";
+import {
+  ApiClient,
+  ApiError,
+  AUTH_UNAUTHORIZED_EVENT,
+  getApiBaseUrl,
+  joinApiUrl,
+} from "./apiClient";
 
 describe("ApiClient", () => {
   test("normalizes base URL and endpoint slashes", () => {
@@ -63,5 +69,51 @@ describe("ApiClient", () => {
     expect(client.request("/api/v1/grants/search")).rejects.toThrow(
       "The grant backend returned an invalid JSON response.",
     );
+  });
+
+  test("clears token and dispatches unauthorized event on 401 response", async () => {
+    const storage = new Map<string, string>();
+    storage.set("gi.auth.token", "old-token");
+    let eventFired = false;
+
+    const mockWindow = {
+      localStorage: {
+        getItem: (k: string) => storage.get(k) ?? null,
+        setItem: (k: string, v: string) => storage.set(k, v),
+        removeItem: (k: string) => storage.delete(k),
+      },
+      dispatchEvent: (event: { type: string }) => {
+        if (event.type === AUTH_UNAUTHORIZED_EVENT) eventFired = true;
+        return true;
+      },
+    };
+
+    const originalWindow = (globalThis as unknown as { window?: unknown }).window;
+    (globalThis as unknown as { window: unknown }).window = mockWindow;
+
+    const client = new ApiClient(
+      "http://localhost:8000",
+      async () =>
+        new Response(JSON.stringify({ detail: "Invalid or expired token." }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+
+    try {
+      await client.request("/api/v1/chats/123/messages");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).status).toBe(401);
+    } finally {
+      if (originalWindow !== undefined) {
+        (globalThis as unknown as { window: unknown }).window = originalWindow;
+      } else {
+        delete (globalThis as unknown as { window?: unknown }).window;
+      }
+    }
+
+    expect(storage.get("gi.auth.token")).toBeUndefined();
+    expect(eventFired).toBe(true);
   });
 });

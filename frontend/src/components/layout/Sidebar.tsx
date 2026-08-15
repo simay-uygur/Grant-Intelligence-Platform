@@ -2,6 +2,7 @@ import { useId, useMemo, useRef, useState } from "react";
 import {
   KanbanSquare,
   Landmark,
+  LogOut,
   MessagesSquare,
   Pencil,
   Plus,
@@ -35,6 +36,7 @@ interface SidebarProps {
   isMockMode: boolean;
   mainView: MainView;
   onSelectView: (view: MainView) => void;
+  onSignOut?: () => void;
 }
 
 const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
@@ -52,6 +54,7 @@ function SidebarContent({
   isMockMode,
   mainView,
   onSelectView,
+  onSignOut,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   const searchId = useId();
@@ -326,11 +329,22 @@ function SidebarContent({
         </ul>
       </nav>
 
-      <div className="mt-auto flex items-center border-t border-sidebar-border/60 px-4 py-3">
+      <div className="mt-auto flex items-center justify-between gap-3 border-t border-sidebar-border/60 px-4 py-3">
         <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/50">
           <span className="h-1.5 w-1.5 rounded-full bg-success/70" />
           {isMockMode ? "Local / mock mode" : "Live search / AI drafts"}
         </div>
+        {onSignOut && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onSignOut}
+            className="h-auto shrink-0 rounded-md px-2 py-1 text-[11px] text-sidebar-foreground/70 hover:bg-white/10 hover:text-white"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Sign out
+          </Button>
+        )}
       </div>
     </div>
   );

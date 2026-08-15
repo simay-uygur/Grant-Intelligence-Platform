@@ -15,7 +15,9 @@ export class ApiError extends Error {
 const AUTH_TOKEN_KEY = "gi.auth.token";
 const LOCAL_DEV_API_BASE_URL = "http://127.0.0.1:8000";
 
-function getAuthToken(): string | null {
+export const AUTH_UNAUTHORIZED_EVENT = "gi:auth:unauthorized";
+
+export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
     return window.localStorage.getItem(AUTH_TOKEN_KEY);
@@ -24,10 +26,11 @@ function getAuthToken(): string | null {
   }
 }
 
-function clearAuthToken(): void {
+export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
   } catch {
     // Storage can be unavailable in private browsing or restricted runtimes.
   }

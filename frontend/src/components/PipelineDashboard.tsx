@@ -389,6 +389,7 @@ export function PipelineDashboard({
   hydrated,
   persistenceOk,
   updateStatus,
+  isMockMode,
 }: {
   onGoToChat: () => void;
   onOpenApplication: (applicationId: string) => Promise<void>;
@@ -396,6 +397,7 @@ export function PipelineDashboard({
   hydrated: boolean;
   persistenceOk: boolean;
   updateStatus: (applicationId: string, status: ApplicationStatus) => void;
+  isMockMode: boolean;
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -479,11 +481,11 @@ export function PipelineDashboard({
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Every application across all of your conversations, grouped by stage.
         </p>
-        {/* Same spot and style as before; the wording now reflects that
-            status changes are real but go no further than this browser. */}
-        <p className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning">
-          Demo data — status changes are saved locally in your browser.
-        </p>
+        {isMockMode && (
+          <p className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning">
+            Demo data — status changes are saved locally in your browser.
+          </p>
+        )}
         {!persistenceOk && (
           <p
             role="status"
