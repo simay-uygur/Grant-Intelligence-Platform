@@ -4,9 +4,6 @@ import { App } from "@/components/App";
 import { AuthScreen } from "@/components/AuthScreen";
 import { AUTH_UNAUTHORIZED_EVENT } from "@/services/apiClient";
 
-const authRequired = import.meta.env.VITE_AUTH_REQUIRED === "true";
-const apiMode = (import.meta.env.VITE_API_MODE as string | undefined) ?? "api";
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -29,7 +26,7 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: authRequired && apiMode === "api" ? ProtectedApp : App,
+  component: ProtectedApp,
 });
 
 function ProtectedApp() {
