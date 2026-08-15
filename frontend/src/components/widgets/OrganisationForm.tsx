@@ -206,7 +206,6 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
             >
               {STEP_COPY[step].title}
             </h3>
-            <p className="mt-1 text-xs text-muted-foreground">{STEP_COPY[step].subtitle}</p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <Select onValueChange={applySampleProfile} disabled={disabled}>
