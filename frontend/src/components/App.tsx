@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
+import { ArrowDown, Check, Loader2, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -746,6 +746,18 @@ export function App() {
       ? backendHistorySync
       : undefined;
 
+  const [showSyncedCheck, setShowSyncedCheck] = useState(false);
+
+  useEffect(() => {
+    if (activeHistorySync?.status === "synced") {
+      setShowSyncedCheck(true);
+      const timer = setTimeout(() => {
+        setShowSyncedCheck(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeHistorySync?.status, activeHistorySync?.conversationId]);
+
   // Show a lightweight "assistant is working" indicator for gaps where busy
   // work is happening but no research_status block (which has its own
   // step-by-step progress and recommendation-skeleton UI) is already
@@ -835,19 +847,37 @@ export function App() {
               <h1 className="truncate text-sm font-semibold text-foreground" title={headerTitle}>
                 {headerTitle}
               </h1>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  title={
+                    backendConnection.status === "connected"
+                      ? `Connected · Backend v${backendConnection.version}`
+                      : backendConnection.status === "local"
+                        ? "Connected · Mock mode"
+                        : undefined
+                  }
+                >
                   <span className={`h-1.5 w-1.5 rounded-full ${connectionDotClass}`} />
-                  {connectionLabel}
+                  {backendConnection.status === "checking" && <span>Checking backend…</span>}
+                  {backendConnection.status === "unavailable" && (
+                    <span className="text-destructive">Backend unavailable</span>
+                  )}
                 </span>
-                {mainView === "chat" && active && (
-                  <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
-                )}
                 {activeHistorySync?.status === "syncing" && (
-                  <span role="status">Syncing history…</span>
+                  <span role="status" className="inline-flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                    <span>Syncing history…</span>
+                  </span>
                 )}
-                {activeHistorySync?.status === "synced" && (
-                  <span role="status">History synced</span>
+                {showSyncedCheck && activeHistorySync?.status === "synced" && (
+                  <span
+                    role="status"
+                    className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
+                  >
+                    <Check className="h-3 w-3" />
+                    <span>History synced</span>
+                  </span>
                 )}
                 {activeHistorySync?.status === "error" && (
                   <span
