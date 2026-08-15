@@ -11,7 +11,7 @@ import {
   grantService,
   isMockMode,
 } from "@/services";
-import { clearAuthToken } from "@/services/apiClient";
+import { clearAuthToken, logout } from "@/services/apiClient";
 import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -193,7 +193,7 @@ export function App() {
   const isMobile = useIsMobile();
 
   const handleSignOut = useCallback(() => {
-    clearAuthToken();
+    void logout();
   }, []);
 
   useEffect(() => {

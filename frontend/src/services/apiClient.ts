@@ -36,6 +36,19 @@ export function clearAuthToken(): void {
   }
 }
 
+export async function logout(): Promise<void> {
+  const token = getAuthToken();
+  if (token) {
+    const client = new ApiClient(getApiBaseUrl());
+    try {
+      await client.request("/api/v1/auth/logout", { method: "POST" });
+    } catch {
+      // Best effort notification to backend; proceed to clear local token.
+    }
+  }
+  clearAuthToken();
+}
+
 export function joinApiUrl(baseUrl: string | undefined, path: string): string {
   const normalizedBase = (baseUrl ?? "").trim().replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
