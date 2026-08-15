@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   KanbanSquare,
   Landmark,
@@ -53,6 +53,56 @@ function getUserEmail(): string | null {
   } catch {
     return null;
   }
+}
+
+function RenameInput({
+  id,
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  id: string;
+  value: string;
+  onChange: (val: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  return (
+    <Input
+      id={id}
+      ref={inputRef}
+      value={value}
+      maxLength={200}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onCommit();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancelledRef.current = true;
+          onCancel();
+        }
+      }}
+      onBlur={() => {
+        if (cancelledRef.current) {
+          cancelledRef.current = false;
+          return;
+        }
+        onCommit();
+      }}
+      className="border-sidebar-border bg-sidebar-accent/30 text-sm placeholder:text-sidebar-foreground/40 focus-visible:ring-sidebar-ring"
+    />
+  );
 }
 
 function SidebarContent({
@@ -235,33 +285,12 @@ function SidebarContent({
                   <label htmlFor={`${renameId}-${c.id}`} className="sr-only">
                     Rename conversation
                   </label>
-                  <Input
+                  <RenameInput
                     id={`${renameId}-${c.id}`}
-                    // Focus and select on mount, so typing replaces the old
-                    // title immediately and Escape is always one key away.
-                    ref={(el) => {
-                      el?.select();
-                    }}
                     value={draftTitle}
-                    maxLength={200}
-                    onChange={(e) => setDraftTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        commitRename(c.id);
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        cancelRename(c.id);
-                      }
-                    }}
-                    onBlur={() => {
-                      if (cancelledRef.current) {
-                        cancelledRef.current = false;
-                        return;
-                      }
-                      commitRename(c.id);
-                    }}
-                    className="border-sidebar-border bg-sidebar-accent/30 text-sm placeholder:text-sidebar-foreground/40 focus-visible:ring-sidebar-ring"
+                    onChange={setDraftTitle}
+                    onCommit={() => commitRename(c.id)}
+                    onCancel={() => cancelRename(c.id)}
                   />
                 </li>
               );
