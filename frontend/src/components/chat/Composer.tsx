@@ -378,12 +378,6 @@ export function Composer({
               <TooltipContent side="top">Send message</TooltipContent>
             </Tooltip>
           </div>
-          <div className="mt-2 px-1 text-[11px] text-muted-foreground">
-            {isMockMode
-              ? "Mock mode • Responses use local demo data."
-              : "Live grant search • Grant Q&A and application drafts remain local."}{" "}
-            Not legal or financial advice.
-          </div>
         </div>
       </div>
     </TooltipProvider>

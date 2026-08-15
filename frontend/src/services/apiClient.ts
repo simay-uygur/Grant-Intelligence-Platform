@@ -26,10 +26,13 @@ export function getAuthToken(): string | null {
   }
 }
 
+const AUTH_EMAIL_KEY = "gi.auth.email";
+
 export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    window.localStorage.removeItem(AUTH_EMAIL_KEY);
     window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
   } catch {
     // Storage can be unavailable in private browsing or restricted runtimes.

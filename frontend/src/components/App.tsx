@@ -24,6 +24,7 @@ import type {
   OrganisationProfile,
   ResearchState,
 } from "@/types";
+import { AccountModal } from "@/components/AccountModal";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
@@ -176,6 +177,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
   // Which main view is showing. Local, non-persisted UI state: the pipeline
   // dashboard is global across conversations, so it's a sibling view of the
   // chat rather than a block inside one — the app still has a single route.
@@ -798,6 +800,7 @@ export function App() {
         mainView={mainView}
         onSelectView={setMainView}
         onSignOut={handleSignOut}
+        onOpenAccount={() => setAccountModalOpen(true)}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
@@ -811,6 +814,12 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
+        onSignOut={handleSignOut}
+        onOpenAccount={() => setAccountModalOpen(true)}
+      />
+      <AccountModal
+        open={accountModalOpen}
+        onOpenChange={setAccountModalOpen}
         onSignOut={handleSignOut}
       />
 
