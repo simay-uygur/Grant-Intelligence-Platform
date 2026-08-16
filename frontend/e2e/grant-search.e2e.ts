@@ -136,6 +136,7 @@ test.beforeEach(async ({ page }) => {
       window.localStorage.clear();
       window.sessionStorage.setItem(initializedKey, "true");
     }
+    window.localStorage.setItem("gi.auth.token", "mock-e2e-token");
   });
 });
 

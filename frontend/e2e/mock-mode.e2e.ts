@@ -1,7 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => window.localStorage.clear());
+  await page.addInitScript(() => {
+    window.localStorage.clear();
+    window.localStorage.setItem("gi.auth.token", "mock-e2e-token");
+    window.localStorage.setItem("gi.auth.email", "test@example.com");
+  });
 });
 
 test("keeps onboarding local and makes no backend requests in mock mode", async ({ page }) => {
@@ -13,7 +17,9 @@ test("keeps onboarding local and makes no backend requests in mock mode", async 
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Find grants for my organisation" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Find grants for my organisation" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
   await expect(
