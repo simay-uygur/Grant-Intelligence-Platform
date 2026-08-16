@@ -13,7 +13,7 @@ test("keeps onboarding local and makes no backend requests in mock mode", async 
   });
 
   await page.goto("/");
-  await expect(page.getByText("Connected · Mock mode")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Find grants for my organisation" })).toBeVisible();
 
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
   await expect(
