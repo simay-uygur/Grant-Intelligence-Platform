@@ -8,16 +8,16 @@ test.skip(!deployedBaseURL, "Set DEPLOYED_BASE_URL to run deployed real-environm
 async function registerE2EUser(request: APIRequestContext) {
   const timestamp = Date.now();
   const email = `e2e-${timestamp}@example.com`;
-  const password = `E2E-${timestamp}-password`;
+  const testPassphrase = `E2E-${timestamp}-credential`;
 
   const response = await request.post("/api/v1/auth/register", {
-    data: { email, password },
+    data: { email, password: testPassphrase },
   });
   expect(response.ok()).toBeTruthy();
 
   const payload = (await response.json()) as { token: string };
   expect(payload.token).toBeTruthy();
-  return { email, password, token: payload.token };
+  return { email, password: testPassphrase, token: payload.token };
 }
 
 async function openAuthenticatedApp(page: Page, token: string) {
