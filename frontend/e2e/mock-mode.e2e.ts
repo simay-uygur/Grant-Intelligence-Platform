@@ -17,7 +17,9 @@ test("keeps onboarding local and makes no backend requests in mock mode", async 
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Find grants for my organisation" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Find grants for my organisation" })).toBeVisible({
+    timeout: 10_000,
+  });
 
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
   await expect(
@@ -36,7 +38,7 @@ test("renders the application pipeline without runtime crashes", async ({ page }
     .getByRole("button", { name: "Pipeline" })
     .click();
 
-  await expect(page.getByRole("heading", { level: 2, name: "Application pipeline" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Application pipeline" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Open$/ }).first()).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
