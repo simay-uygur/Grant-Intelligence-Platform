@@ -177,9 +177,7 @@ function SidebarContent({
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">Grant Intelligence</div>
-          <div className="truncate text-xs text-sidebar-foreground/60">
-            AI Grant Workspace
-          </div>
+          <div className="truncate text-xs text-sidebar-foreground/60">AI Grant Workspace</div>
         </div>
       </div>
 

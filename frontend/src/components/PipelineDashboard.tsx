@@ -479,8 +479,8 @@ export function PipelineDashboard({
               aria-live="polite"
               className="flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive"
             >
-              Status changes can&apos;t be saved right now — local storage may be full or unavailable
-              (for example, in private browsing). They&apos;ll be lost when you reload.
+              Status changes can&apos;t be saved right now — local storage may be full or
+              unavailable (for example, in private browsing). They&apos;ll be lost when you reload.
             </p>
           )}
         </header>
