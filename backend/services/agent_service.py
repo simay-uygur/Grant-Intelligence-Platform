@@ -1,8 +1,10 @@
-from __future__ import annotations
-
 import os
 from importlib import import_module
 from typing import Any, Callable
+
+from backend.core.logging import get_logger
+
+logger = get_logger("services.agent")
 
 
 class AgentUnavailableError(RuntimeError):
@@ -47,6 +49,7 @@ class AgentService:
         try:
             module = import_module("agent.service")
         except ModuleNotFoundError as exc:
+            logger.warning("Agent module not found when loading '%s': %s", name, exc)
             if exc.name not in {"agent", "agent.service"}:
                 raise AgentUnavailableError(
                     f"The agent library could not import dependency `{exc.name}`."
@@ -59,6 +62,7 @@ class AgentService:
         try:
             function = getattr(module, name)
         except AttributeError as exc:
+            logger.warning("Agent function '%s' missing from module: %s", name, exc)
             raise AgentUnavailableError(
                 f"The agent library is missing `agent.service.{name}`."
             ) from exc

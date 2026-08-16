@@ -13,6 +13,9 @@ from uuid import uuid4
 import jwt
 
 from backend.core.config import settings
+from backend.core.logging import get_logger
+
+logger = get_logger("services.auth")
 
 
 class AuthError(ValueError):
@@ -51,6 +54,7 @@ class AuthService:
     def register(self, email: str, password: str) -> dict[str, str]:
         normalized_email = self._normalize_email(email)
         if len(password) < 8:
+            logger.warning("Registration failed: password too short for email %s", normalized_email)
             raise AuthError("Password must be at least 8 characters.")
         user_id = str(uuid4())
         try:
@@ -60,7 +64,9 @@ class AuthService:
                     (user_id, normalized_email, self._hash_password(password), self._timestamp()),
                 )
         except sqlite3.IntegrityError as exc:
+            logger.warning("Registration failed: email already exists %s", normalized_email)
             raise AuthError("An account with that email already exists.") from exc
+        logger.info("Successfully registered user %s (%s)", user_id, normalized_email)
         return {"id": user_id, "email": normalized_email}
 
     def login(self, email: str, password: str) -> tuple[str, dict[str, str]]:
@@ -71,8 +77,10 @@ class AuthService:
                 (normalized_email,),
             ).fetchone()
         if row is None or not self._verify_password(password, row["password_hash"]):
+            logger.warning("Login failed for email %s", normalized_email)
             raise AuthError("Invalid email or password.")
         user = {"id": row["id"], "email": row["email"]}
+        logger.info("User logged in successfully: %s (%s)", user["id"], normalized_email)
         return self.issue_token(user), user
 
     def issue_token(self, user: dict[str, str]) -> str:
@@ -97,6 +105,7 @@ class AuthService:
                 raise AuthError("Invalid authentication token.")
             return {"id": user_id, "email": email}
         except (jwt.InvalidTokenError, AuthError) as exc:
+            logger.warning("Token validation failed: %s", exc)
             raise AuthError("Invalid or expired authentication token.") from exc
 
     @staticmethod

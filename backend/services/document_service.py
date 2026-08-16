@@ -1,4 +1,5 @@
 from backend.core.config import settings
+from backend.core.logging import get_logger
 from backend.schemas.documents import (
     ApplicationDocument,
     ApplicationListResponse,
@@ -13,6 +14,8 @@ from backend.services.application_store import (
     ApplicationStore,
     StoredApplicationSectionNotFoundError,
 )
+
+logger = get_logger("services.document")
 
 
 class ApplicationNotFoundError(ValueError):
@@ -31,6 +34,7 @@ class DocumentService:
         )
 
     def start_application(self, payload: StartApplicationRequest, user_id: str | None = None) -> ApplicationDocument:
+        logger.info("Starting application drafting (user_id=%s)", user_id)
         grant = (
             payload.grant.model_dump(exclude_none=True, exclude_defaults=True)
             if hasattr(payload.grant, "model_dump")
