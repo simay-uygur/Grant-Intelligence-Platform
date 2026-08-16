@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { PipelineDashboard } from "./PipelineDashboard";
 import type { DemoApplication } from "@/data/mockApplications";
 
@@ -63,7 +63,9 @@ describe("PipelineDashboard Component Integration", () => {
 
     const openButtons = screen.getAllByRole("button", { name: /^Open$/i });
     expect(openButtons.length).toBeGreaterThan(0);
-    fireEvent.click(openButtons[0]);
+    await act(async () => {
+      fireEvent.click(openButtons[0]);
+    });
 
     expect(handleOpen).toHaveBeenCalledWith("app-1");
   });

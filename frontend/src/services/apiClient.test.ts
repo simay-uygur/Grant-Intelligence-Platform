@@ -55,7 +55,7 @@ describe("ApiClient", () => {
       throw new TypeError("connection refused");
     });
 
-    expect(client.request("/api/v1/grants/search")).rejects.toThrow(
+    await expect(client.request("/api/v1/grants/search")).rejects.toThrow(
       "Unable to reach the grant backend. Check that it is running and try again.",
     );
   });
@@ -66,7 +66,7 @@ describe("ApiClient", () => {
       async () => new Response("not-json", { status: 200 }),
     );
 
-    expect(client.request("/api/v1/grants/search")).rejects.toThrow(
+    await expect(client.request("/api/v1/grants/search")).rejects.toThrow(
       "The grant backend returned an invalid JSON response.",
     );
   });
