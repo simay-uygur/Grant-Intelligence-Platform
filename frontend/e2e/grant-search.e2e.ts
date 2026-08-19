@@ -161,10 +161,10 @@ test("submits the profile to the versioned grant endpoint and renders empty live
   await responsePromise;
 
   await expect(
-  page.locator("p").filter({
-    hasText: /(0 live Horizon opportunities|couldn't find any live opportunities)/i,
-  }),
-).toBeVisible();
+    page.locator("p").filter({
+      hasText: /(0 live Horizon opportunities|couldn't find any live opportunities)/i,
+    }),
+  ).toBeVisible();
   await expect(page.getByText(/No grants matched this profile/i)).toBeVisible();
   expect(submittedBody).toMatchObject({
     query: "Sustainable AI Digital & AI",
@@ -204,10 +204,10 @@ test("retries a failed grant search through the real Retry button", async ({ pag
 
   await expect.poll(() => postAttempts).toBe(2);
   await expect(
-  page.locator("p").filter({
-    hasText: /(0 live Horizon opportunities|couldn't find any live opportunities)/i,
-  }),
-).toBeVisible();
+    page.locator("p").filter({
+      hasText: /(0 live Horizon opportunities|couldn't find any live opportunities)/i,
+    }),
+  ).toBeVisible();
   await expect(page.getByText(/No grants matched this profile/i)).toBeVisible();
 });
 
@@ -240,9 +240,9 @@ test("shows backend-unavailable status when the health check fails", async ({ pa
   await page.goto("/");
   await healthPromise;
 
-  await expect(
-    page.getByText(/Backend unavailable\s*[·\-:]\s*API mode/i),
-  ).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(/Backend unavailable\s*[·\-:]\s*API mode/i)).toBeVisible({
+    timeout: 15000,
+  });
 });
 
 test("shows a chat API error and keeps the local profile form available", async ({ page }) => {
@@ -370,8 +370,8 @@ test("restores missing backend history after reloading a saved conversation", as
   await expect(
     page.getByRole("heading", { name: "Tell me about your organisation" }),
   ).toBeVisible();
-  await expect(
-    page.getByText(/History (synced|updated|restored)/i),
-  ).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(/History (synced|updated|restored)/i)).toBeVisible({
+    timeout: 15000,
+  });
   expect(historyRequests).toBeGreaterThan(0);
 });
