@@ -1,12 +1,14 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   KanbanSquare,
   Landmark,
+  LogOut,
   MessagesSquare,
   Pencil,
   Plus,
   Search,
   Trash2,
+  User,
   X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -35,12 +37,73 @@ interface SidebarProps {
   isMockMode: boolean;
   mainView: MainView;
   onSelectView: (view: MainView) => void;
+  onSignOut?: () => void;
+  onOpenAccount?: () => void;
 }
 
 const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare },
   { id: "pipeline", label: "Pipeline", icon: KanbanSquare },
 ];
+
+function getUserEmail(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem("gi.auth.email");
+  } catch {
+    return null;
+  }
+}
+
+function RenameInput({
+  id,
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  id: string;
+  value: string;
+  onChange: (val: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  return (
+    <Input
+      id={id}
+      ref={inputRef}
+      value={value}
+      maxLength={200}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onCommit();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancelledRef.current = true;
+          onCancel();
+        }
+      }}
+      onBlur={() => {
+        if (cancelledRef.current) {
+          cancelledRef.current = false;
+          return;
+        }
+        onCommit();
+      }}
+      className="border-sidebar-border bg-sidebar-accent/30 text-sm placeholder:text-sidebar-foreground/40 focus-visible:ring-sidebar-ring"
+    />
+  );
+}
 
 function SidebarContent({
   conversations,
@@ -49,9 +112,11 @@ function SidebarContent({
   onNew,
   onRename,
   onDelete,
-  isMockMode,
+  isMockMode: _isMockMode,
   mainView,
   onSelectView,
+  onSignOut,
+  onOpenAccount,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   const searchId = useId();
@@ -59,6 +124,12 @@ function SidebarContent({
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  useEffect(() => {
+    setUserEmail(getUserEmail());
+  }, []);
+  const userInitial = (userEmail ? userEmail[0] : "U").toUpperCase();
+  const userLabel = userEmail || "My Account";
   // Set on Escape so the blur that follows the input unmounting doesn't
   // commit the very edit the user just cancelled.
   const cancelledRef = useRef(false);
@@ -109,9 +180,7 @@ function SidebarContent({
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">Grant Intelligence</div>
-          <div className="truncate text-xs text-sidebar-foreground/60">
-            Research &amp; application workspace
-          </div>
+          <div className="truncate text-xs text-sidebar-foreground/60">AI Grant Workspace</div>
         </div>
       </div>
 
@@ -217,33 +286,12 @@ function SidebarContent({
                   <label htmlFor={`${renameId}-${c.id}`} className="sr-only">
                     Rename conversation
                   </label>
-                  <Input
+                  <RenameInput
                     id={`${renameId}-${c.id}`}
-                    // Focus and select on mount, so typing replaces the old
-                    // title immediately and Escape is always one key away.
-                    ref={(el) => {
-                      el?.select();
-                    }}
                     value={draftTitle}
-                    maxLength={200}
-                    onChange={(e) => setDraftTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        commitRename(c.id);
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        cancelRename(c.id);
-                      }
-                    }}
-                    onBlur={() => {
-                      if (cancelledRef.current) {
-                        cancelledRef.current = false;
-                        return;
-                      }
-                      commitRename(c.id);
-                    }}
-                    className="border-sidebar-border bg-sidebar-accent/30 text-sm placeholder:text-sidebar-foreground/40 focus-visible:ring-sidebar-ring"
+                    onChange={setDraftTitle}
+                    onCommit={() => commitRename(c.id)}
+                    onCancel={() => cancelRename(c.id)}
                   />
                 </li>
               );
@@ -326,12 +374,36 @@ function SidebarContent({
         </ul>
       </nav>
 
-      <div className="mt-auto flex items-center border-t border-sidebar-border/60 px-4 py-3">
-        <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/50">
-          <span className="h-1.5 w-1.5 rounded-full bg-success/70" />
-          {isMockMode ? "Local / mock mode" : "Live search / AI drafts"}
+      {onSignOut && (
+        <div className="mt-auto border-t border-sidebar-border/60 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              className="flex min-w-0 items-center gap-2 rounded-lg p-1 text-xs text-sidebar-foreground/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+              title="View Account Profile"
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand/20 text-xs font-semibold uppercase text-brand">
+                {userInitial}
+              </div>
+              <span className="truncate font-medium text-sidebar-foreground" title={userLabel}>
+                {userLabel}
+              </span>
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onSignOut}
+              aria-label="Sign out"
+              className="h-8 gap-1.5 rounded-lg px-2 text-xs text-sidebar-foreground/80 hover:bg-white/10 hover:text-white"
+            >
+              <LogOut className="h-3.5 w-3.5 shrink-0" />
+              <span>Sign out</span>
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

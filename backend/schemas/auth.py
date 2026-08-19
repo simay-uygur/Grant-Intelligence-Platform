@@ -18,3 +18,7 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserResponse
+
+
+class MessageResponse(BaseModel):
+    message: str

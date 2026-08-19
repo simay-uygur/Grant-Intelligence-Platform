@@ -1,9 +1,8 @@
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { App } from "@/components/App";
 import { AuthScreen } from "@/components/AuthScreen";
-
-const authRequired = import.meta.env.VITE_AUTH_REQUIRED === "true";
-const apiMode = (import.meta.env.VITE_API_MODE as string | undefined) ?? "api";
+import { AUTH_UNAUTHORIZED_EVENT } from "@/services/apiClient";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,11 +26,36 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: authRequired && apiMode === "api" ? ProtectedApp : App,
+  component: ProtectedApp,
 });
 
 function ProtectedApp() {
-  const hasToken =
-    typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
+  const [hasToken, setHasToken] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setHasToken(
+      typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token")),
+    );
+
+    const handleAuthChange = () => {
+      const tokenExists =
+        typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
+      setHasToken(tokenExists);
+    };
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+    return () => {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
+  }, []);
+
+  if (!mounted) {
+    return <AuthScreen />;
+  }
+
   return hasToken ? <App /> : <AuthScreen />;
 }
