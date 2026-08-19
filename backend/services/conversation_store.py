@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Iterator
 from uuid import uuid4
 
+from backend.core.logging import get_logger
+
+logger = get_logger("services.conversation_store")
+
 
 class ConversationStore:
     def __init__(self, database_path: str) -> None:
@@ -57,6 +61,7 @@ class ConversationStore:
     def create_conversation(self, user_id: str | None = None) -> dict[str, str]:
         conversation_id = str(uuid4())
         timestamp = self._timestamp()
+        logger.info("Creating conversation '%s' (user_id=%s)", conversation_id, user_id)
         with self._connect() as connection:
             connection.execute(
                 """
@@ -91,6 +96,7 @@ class ConversationStore:
 
     def append_message(self, conversation_id: str, role: str, content: str, user_id: str | None = None) -> dict[str, str | int]:
         if self.get_conversation(conversation_id, user_id) is None:
+            logger.warning("Attempted to append message to non-existent conversation '%s'", conversation_id)
             raise ValueError(f"Conversation '{conversation_id}' does not exist.")
 
         timestamp = self._timestamp()
