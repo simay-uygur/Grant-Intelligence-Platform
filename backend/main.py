@@ -1,12 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.error_handlers import register_error_handlers
 from backend.api.router import api_router
 from backend.core.config import settings
+from backend.core.logging import setup_logging
 
 
 
 def create_app() -> FastAPI:
+    setup_logging(debug=settings.debug)
+
     tags_metadata = [
         {
             "name": "health",
@@ -51,6 +55,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(api_router, prefix=settings.api_prefix)
+    register_error_handlers(app)
     return app
 
 

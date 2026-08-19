@@ -1,7 +1,9 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
+
+from backend.core.logging import get_logger
+
+logger = get_logger("services.bedrock")
 
 
 @dataclass
@@ -16,6 +18,7 @@ class BedrockService:
         self.use_mock = use_mock
 
     def converse(self, messages: list[dict[str, Any]], tool_definitions: list[dict[str, Any]]) -> MockBedrockResponse:
+        logger.info("Bedrock converse requested (use_mock=%s, messages_count=%d)", self.use_mock, len(messages))
         if self.use_mock:
             return self._mock_converse(messages, tool_definitions)
         raise NotImplementedError("Real Bedrock runtime integration is not implemented yet.")

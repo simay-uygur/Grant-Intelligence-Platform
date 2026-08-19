@@ -68,3 +68,5 @@ storage/generated/*
 /storage/*.db
 /.lovable/
 /.lovable/
+downside.txt
+refresh-aws-credentials.sh

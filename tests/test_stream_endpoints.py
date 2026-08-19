@@ -1,0 +1,179 @@
+import json
+import types
+from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
+
+from backend.main import create_app
+
+
+def _install_fake_streaming_agent():
+    agent_package = types.ModuleType("agent")
+    service_module = types.ModuleType("agent.service")
+
+    def search_grants(profile: dict, max_grants: int = 3) -> list[dict]:
+        return [
+            {
+                "id": "HORIZON-FAKE-001",
+                "title": "Fake Grant",
+                "programme": "Horizon Europe",
+            }
+        ]
+
+    def search_grants_stream(profile: dict, max_grants: int = 3):
+        yield {
+            "event": "thinking",
+            "stage": "keywords",
+            "message": "Generating search keywords...",
+        }
+        yield {
+            "event": "progress",
+            "stage": "keywords",
+            "message": "Generated 2 keywords",
+            "data": {"keywords": ["ai", "robotics"]},
+        }
+        yield {
+            "event": "result",
+            "stage": "select",
+            "message": "Selected 1 grant",
+            "data": {"grants": search_grants(profile, max_grants)},
+        }
+
+    def start_application(grant: dict, profile: dict) -> dict:
+        return {
+            "id": "doc-fake-001",
+            "grantId": grant.get("id", ""),
+            "grantTitle": grant.get("title", ""),
+            "sections": [{"id": "sec-1", "title": "Overview", "content": "Sample content"}],
+            "updatedAt": "2026-08-16T12:00:00Z",
+        }
+
+    def start_application_stream(grant: dict, profile: dict):
+        yield {
+            "event": "thinking",
+            "stage": "draft",
+            "message": "Drafting application...",
+        }
+        yield {
+            "event": "result",
+            "stage": "draft",
+            "message": "Drafted document",
+            "data": {"document": start_application(grant, profile)},
+        }
+
+    def rewrite_section(
+        section_title: str,
+        current_content: str,
+        profile: dict,
+        grant: dict | None = None,
+        instruction: str | None = None,
+    ) -> str:
+        return f"Rewritten: {current_content}"
+
+    def rewrite_section_stream(
+        section_title: str,
+        current_content: str,
+        profile: dict,
+        grant: dict | None = None,
+        instruction: str | None = None,
+    ):
+        yield {
+            "event": "thinking",
+            "stage": "rewrite",
+            "message": "Rewriting section...",
+        }
+        yield {
+            "event": "result",
+            "stage": "rewrite",
+            "message": "Rewrote section",
+            "data": {"content": rewrite_section(section_title, current_content, profile, grant, instruction)},
+        }
+
+    service_module.search_grants = search_grants
+    service_module.search_grants_stream = search_grants_stream
+    service_module.start_application = start_application
+    service_module.start_application_stream = start_application_stream
+    service_module.rewrite_section = rewrite_section
+    service_module.rewrite_section_stream = rewrite_section_stream
+
+    agent_package.service = service_module
+    return agent_package
+
+
+def test_grant_search_stream(monkeypatch: MonkeyPatch):
+    fake_agent = _install_fake_streaming_agent()
+    monkeypatch.setitem(__import__("sys").modules, "agent", fake_agent)
+    monkeypatch.setitem(__import__("sys").modules, "agent.service", fake_agent.service)
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/v1/grants/search/stream",
+        json={"sector": "robotics", "country": "Kosovo"},
+    )
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+
+    lines = [line.strip() for line in response.text.split("\n") if line.startswith("data:")]
+    assert len(lines) == 3
+
+    event0 = json.loads(lines[0].replace("data: ", ""))
+    assert event0["event"] == "thinking"
+    assert event0["stage"] == "keywords"
+
+    event2 = json.loads(lines[2].replace("data: ", ""))
+    assert event2["event"] == "result"
+    assert "grants" in event2["data"]
+    assert event2["data"]["grants"][0]["id"] == "HORIZON-FAKE-001"
+
+
+def test_start_application_stream(monkeypatch: MonkeyPatch):
+    fake_agent = _install_fake_streaming_agent()
+    monkeypatch.setitem(__import__("sys").modules, "agent", fake_agent)
+    monkeypatch.setitem(__import__("sys").modules, "agent.service", fake_agent.service)
+
+    client = TestClient(create_app())
+    payload = {
+        "grant": {
+            "id": "HORIZON-FAKE-001",
+            "title": "Fake Grant",
+        },
+        "profile": {"sector": "robotics"},
+    }
+    response = client.post(
+        "/api/v1/grants/HORIZON-FAKE-001/start-application/stream",
+        json=payload,
+    )
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+
+    lines = [line.strip() for line in response.text.split("\n") if line.startswith("data:")]
+    assert len(lines) == 2
+
+    event1 = json.loads(lines[1].replace("data: ", ""))
+    assert event1["event"] == "result"
+    assert event1["data"]["document"]["id"] == "doc-fake-001"
+
+
+def test_rewrite_section_stream(monkeypatch: MonkeyPatch):
+    fake_agent = _install_fake_streaming_agent()
+    monkeypatch.setitem(__import__("sys").modules, "agent", fake_agent)
+    monkeypatch.setitem(__import__("sys").modules, "agent.service", fake_agent.service)
+
+    client = TestClient(create_app())
+    payload = {
+        "sectionTitle": "Overview",
+        "currentContent": "Original content",
+        "profile": {"sector": "robotics"},
+    }
+    response = client.patch(
+        "/api/v1/documents/doc-fake-001/sections/sec-1/stream",
+        json=payload,
+    )
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+
+    lines = [line.strip() for line in response.text.split("\n") if line.startswith("data:")]
+    assert len(lines) == 2
+
+    event1 = json.loads(lines[1].replace("data: ", ""))
+    assert event1["event"] == "result"
+    assert event1["data"]["content"] == "Rewritten: Original content"
