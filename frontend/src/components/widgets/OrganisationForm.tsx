@@ -145,7 +145,7 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
   const idPrefix = useId();
 
   useEffect(() => {
-    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
     headingRef.current?.focus();
     setAnnouncement(`Step ${step} of 3: ${STEP_LABELS[step]}. ${STEP_COPY[step].title}`);
   }, [step]);
