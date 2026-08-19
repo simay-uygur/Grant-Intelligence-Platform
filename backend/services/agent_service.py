@@ -20,6 +20,10 @@ class AgentService:
         search_grants = self._load_function("search_grants")
         return search_grants(profile, max_grants=max_grants)
 
+    def search_grants_stream(self, profile: dict[str, Any], max_grants: int = 3):
+        search_grants_stream = self._load_function("search_grants_stream")
+        yield from search_grants_stream(profile, max_grants=max_grants)
+
     def start_application(
         self,
         grant: dict[str, Any],
@@ -27,6 +31,14 @@ class AgentService:
     ) -> dict[str, Any]:
         start_application = self._load_function("start_application")
         return start_application(grant, profile)
+
+    def start_application_stream(
+        self,
+        grant: dict[str, Any],
+        profile: dict[str, Any],
+    ):
+        start_application_stream = self._load_function("start_application_stream")
+        yield from start_application_stream(grant, profile)
 
     def rewrite_section(
         self,
@@ -38,6 +50,23 @@ class AgentService:
     ) -> str:
         rewrite_section = self._load_function("rewrite_section")
         return rewrite_section(
+            section_title,
+            current_content,
+            profile,
+            grant=grant,
+            instruction=instruction,
+        )
+
+    def rewrite_section_stream(
+        self,
+        section_title: str,
+        current_content: str,
+        profile: dict[str, Any],
+        grant: dict[str, Any] | None = None,
+        instruction: str | None = None,
+    ):
+        rewrite_section_stream = self._load_function("rewrite_section_stream")
+        yield from rewrite_section_stream(
             section_title,
             current_content,
             profile,

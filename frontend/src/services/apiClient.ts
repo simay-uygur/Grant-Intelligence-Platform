@@ -12,6 +12,21 @@ export class ApiError extends Error {
   }
 }
 
+/** SSE event emitted by the backend stream. */
+export interface SseEvent {
+  event: string;
+  stage?: string;
+  message?: string;
+  data?: Record<string, unknown>;
+  timestamp?: string;
+}
+
+/** Callbacks for an SSE stream. */
+export interface SseCallbacks {
+  onEvent: (event: SseEvent) => void;
+  onError?: (error: Error) => void;
+}
+
 const AUTH_TOKEN_KEY = "gi.auth.token";
 const LOCAL_DEV_API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -32,6 +47,7 @@ function clearAuthToken(): void {
     // Storage can be unavailable in private browsing or restricted runtimes.
   }
 }
+
 
 export function joinApiUrl(baseUrl: string | undefined, path: string): string {
   const normalizedBase = (baseUrl ?? "").trim().replace(/\/+$/, "");

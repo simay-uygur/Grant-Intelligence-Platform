@@ -53,6 +53,32 @@ class DocumentService:
         )
         return application_document
 
+    def start_application_stream(self, payload: StartApplicationRequest, user_id: str | None = None):
+        grant = (
+            payload.grant.model_dump(exclude_none=True, exclude_defaults=True)
+            if hasattr(payload.grant, "model_dump")
+            else payload.grant
+        )
+        for event in self.agent_service.start_application_stream(
+            grant,
+            payload.profile.to_agent_profile(),
+        ):
+            if event.get("event") == "result" and "document" in event.get("data", {}):
+                document = event["data"]["document"]
+                if not document.get("error"):
+                    app_doc = ApplicationDocument.model_validate(document)
+                    self.application_store.save_application(
+                        app_doc,
+                        grant=grant,
+                        profile=payload.profile.model_dump(exclude_none=True),
+                        user_id=user_id,
+                    )
+                    event = {
+                        **event,
+                        "data": {"document": app_doc.model_dump(exclude_none=True)},
+                    }
+            yield event
+
     def list_applications(
         self,
         *,
@@ -154,3 +180,41 @@ class DocumentService:
             title=payload.sectionTitle,
             content=content,
         )
+
+    def rewrite_section_stream(
+        self,
+        document_id: str,
+        section_id: str,
+        payload: RewriteSectionRequest,
+        user_id: str | None = None,
+    ):
+        grant = (
+            payload.grant.model_dump(exclude_none=True, exclude_defaults=True)
+            if hasattr(payload.grant, "model_dump")
+            else payload.grant
+        )
+        for event in self.agent_service.rewrite_section_stream(
+            payload.sectionTitle,
+            payload.currentContent,
+            payload.profile.to_agent_profile(),
+            grant=grant,
+            instruction=payload.instruction,
+        ):
+            if event.get("event") == "result" and "content" in event.get("data", {}):
+                content = event["data"]["content"]
+                if self.application_store.get_application(document_id, user_id) is not None:
+                    try:
+                        self.application_store.update_section(document_id, section_id, content, user_id)
+                    except StoredApplicationSectionNotFoundError as exc:
+                        raise ApplicationSectionNotFoundError(str(exc)) from exc
+                response = RewriteSectionResponse(
+                    sectionId=section_id,
+                    title=payload.sectionTitle,
+                    content=content,
+                )
+                event = {
+                    **event,
+                    "data": response.model_dump(exclude_none=True),
+                }
+            yield event
+
