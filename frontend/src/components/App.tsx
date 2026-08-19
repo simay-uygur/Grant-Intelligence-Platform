@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
@@ -11,6 +12,7 @@ import {
   grantService,
   isMockMode,
 } from "@/services";
+import { clearAuthToken, logout } from "@/services/apiClient";
 import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -22,6 +24,7 @@ import type {
   OrganisationProfile,
   ResearchState,
 } from "@/types";
+import { AccountModal } from "@/components/AccountModal";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
@@ -53,6 +56,7 @@ const LIVE_RESEARCH_STEPS = [
   "Preparing search criteria",
   "Searching live EU Horizon opportunities",
 ];
+const AUTH_TOKEN_KEY = "gi.auth.token";
 
 type BackendConnection =
   | { status: "local" }
@@ -173,6 +177,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
   // Which main view is showing. Local, non-persisted UI state: the pipeline
   // dashboard is global across conversations, so it's a sibling view of the
   // chat rather than a block inside one — the app still has a single route.
@@ -188,6 +193,10 @@ export function App() {
   const researchInFlight = useRef(false);
   const historySyncRequest = useRef(0);
   const isMobile = useIsMobile();
+
+  const handleSignOut = useCallback(() => {
+    void logout();
+  }, []);
 
   useEffect(() => {
     if (!backendService) {
@@ -790,6 +799,8 @@ export function App() {
         isMockMode={isMockMode}
         mainView={mainView}
         onSelectView={setMainView}
+        onSignOut={handleSignOut}
+        onOpenAccount={() => setAccountModalOpen(true)}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
@@ -803,6 +814,13 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
+        onSignOut={handleSignOut}
+        onOpenAccount={() => setAccountModalOpen(true)}
+      />
+      <AccountModal
+        open={accountModalOpen}
+        onOpenChange={setAccountModalOpen}
+        onSignOut={handleSignOut}
       />
 
       <main
@@ -826,33 +844,20 @@ export function App() {
               <h1 className="truncate text-sm font-semibold text-foreground" title={headerTitle}>
                 {headerTitle}
               </h1>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <span className={`h-1.5 w-1.5 rounded-full ${connectionDotClass}`} />
-                  {connectionLabel}
-                </span>
-                {mainView === "chat" && active && (
-                  <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
-                )}
-                {activeHistorySync?.status === "syncing" && (
-                  <span role="status">Syncing history…</span>
-                )}
-                {activeHistorySync?.status === "synced" && (
-                  <span role="status">History synced</span>
-                )}
-                {activeHistorySync?.status === "error" && (
-                  <span
-                    role="status"
-                    className="text-destructive"
-                    title={activeHistorySync.message}
-                  >
-                    History sync failed
-                  </span>
-                )}
-              </div>
+              {mainView === "chat" && active?.updatedAt && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Updated {formatDistanceToNow(new Date(active.updatedAt), { addSuffix: true })}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {!isMockMode && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">
+                <span className={cn("h-1.5 w-1.5 rounded-full", connectionDotClass)} />
+                {connectionLabel}
+              </span>
+            )}
             {isMockMode && mainView === "chat" && active?.stage === "welcome" && (
               <button
                 type="button"
@@ -867,6 +872,19 @@ export function App() {
             <ThemeToggle />
           </div>
         </header>
+
+        {activeHistorySync && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="shrink-0 border-b border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground sm:px-6"
+          >
+            {activeHistorySync.status === "syncing" && "Syncing history…"}
+            {activeHistorySync.status === "synced" && "History synced"}
+            {activeHistorySync.status === "error" &&
+              `History sync failed: ${activeHistorySync.message}`}
+          </div>
+        )}
 
         {!c.persistenceOk && (
           <div
@@ -951,6 +969,7 @@ export function App() {
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
+              isMockMode={isMockMode}
             />
           </div>
         )}

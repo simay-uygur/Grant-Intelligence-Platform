@@ -12,10 +12,27 @@ export class ApiError extends Error {
   }
 }
 
+/** SSE event emitted by the backend stream. */
+export interface SseEvent {
+  event: string;
+  stage?: string;
+  message?: string;
+  data?: Record<string, unknown>;
+  timestamp?: string;
+}
+
+/** Callbacks for an SSE stream. */
+export interface SseCallbacks {
+  onEvent: (event: SseEvent) => void;
+  onError?: (error: Error) => void;
+}
+
 const AUTH_TOKEN_KEY = "gi.auth.token";
 const LOCAL_DEV_API_BASE_URL = "http://127.0.0.1:8000";
 
-function getAuthToken(): string | null {
+export const AUTH_UNAUTHORIZED_EVENT = "gi:auth:unauthorized";
+
+export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
     return window.localStorage.getItem(AUTH_TOKEN_KEY);
@@ -24,13 +41,30 @@ function getAuthToken(): string | null {
   }
 }
 
-function clearAuthToken(): void {
+const AUTH_EMAIL_KEY = "gi.auth.email";
+
+export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    window.localStorage.removeItem(AUTH_EMAIL_KEY);
+    window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
   } catch {
     // Storage can be unavailable in private browsing or restricted runtimes.
   }
+}
+
+export async function logout(): Promise<void> {
+  const token = getAuthToken();
+  if (token) {
+    const client = new ApiClient(getApiBaseUrl());
+    try {
+      await client.request("/api/v1/auth/logout", { method: "POST" });
+    } catch {
+      // Best effort notification to backend; proceed to clear local token.
+    }
+  }
+  clearAuthToken();
 }
 
 export function joinApiUrl(baseUrl: string | undefined, path: string): string {

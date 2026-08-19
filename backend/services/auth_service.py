@@ -13,6 +13,9 @@ from uuid import uuid4
 import jwt
 
 from backend.core.config import settings
+from backend.core.logging import get_logger
+
+logger = get_logger("services.auth")
 
 
 class AuthError(ValueError):
@@ -47,10 +50,19 @@ class AuthService:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS revoked_tokens (
+                    token TEXT PRIMARY KEY,
+                    revoked_at TEXT NOT NULL
+                )
+                """
+            )
 
     def register(self, email: str, password: str) -> dict[str, str]:
         normalized_email = self._normalize_email(email)
         if len(password) < 8:
+            logger.warning("Registration failed: password too short for email %s", normalized_email)
             raise AuthError("Password must be at least 8 characters.")
         user_id = str(uuid4())
         try:
@@ -60,7 +72,9 @@ class AuthService:
                     (user_id, normalized_email, self._hash_password(password), self._timestamp()),
                 )
         except sqlite3.IntegrityError as exc:
+            logger.warning("Registration failed: email already exists %s", normalized_email)
             raise AuthError("An account with that email already exists.") from exc
+        logger.info("Successfully registered user %s (%s)", user_id, normalized_email)
         return {"id": user_id, "email": normalized_email}
 
     def login(self, email: str, password: str) -> tuple[str, dict[str, str]]:
@@ -71,8 +85,10 @@ class AuthService:
                 (normalized_email,),
             ).fetchone()
         if row is None or not self._verify_password(password, row["password_hash"]):
+            logger.warning("Login failed for email %s", normalized_email)
             raise AuthError("Invalid email or password.")
         user = {"id": row["id"], "email": row["email"]}
+        logger.info("User logged in successfully: %s (%s)", user["id"], normalized_email)
         return self.issue_token(user), user
 
     def issue_token(self, user: dict[str, str]) -> str:
@@ -88,7 +104,26 @@ class AuthService:
             algorithm="HS256",
         )
 
+    def revoke_token(self, token: str) -> None:
+        if not token:
+            return
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO revoked_tokens (token, revoked_at) VALUES (?, ?)",
+                (token, self._timestamp()),
+            )
+
+    def _is_token_revoked(self, token: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM revoked_tokens WHERE token = ?",
+                (token,),
+            ).fetchone()
+            return row is not None
+
     def user_from_token(self, token: str) -> dict[str, str]:
+        if self._is_token_revoked(token):
+            raise AuthError("Token has been revoked.")
         try:
             payload = jwt.decode(token, settings.auth_secret_key, algorithms=["HS256"])
             user_id = payload.get("sub")
@@ -97,6 +132,7 @@ class AuthService:
                 raise AuthError("Invalid authentication token.")
             return {"id": user_id, "email": email}
         except (jwt.InvalidTokenError, AuthError) as exc:
+            logger.warning("Token validation failed: %s", exc)
             raise AuthError("Invalid or expired authentication token.") from exc
 
     @staticmethod

@@ -54,9 +54,19 @@ def search_grants(profile: dict[str, Any], max_grants: int = 3) -> list[dict[str
     return _published_service().search_grants(profile, max_grants=max_grants)
 
 
+def search_grants_stream(profile: dict[str, Any], max_grants: int = 3):
+    """Stream events while searching live EU calls and ranking them."""
+    yield from _published_service().search_grants_stream(profile, max_grants=max_grants)
+
+
 def start_application(grant: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
     """Draft a complete application with the published agent layer."""
     return _published_service().start_application(grant, profile)
+
+
+def start_application_stream(grant: dict[str, Any], profile: dict[str, Any]):
+    """Stream events while drafting a complete application."""
+    yield from _published_service().start_application_stream(grant, profile)
 
 
 def rewrite_section(
@@ -74,3 +84,21 @@ def rewrite_section(
         grant=grant,
         instruction=instruction,
     )
+
+
+def rewrite_section_stream(
+    section_title: str,
+    current_content: str,
+    profile: dict[str, Any],
+    grant: dict[str, Any] | None = None,
+    instruction: str | None = None,
+):
+    """Stream events while rewriting one application section."""
+    yield from _published_service().rewrite_section_stream(
+        section_title=section_title,
+        current_content=current_content,
+        profile=profile,
+        grant=grant,
+        instruction=instruction,
+    )
+

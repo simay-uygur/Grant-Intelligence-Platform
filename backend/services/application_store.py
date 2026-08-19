@@ -7,7 +7,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterator
 
+from backend.core.logging import get_logger
 from backend.schemas.documents import ApplicationDocument, ApplicationStatus
+
+logger = get_logger("services.application_store")
 
 
 class StoredApplicationSectionNotFoundError(ValueError):
@@ -91,6 +94,7 @@ class ApplicationStore:
         profile: dict,
         user_id: str | None = None,
     ) -> dict:
+        logger.info("Saving application '%s' for grant '%s' (user_id=%s)", document.id, document.grantId, user_id)
         timestamp = self._timestamp()
         sections_json = json.dumps(
             [section.model_dump() for section in document.sections],

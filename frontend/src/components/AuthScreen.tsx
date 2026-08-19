@@ -23,10 +23,15 @@ export function AuthScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const payload = (await response.json()) as { token?: string; detail?: string };
+      const payload = (await response.json()) as {
+        token?: string;
+        user?: { email: string };
+        detail?: string;
+      };
       if (!response.ok || !payload.token)
         throw new Error(payload.detail ?? "Unable to authenticate.");
       localStorage.setItem("gi.auth.token", payload.token);
+      localStorage.setItem("gi.auth.email", payload.user?.email || email);
       window.location.reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to authenticate.");
