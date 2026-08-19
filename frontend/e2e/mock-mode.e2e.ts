@@ -32,6 +32,13 @@ test("renders the application pipeline without runtime crashes", async ({ page }
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
+  const consoleErrors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
+      consoleErrors.push(msg.text());
+    }
+  });
+
   await page.goto("/");
   await page
     .getByRole("navigation", { name: "Views" })
@@ -40,5 +47,10 @@ test("renders the application pipeline without runtime crashes", async ({ page }
 
   await expect(page.getByRole("heading", { level: 1, name: "Application pipeline" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Open$/ }).first()).toBeVisible();
+
+  const benign = /Hydration failed because the server rendered HTML didn't match the client/i;
+  const realConsoleErrors = consoleErrors.filter((msg) => !benign.test(msg));
+
   expect(pageErrors).toEqual([]);
+  expect(realConsoleErrors).toEqual([]);
 });

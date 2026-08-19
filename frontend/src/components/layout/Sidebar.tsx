@@ -124,7 +124,10 @@ function SidebarContent({
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
-  const userEmail = useMemo(() => getUserEmail(), []);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  useEffect(() => {
+    setUserEmail(getUserEmail());
+  }, []);
   const userInitial = (userEmail ? userEmail[0] : "U").toUpperCase();
   const userLabel = userEmail || "My Account";
   // Set on Escape so the blur that follows the input unmounting doesn't

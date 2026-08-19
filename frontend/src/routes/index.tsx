@@ -30,11 +30,15 @@ export const Route = createFileRoute("/")({
 });
 
 function ProtectedApp() {
-  const [hasToken, setHasToken] = useState(
-    () => typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token")),
-  );
+  const [hasToken, setHasToken] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    setHasToken(
+      typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token")),
+    );
+
     const handleAuthChange = () => {
       const tokenExists =
         typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
@@ -48,6 +52,10 @@ function ProtectedApp() {
       window.removeEventListener("storage", handleAuthChange);
     };
   }, []);
+
+  if (!mounted) {
+    return <AuthScreen />;
+  }
 
   return hasToken ? <App /> : <AuthScreen />;
 }

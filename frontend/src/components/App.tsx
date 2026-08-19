@@ -852,6 +852,12 @@ export function App() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {!isMockMode && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">
+                <span className={cn("h-1.5 w-1.5 rounded-full", connectionDotClass)} />
+                {connectionLabel}
+              </span>
+            )}
             {isMockMode && mainView === "chat" && active?.stage === "welcome" && (
               <button
                 type="button"
@@ -866,6 +872,19 @@ export function App() {
             <ThemeToggle />
           </div>
         </header>
+
+        {activeHistorySync && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="shrink-0 border-b border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground sm:px-6"
+          >
+            {activeHistorySync.status === "syncing" && "Syncing history…"}
+            {activeHistorySync.status === "synced" && "History synced"}
+            {activeHistorySync.status === "error" &&
+              `History sync failed: ${activeHistorySync.message}`}
+          </div>
+        )}
 
         {!c.persistenceOk && (
           <div
