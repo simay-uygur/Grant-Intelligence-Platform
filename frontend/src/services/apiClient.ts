@@ -48,7 +48,6 @@ function clearAuthToken(): void {
   }
 }
 
-
 export function joinApiUrl(baseUrl: string | undefined, path: string): string {
   const normalizedBase = (baseUrl ?? "").trim().replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
