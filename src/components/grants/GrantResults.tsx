@@ -127,15 +127,27 @@ export function GrantResults({ grants, onAsk, onStart, onRetryResearch, startDis
         ))}
       </div>
 
-      {compareIds.size >= 2 && (
-        <div className="sticky bottom-2 flex justify-center">
+      {/* Appears as soon as one grant is checked, not just at two — a user
+          who checks a single box and sees nothing happen has no way to know
+          the feature exists. Static (not sticky): it sits right after the
+          grid rather than trailing behind scroll position in a block that's
+          embedded partway down a long chat transcript. */}
+      {compareIds.size >= 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
+          <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+            {compareIds.size === 1
+              ? "1 grant selected — choose 1 more to compare."
+              : `${compareIds.size} grants selected for comparison.`}
+          </p>
           <Button
             type="button"
+            size="sm"
             onClick={() => setCompareOpen(true)}
-            className="rounded-full bg-foreground text-background shadow-lg hover:bg-foreground/90"
+            disabled={compareIds.size < 2}
+            className="rounded-full bg-foreground text-background shadow-sm hover:bg-foreground/90"
           >
             <Scale className="h-3.5 w-3.5" />
-            Compare {compareIds.size} grants
+            {compareIds.size >= 2 ? `Compare ${compareIds.size} grants` : "Compare"}
           </Button>
         </div>
       )}
