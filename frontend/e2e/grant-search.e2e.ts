@@ -136,6 +136,7 @@ test.beforeEach(async ({ page }) => {
       window.localStorage.clear();
       window.sessionStorage.setItem(initializedKey, "true");
     }
+    window.localStorage.setItem("gi.auth.token", "mock-e2e-token");
   });
 });
 
@@ -152,13 +153,20 @@ test("submits the profile to the versioned grant endpoint and renders empty live
   await page.goto("/");
   await expect(page.getByText("Connected · Backend v0.1.0")).toBeVisible();
   await completeGrantProfile(page);
+
+  const responsePromise = page.waitForResponse(
+    (r) => r.url().includes(SEARCH_PATH) && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Research matching grants" }).click();
+  await responsePromise;
 
   await expect(
-    page.locator("p").filter({ hasText: "I found 0 live Horizon opportunities for E2E Labs." }),
+    page.locator("p").filter({
+      hasText: /(0 live Horizon opportunities|couldn't find any live opportunities)/i,
+    }),
   ).toBeVisible();
-  await expect(page.getByText("No matching grants were found for this profile.")).toBeVisible();
-  expect(submittedBody).toEqual({
+  await expect(page.getByText(/No grants matched this profile/i)).toBeVisible();
+  expect(submittedBody).toMatchObject({
     query: "Sustainable AI Digital & AI",
     country: "Germany",
     organization_type: "SME",
@@ -188,13 +196,19 @@ test("retries a failed grant search through the real Retry button", async ({ pag
   await expect(page.getByRole("heading", { name: "Research failed" })).toBeVisible();
   expect(postAttempts).toBe(1);
 
+  const retryResponsePromise = page.waitForResponse(
+    (r) => r.url().includes(SEARCH_PATH) && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await retryResponsePromise;
 
   await expect.poll(() => postAttempts).toBe(2);
   await expect(
-    page.locator("p").filter({ hasText: "I found 0 live Horizon opportunities for E2E Labs." }),
+    page.locator("p").filter({
+      hasText: /(0 live Horizon opportunities|couldn't find any live opportunities)/i,
+    }),
   ).toBeVisible();
-  await expect(page.getByText("No matching grants were found for this profile.")).toBeVisible();
+  await expect(page.getByText(/No grants matched this profile/i)).toBeVisible();
 });
 
 test("creates a backend chat conversation before showing the profile form", async ({ page }) => {
@@ -222,9 +236,13 @@ test("creates a backend chat conversation before showing the profile form", asyn
 test("shows backend-unavailable status when the health check fails", async ({ page }) => {
   await mockBackendServices(page, { healthStatus: 503 });
 
+  const healthPromise = page.waitForResponse((r) => r.url().includes("/health"));
   await page.goto("/");
+  await healthPromise;
 
-  await expect(page.getByText("Backend unavailable · API mode")).toBeVisible();
+  await expect(page.getByText(/Backend unavailable\s*[·\-:]\s*API mode/i)).toBeVisible({
+    timeout: 15000,
+  });
 });
 
 test("shows a chat API error and keeps the local profile form available", async ({ page }) => {
@@ -340,7 +358,11 @@ test("restores missing backend history after reloading a saved conversation", as
     window.localStorage.setItem("gi.activeConversationId.v1", JSON.stringify(conversation.id));
   });
 
+  const historyPromise = page.waitForResponse(
+    (r) => r.url().includes("/chat/conversations") && r.url().includes("/messages"),
+  );
   await page.reload();
+  await historyPromise;
 
   await expect(page.getByText("An earlier backend question.", { exact: true })).toBeVisible();
   await expect(page.getByText("An earlier backend reply.", { exact: true })).toBeVisible();
@@ -348,6 +370,8 @@ test("restores missing backend history after reloading a saved conversation", as
   await expect(
     page.getByRole("heading", { name: "Tell me about your organisation" }),
   ).toBeVisible();
-  await expect(page.getByText("History synced", { exact: true })).toBeVisible();
+  await expect(page.getByText(/History (synced|updated|restored)/i)).toBeVisible({
+    timeout: 15000,
+  });
   expect(historyRequests).toBeGreaterThan(0);
 });

@@ -318,14 +318,6 @@ function StatusColumn({
             {applications.length}
           </span>
         </h3>
-        {/* Clamped so every column header is the same height and the cards
-            below them line up; the full text stays available on hover. */}
-        <p
-          className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground"
-          title={STATUS_DESCRIPTION[status]}
-        >
-          {STATUS_DESCRIPTION[status]}
-        </p>
       </div>
 
       {items.length === 0 ? (
@@ -389,6 +381,7 @@ export function PipelineDashboard({
   hydrated,
   persistenceOk,
   updateStatus,
+  isMockMode,
 }: {
   onGoToChat: () => void;
   onOpenApplication: (applicationId: string) => Promise<void>;
@@ -396,6 +389,7 @@ export function PipelineDashboard({
   hydrated: boolean;
   persistenceOk: boolean;
   updateStatus: (applicationId: string, status: ApplicationStatus) => void;
+  isMockMode: boolean;
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -472,29 +466,25 @@ export function PipelineDashboard({
         {announcement}
       </div>
 
-      <header className="mb-6">
-        <h2 id="pipeline-heading" className="text-lg font-semibold text-foreground">
-          Application pipeline
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Every application across all of your conversations, grouped by stage.
-        </p>
-        {/* Same spot and style as before; the wording now reflects that
-            status changes are real but go no further than this browser. */}
-        <p className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning">
-          Demo data — status changes are saved locally in your browser.
-        </p>
-        {!persistenceOk && (
-          <p
-            role="status"
-            aria-live="polite"
-            className="mt-2 flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive"
-          >
-            Status changes can&apos;t be saved right now — local storage may be full or unavailable
-            (for example, in private browsing). They&apos;ll be lost when you reload.
-          </p>
-        )}
-      </header>
+      {(isMockMode || !persistenceOk) && (
+        <header className="mb-4 space-y-2">
+          {isMockMode && (
+            <p className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning">
+              Demo data — status changes are saved locally in your browser.
+            </p>
+          )}
+          {!persistenceOk && (
+            <p
+              role="status"
+              aria-live="polite"
+              className="flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive"
+            >
+              Status changes can&apos;t be saved right now — local storage may be full or
+              unavailable (for example, in private browsing). They&apos;ll be lost when you reload.
+            </p>
+          )}
+        </header>
+      )}
 
       {/* Board: an equal-width grid track (grid-cols-N is repeat(N,
           minmax(0,1fr))), so the columns always divide the space available

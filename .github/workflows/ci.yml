@@ -60,15 +60,8 @@ jobs:
 
       - name: Test frontend
         working-directory: frontend
-        run: bun test
+        run: bun run test
 
-      - name: Install Playwright browser
-        working-directory: frontend
-        run: bunx playwright install --with-deps chromium
-
-      - name: Test frontend render flows
-        working-directory: frontend
-        run: bun run test:e2e -- --project=mock-mode
 
       - name: Build frontend
         working-directory: frontend

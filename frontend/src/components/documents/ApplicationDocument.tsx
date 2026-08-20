@@ -18,7 +18,7 @@ import type {
   OrganisationProfile,
 } from "@/types";
 import { exportAsPdf, exportAsWord } from "@/utils/export";
-import { applicationService } from "@/services";
+import { applicationService, isMockMode } from "@/services";
 import { useDrafts } from "@/hooks/useDrafts";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -295,7 +295,7 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                   top, rather than on all twelve sections. */}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="text-[11px] font-medium text-brand">Grant application draft</span>
-                <DemoBadge marker="mock-draft" compact />
+                {isMockMode && <DemoBadge marker="mock-draft" compact />}
               </div>
               <h3 className="mt-1 break-words text-lg font-semibold text-foreground">
                 {doc.grantTitle}
@@ -622,7 +622,7 @@ function SectionEditor({
             )}
             {/* Shown exactly while a rewrite is undoable — i.e. while this
                 section's text is the one the mock rewriter just produced. */}
-            {canUndoRewrite && <DemoBadge marker="mock-draft" compact />}
+            {isMockMode && canUndoRewrite && <DemoBadge marker="mock-draft" compact />}
           </div>
         </div>
 

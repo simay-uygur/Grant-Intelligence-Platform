@@ -50,6 +50,14 @@ class AuthService:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS revoked_tokens (
+                    token TEXT PRIMARY KEY,
+                    revoked_at TEXT NOT NULL
+                )
+                """
+            )
 
     def register(self, email: str, password: str) -> dict[str, str]:
         normalized_email = self._normalize_email(email)
@@ -96,7 +104,26 @@ class AuthService:
             algorithm="HS256",
         )
 
+    def revoke_token(self, token: str) -> None:
+        if not token:
+            return
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO revoked_tokens (token, revoked_at) VALUES (?, ?)",
+                (token, self._timestamp()),
+            )
+
+    def _is_token_revoked(self, token: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM revoked_tokens WHERE token = ?",
+                (token,),
+            ).fetchone()
+            return row is not None
+
     def user_from_token(self, token: str) -> dict[str, str]:
+        if self._is_token_revoked(token):
+            raise AuthError("Token has been revoked.")
         try:
             payload = jwt.decode(token, settings.auth_secret_key, algorithms=["HS256"])
             user_id = payload.get("sub")
