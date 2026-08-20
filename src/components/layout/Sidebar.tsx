@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef, useState } from "react";
 import {
+  Bookmark,
   KanbanSquare,
   Landmark,
   MessagesSquare,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/sheet";
 
 /** Which main view the app is showing. Local UI state only — never persisted. */
-export type MainView = "chat" | "pipeline";
+export type MainView = "chat" | "pipeline" | "saved";
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -34,11 +35,14 @@ interface SidebarProps {
   onDelete: (id: string) => void;
   mainView: MainView;
   onSelectView: (view: MainView) => void;
+  /** Bookmark count shown beside the Saved item; live via useShortlist. */
+  savedCount: number;
 }
 
 const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare },
   { id: "pipeline", label: "Pipeline", icon: KanbanSquare },
+  { id: "saved", label: "Saved", icon: Bookmark },
 ];
 
 function SidebarContent({
@@ -50,6 +54,7 @@ function SidebarContent({
   onDelete,
   mainView,
   onSelectView,
+  savedCount,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   const searchId = useId();
@@ -153,6 +158,14 @@ function SidebarContent({
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   {label}
+                  {id === "saved" && savedCount > 0 && (
+                    <span
+                      className="ml-auto rounded-full bg-sidebar-accent/70 px-2 py-0.5 text-[11px] font-medium text-sidebar-foreground/90"
+                      aria-label={`${savedCount} saved ${savedCount === 1 ? "grant" : "grants"}`}
+                    >
+                      {savedCount}
+                    </span>
+                  )}
                 </button>
               </li>
             );
