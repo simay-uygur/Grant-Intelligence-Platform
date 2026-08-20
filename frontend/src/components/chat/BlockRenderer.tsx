@@ -6,6 +6,8 @@ import { ApplicationDocumentView } from "@/components/documents/ApplicationDocum
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { AlertCircle, CheckCircle2, Compass } from "lucide-react";
 
+import { DraftProgressCard } from "@/components/widgets/DraftProgressCard";
+
 export interface BlockCallbacks {
   onSubmitProfile: (profile: OrganisationProfile) => void;
   onRetryResearch: () => void;
@@ -80,6 +82,8 @@ export function BlockRenderer({
           hasResults={callbacks.hasGrantResults}
         />
       );
+    case "draft_progress":
+      return <DraftProgressCard state={block.state} />;
     case "grant_results":
       return (
         <GrantResults

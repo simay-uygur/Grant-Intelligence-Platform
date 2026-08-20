@@ -474,16 +474,43 @@ export function App() {
         if (!doc) {
           const statusMessageId = askAssistant([
             {
-              type: "text",
-              text: `Drafting application for "${grant.title}"...\nAnalyzing requirements...`,
+              type: "draft_progress",
+              state: {
+                grantTitle: grant.title,
+                percent: 0,
+                currentSectionTitle: "Analyzing requirements...",
+              },
             },
           ]);
           const handleDraftProgress = (event: SseEvent) => {
-            if (event.message && statusMessageId) {
+            if (statusMessageId) {
+              const data = event.data as Record<string, unknown> | undefined;
+              const sectionIdx = (data?.section_index as number | undefined) ?? 0;
+              const total = (data?.total_sections as number | undefined) ?? 12;
+              const percent =
+                (data?.progress_percent as number | undefined) ??
+                (sectionIdx ? Math.round((sectionIdx / total) * 100) : 0);
+
+              let sectionTitle = "Preparing sections...";
+              if (event.message) {
+                const match = event.message.match(/Section \d+\/\d+: (.*?) \(/);
+                if (match && match[1]) {
+                  sectionTitle = match[1];
+                } else if (event.message.includes("Analyzing")) {
+                  sectionTitle = "Analyzing requirements...";
+                }
+              }
+
               setBlocks(statusMessageId, () => [
                 {
-                  type: "text",
-                  text: `Drafting application for "${grant.title}"...\n${event.message}`,
+                  type: "draft_progress",
+                  state: {
+                    grantTitle: grant.title,
+                    currentSectionTitle: sectionTitle,
+                    sectionIndex: sectionIdx || 1,
+                    totalSections: total,
+                    percent,
+                  },
                 },
               ]);
             }
@@ -748,7 +775,7 @@ export function App() {
       hasGrantResults: c.activeConversation?.grants !== undefined,
       startingGrantId,
       existingGrantIds: new Set([
-        ...apps.applications.map((a) => a.grantId),
+        ...apps.applications.filter((a) => !a.id.startsWith("app-demo-")).map((a) => a.grantId),
         ...(c.activeConversation?.document?.grantId ? [c.activeConversation.document.grantId] : []),
       ]),
     }),
@@ -798,9 +825,7 @@ export function App() {
     const researchCoveringIndicator =
       lastBlock?.type === "research_status" && !lastBlock.state.error && !hasGrantResults;
     const draftingCoveringIndicator =
-      last?.role === "assistant" &&
-      lastBlock?.type === "text" &&
-      lastBlock.text.startsWith("Drafting application");
+      last?.role === "assistant" && lastBlock?.type === "draft_progress";
     return !researchCoveringIndicator && !draftingCoveringIndicator;
   }, [active, busy]);
 
