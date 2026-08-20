@@ -74,7 +74,11 @@ export function BlockRenderer({
     case "structured_form":
       return (
         <OrganisationForm
-          initial={block.profile}
+          // The saved profile (if the user has already submitted this form)
+          // wins over the block's own snapshot, so returning to this block
+          // later shows what was actually entered rather than always
+          // resetting to the block's original seed (e.g. the demo prefill).
+          initial={callbacks.getProfile() ?? block.profile}
           disabled={callbacks.formDisabled}
           onSubmit={callbacks.onSubmitProfile}
         />
