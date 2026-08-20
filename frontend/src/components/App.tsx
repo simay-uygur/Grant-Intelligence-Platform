@@ -54,7 +54,7 @@ const MOCK_RESEARCH_STEPS = [
 
 const LIVE_RESEARCH_STEPS = [
   "Generating search keywords",
-  "Searching live EU Horizon opportunities",
+  "Searching EU Horizon API opportunities",
   "Filtering & ranking best matches",
 ];
 const AUTH_TOKEN_KEY = "gi.auth.token";
@@ -185,6 +185,7 @@ export function App() {
   const [mainView, setMainView] = useState<MainView>("chat");
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
+  const [startingGrantId, setStartingGrantId] = useState<string | null>(null);
   const [backendConnection, setBackendConnection] = useState<BackendConnection>(
     isMockMode ? { status: "local" } : { status: "checking" },
   );
@@ -460,6 +461,7 @@ export function App() {
     async (grant: Grant) => {
       if (!c.activeConversation?.profile) return;
       setAskingAboutGrant(null);
+      setStartingGrantId(grant.id);
       setBusy(true);
       const profile = c.activeConversation.profile;
       try {
@@ -478,7 +480,7 @@ export function App() {
           ]);
           const handleDraftProgress = (event: SseEvent) => {
             if (event.message && statusMessageId) {
-              setBlocks(statusMessageId, [
+              setBlocks(statusMessageId, () => [
                 {
                   type: "text",
                   text: `Drafting application for "${grant.title}"...\n${event.message}`,
@@ -522,6 +524,7 @@ export function App() {
         ]);
       } finally {
         setBusy(false);
+        setStartingGrantId(null);
       }
     },
     [addApplication, askAssistant, c],
@@ -743,8 +746,14 @@ export function App() {
       // preparing-results skeletons, or they'd spin forever above the
       // no-matches state.
       hasGrantResults: c.activeConversation?.grants !== undefined,
+      startingGrantId,
+      existingGrantIds: new Set([
+        ...apps.applications.map((a) => a.grantId),
+        ...(c.activeConversation?.document?.grantId ? [c.activeConversation.document.grantId] : []),
+      ]),
     }),
     [
+      apps.applications,
       busy,
       c.activeConversation,
       c.updateDocumentSection,
@@ -752,6 +761,7 @@ export function App() {
       handleRetryResearch,
       handleStartApplication,
       handleSubmitProfile,
+      startingGrantId,
     ],
   );
 
@@ -787,7 +797,11 @@ export function App() {
     const hasGrantResults = Boolean(active.grants?.length);
     const researchCoveringIndicator =
       lastBlock?.type === "research_status" && !lastBlock.state.error && !hasGrantResults;
-    return !researchCoveringIndicator;
+    const draftingCoveringIndicator =
+      last?.role === "assistant" &&
+      lastBlock?.type === "text" &&
+      lastBlock.text.startsWith("Drafting application");
+    return !researchCoveringIndicator && !draftingCoveringIndicator;
   }, [active, busy]);
 
   const { scrollContainerRef, scrollBottomRef, showScrollButton, scrollToBottom } =

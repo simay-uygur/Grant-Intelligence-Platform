@@ -51,7 +51,7 @@ export const grantSearchResponseSchema = z.object({
   source_summary: z
     .string()
     .optional()
-    .default("Results come from the live EU Funding & Tenders Portal."),
+    .default("Results come from the EU Horizon API (EU Funding & Tenders Portal)."),
   normalized_filters_applied: z
     .record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]))
     .optional()

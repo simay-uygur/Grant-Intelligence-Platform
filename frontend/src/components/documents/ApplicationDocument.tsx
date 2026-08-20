@@ -67,18 +67,9 @@ interface LastRewrite {
 }
 
 export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }: Props) {
-  if (!doc || !doc.sections || doc.sections.length === 0) {
-    return (
-      <Card className="rounded-2xl p-6 shadow-sm">
-        <InlineNotice tone="empty">
-          This application draft does not have any sections available yet.
-        </InlineNotice>
-      </Card>
-    );
-  }
-
   const sectionSelectId = useId();
-  const [activeId, setActiveId] = useState(doc.sections[0]?.id ?? "");
+  const sections = doc?.sections ?? [];
+  const [activeId, setActiveId] = useState(sections[0]?.id ?? "");
   // sectionId -> in-progress text. A section is "in edit mode" iff it has a
   // key here — this map lives above the active-section view, so switching
   // sections (or the mobile dropdown) never discards an unsaved draft.
@@ -144,11 +135,21 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     flushDrafts();
   }, [drafts, flushDrafts]);
 
+  if (sections.length === 0) {
+    return (
+      <Card className="rounded-2xl p-6 shadow-sm">
+        <InlineNotice tone="empty">
+          This application draft does not have any sections available yet.
+        </InlineNotice>
+      </Card>
+    );
+  }
+
   const activeIndex = Math.max(
     0,
-    doc.sections.findIndex((s) => s.id === activeId),
+    sections.findIndex((s) => s.id === activeId),
   );
-  const activeSection = doc.sections[activeIndex] ?? doc.sections[0];
+  const activeSection = sections[activeIndex] ?? sections[0];
 
   const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
   const isDirty = (id: string) => {

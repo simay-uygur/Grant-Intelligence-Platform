@@ -171,11 +171,15 @@ export function useConversations() {
   );
 
   const updateMessageBlocks = useCallback(
-    (messageId: string, updater: (blocks: ChatBlock[]) => ChatBlock[]) => {
+    (
+      messageId: string,
+      updater: ChatBlock[] | ((blocks: ChatBlock[]) => ChatBlock[]),
+    ) => {
+      const fn = typeof updater === "function" ? updater : () => updater;
       updateActive((c) => ({
         ...c,
         messages: c.messages.map((m) =>
-          m.id === messageId ? { ...m, blocks: updater(m.blocks) } : m,
+          m.id === messageId ? { ...m, blocks: fn(m.blocks) } : m,
         ),
       }));
     },

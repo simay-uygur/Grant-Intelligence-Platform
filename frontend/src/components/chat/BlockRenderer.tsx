@@ -17,6 +17,8 @@ export interface BlockCallbacks {
   getGrantById: (id: string) => Grant | undefined;
   formDisabled?: boolean;
   hasGrantResults?: boolean;
+  startingGrantId?: string | null;
+  existingGrantIds?: Set<string>;
 }
 
 export function BlockRenderer({
@@ -89,6 +91,8 @@ export function BlockRenderer({
           // offer a way forward. No new callback, no new block type.
           onRetryResearch={callbacks.onRetryResearch}
           startDisabled={callbacks.formDisabled}
+          startingGrantId={callbacks.startingGrantId}
+          existingGrantIds={callbacks.existingGrantIds}
         />
       );
     case "document": {

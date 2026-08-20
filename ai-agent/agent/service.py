@@ -193,46 +193,67 @@ SECTIONS_LIST = [
 
 
 def start_application_stream(grant, profile):
-    """Generator streaming events for drafting a full application document."""
-    total = len(SECTIONS_LIST)
+    """Generator streaming real-time events for drafting a full application document."""
+    from tools.start_application import SECTIONS, draft_single_section
+    import time
+
+    total = len(SECTIONS)
+    doc_id = f"doc-{grant.get('id', 'unknown')}-{int(time.time())}"
+    sections = []
+
     yield {
         "event": "thinking",
         "stage": "draft",
         "message": f"Analyzing requirements for grant '{grant.get('title', '')}' ({total} sections)...",
     }
-    yield {
-        "event": "tool_call",
-        "stage": "draft",
-        "message": "Drafting application sections with Bedrock agent...",
-    }
 
-    doc = start_application(grant, profile)
-    if doc.get("error"):
-        yield {
-            "event": "error",
-            "stage": "draft",
-            "message": doc["error"],
-            "data": {"document": doc},
-        }
-    else:
-        for i, section in enumerate(doc.get("sections", []), 1):
-            percent = int((i / len(doc["sections"])) * 100)
+    try:
+        for i, (section_id, section_title) in enumerate(SECTIONS, 1):
+            percent = int((i / total) * 100)
             yield {
                 "event": "progress",
                 "stage": "draft",
-                "message": f"Drafted Section {i}/{len(doc['sections'])}: {section.get('title')} ({percent}% complete)",
+                "message": f"Drafting Section {i}/{total}: {section_title} ({percent}% complete)...",
                 "data": {
-                    "section": section,
                     "section_index": i,
-                    "total_sections": len(doc["sections"]),
+                    "total_sections": total,
                     "progress_percent": percent,
                 },
             }
+
+            content = draft_single_section(grant, profile, section_title)
+            section_obj = {"id": section_id, "title": section_title, "content": content}
+            sections.append(section_obj)
+
+        doc = {
+            "id": doc_id,
+            "grantId": grant.get("id", ""),
+            "grantTitle": grant.get("title", ""),
+            "sections": sections,
+            "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+
         yield {
             "event": "result",
             "stage": "draft",
-            "message": f"Successfully drafted all {len(doc.get('sections', []))} application sections",
+            "message": f"Successfully drafted all {len(sections)} application sections",
             "data": {"document": doc},
+        }
+    except Exception as e:
+        print(f"[service] start_application_stream failed: {e}")
+        error_doc = {
+            "id": "error",
+            "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
+            "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
+            "sections": [],
+            "updatedAt": "",
+            "error": str(e),
+        }
+        yield {
+            "event": "error",
+            "stage": "draft",
+            "message": f"Could not draft application: {e}",
+            "data": {"document": error_doc},
         }
 
 
