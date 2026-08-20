@@ -25,7 +25,7 @@ export function useStickToBottomScroll(active: Conversation | null, extraTrigger
   const prevLastMessageId = useRef<string | null>(null);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
-    scrollBottomRef.current?.scrollIntoView({ behavior, block: "end" });
+    scrollBottomRef.current?.scrollIntoView?.({ behavior, block: "end" });
     setShowScrollButton(false);
   }, []);
 

@@ -55,8 +55,8 @@ Open `http://127.0.0.1:5173`.
 Frontend unit tests:
 
 ```bash
-cd /Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform
-bun test
+cd /Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/frontend
+bun run test
 ```
 
 Backend tests:
@@ -88,7 +88,7 @@ Conversation history merge unit tests:
 
 ```bash
 cd /Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/frontend
-bun test src/services/chatHistory.test.ts
+bun run test src/services/chatHistory.test.ts
 ```
 
 Backend chat and metadata tests:
