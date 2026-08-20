@@ -94,7 +94,7 @@ jobs:
           bun install --frozen-lockfile
           bun run lint
           bun run typecheck
-          bun test
+          bun run test
           bun run build
 
       - name: Test backend
