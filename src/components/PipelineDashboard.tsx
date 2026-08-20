@@ -44,7 +44,10 @@ function StatusBadge({ status }: { status: ApplicationStatus }) {
   return (
     <Badge
       variant="outline"
-      className={cn("shrink-0 self-start whitespace-nowrap font-medium", STATUS_BADGE[status])}
+      className={cn(
+        "shrink-0 self-start whitespace-nowrap font-medium transition-colors duration-200",
+        STATUS_BADGE[status],
+      )}
     >
       <span className="sr-only">Status: </span>
       {STATUS_LABEL[status]}
@@ -77,12 +80,15 @@ function ApplicationCard({
   ghost,
   /** Rendering the card as it arrives in its new column. */
   entering,
+  /** True for one beat right after this card's status became "approved". */
+  celebrate,
 }: {
   application: DemoApplication;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   onOpenDetails: () => void;
   ghost?: boolean;
   entering?: boolean;
+  celebrate?: boolean;
 }) {
   return (
     // `relative` anchors the title button's stretched hit area below.
@@ -94,6 +100,16 @@ function ApplicationCard({
         ghost && CARD_GHOST_CLASSES,
       )}
     >
+      {/* A separate layer for the celebration, rather than animating the card
+          itself: the card already owns the enter/exit animation above, and a
+          single element can't run two independent `animation` utilities at
+          once — the second would silently overwrite the first. */}
+      {celebrate && !ghost && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 rounded-xl motion-safe:animate-approved-glow"
+        />
+      )}
       {/* Stacked rather than badge-beside-org: columns get narrow on tablet,
           and a side-by-side row would squeeze the funder name to an ellipsis. */}
       <CardHeader className="gap-2 p-3 pb-2">
@@ -116,7 +132,7 @@ function ApplicationCard({
               type="button"
               onClick={onOpenDetails}
               aria-label={`View ${application.grantTitle} application details`}
-              className="rounded-sm text-left after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-sm text-left underline-offset-2 after:absolute after:inset-0 after:rounded-xl hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {application.grantTitle}
             </button>
@@ -370,6 +386,7 @@ function StatusColumn({
   ghost,
   enteringId,
   isDestination,
+  celebratingId,
 }: {
   status: ApplicationStatus;
   applications: DemoApplication[];
@@ -380,6 +397,8 @@ function StatusColumn({
   /** The card that just arrived in this column. */
   enteringId?: string;
   isDestination?: boolean;
+  /** The card mid-celebration after just becoming Approved. */
+  celebratingId?: string;
 }) {
   const headingId = `pipeline-group-${status}`;
 
@@ -454,6 +473,7 @@ function StatusColumn({
                 onOpenDetails={() => onOpenDetails(application.id)}
                 ghost={isGhost}
                 entering={!isGhost && application.id === enteringId}
+                celebrate={!isGhost && application.id === celebratingId}
               />
             </li>
           ))}
@@ -477,6 +497,8 @@ function StatusColumn({
  */
 /** Slightly longer than the 200ms keyframes, so the ghost is never cut short. */
 const MOVE_ANIMATION_MS = 220;
+/** Matches the approved-glow keyframes' own duration (see styles.css). */
+const CELEBRATE_ANIMATION_MS = 900;
 
 interface CardMove {
   /** Snapshot taken before the change, so the ghost still shows the old status. */
@@ -513,6 +535,11 @@ export function PipelineDashboard({
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  // Set only inside handleStatusChange, at the moment a card's status becomes
+  // "approved" — never re-derived from `applications`, so a re-render or a
+  // remount (e.g. leaving and returning to this view) can never re-trigger it.
+  const [celebratingId, setCelebratingId] = useState<string | null>(null);
+  const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The id, not a snapshot, so a status changed inside the sheet re-renders
   // the sheet too. Deliberately not cleared on close: the sheet needs content
   // to render while it slides out (same reason GrantResults keeps its grant).
@@ -552,6 +579,14 @@ export function PipelineDashboard({
 
       if (moveTimer.current) clearTimeout(moveTimer.current);
       moveTimer.current = setTimeout(() => setMove(null), MOVE_ANIMATION_MS);
+
+      // The quiet "nice." — fires only on the transition into Approved, not
+      // when a card that's already Approved happens to re-render.
+      if (status === "approved" && current.status !== "approved") {
+        setCelebratingId(applicationId);
+        if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
+        celebrateTimer.current = setTimeout(() => setCelebratingId(null), CELEBRATE_ANIMATION_MS);
+      }
     },
     [applications, updateStatus],
   );
@@ -559,6 +594,7 @@ export function PipelineDashboard({
   useEffect(() => {
     return () => {
       if (moveTimer.current) clearTimeout(moveTimer.current);
+      if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
     };
   }, []);
 
@@ -665,6 +701,7 @@ export function PipelineDashboard({
               }
               enteringId={move?.toStatus === status ? move.application.id : undefined}
               isDestination={move?.toStatus === status}
+              celebratingId={status === "approved" ? (celebratingId ?? undefined) : undefined}
             />
           ))}
         </div>

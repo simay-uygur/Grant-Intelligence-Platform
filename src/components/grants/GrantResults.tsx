@@ -252,7 +252,7 @@ function GrantCard({
             <h4 className="line-clamp-2 min-w-0 flex-1 break-words text-base font-semibold text-foreground group-hover:underline [overflow-wrap:anywhere]">
               {grant.title}
             </h4>
-            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
+            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" />
           </button>
         </div>
 
