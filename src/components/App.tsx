@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
+import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { grantService, isMockMode } from "@/services";
@@ -18,6 +19,7 @@ import type {
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
+import { SavedGrants } from "@/components/SavedGrants";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -119,6 +121,12 @@ export function App() {
   // status) — so neither can overwrite the other with a stale array.
   const apps = useApplications();
   const addApplication = apps.addApplication;
+  const applications = apps.applications;
+  const updateApplicationStatus = apps.updateStatus;
+  // Only for the sidebar's saved count. Safe alongside the instances in
+  // GrantResults and SavedGrants: useShortlist writes on mutation and
+  // broadcasts, so every instance stays in step.
+  const shortlist = useShortlist();
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -455,6 +463,15 @@ export function App() {
       getGrantById: (id) =>
         c.activeConversation?.grants?.find((g) => g.id === id) ??
         MOCK_GRANTS.find((g) => g.id === id),
+      // The editor's pipeline-status control, served off the SAME
+      // useApplications instance the board uses — one store, so a status
+      // changed in the draft moves the card and vice versa. A chat-created
+      // application's row id is `app-${doc.id}`; no match means no control.
+      getApplicationStatus: (documentId) =>
+        applications.find((a) => a.id === `app-${documentId}`)?.status,
+      onUpdateApplicationStatus: (documentId, status) =>
+        updateApplicationStatus(`app-${documentId}`, status),
+      onViewInPipeline: () => setMainView("pipeline"),
       formDisabled: busy,
       // "Has the search finished", not "did it find anything" — a completed
       // search that matched nothing must still stop the research card's
@@ -463,6 +480,8 @@ export function App() {
       hasGrantResults: c.activeConversation?.grants !== undefined,
     }),
     [
+      applications,
+      updateApplicationStatus,
       busy,
       c.activeConversation,
       c.updateDocumentSection,
@@ -506,7 +525,11 @@ export function App() {
   );
 
   const headerTitle =
-    mainView === "pipeline" ? "Application pipeline" : (active?.title ?? "No conversation");
+    mainView === "pipeline"
+      ? "Application pipeline"
+      : mainView === "saved"
+        ? "Saved grants"
+        : (active?.title ?? "No conversation");
 
   return (
     <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
@@ -525,6 +548,7 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
+        savedCount={shortlist.savedGrants.length}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
@@ -537,6 +561,7 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
+        savedCount={shortlist.savedGrants.length}
       />
 
       <main
@@ -655,6 +680,12 @@ export function App() {
           )}
         </div>
 
+        {mainView === "saved" && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <SavedGrants onGoToChat={() => setMainView("chat")} />
+          </div>
+        )}
+
         {mainView === "pipeline" && (
           <div className="min-h-0 flex-1 overflow-y-auto">
             {/* The pipeline's empty state sends people back to the chat; it
@@ -665,6 +696,11 @@ export function App() {
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
+              // Read-only, for working out which conversation a card links
+              // back to; the open action reuses the same switch-to-chat +
+              // activate handler the sidebar already uses.
+              conversations={c.conversations}
+              onOpenConversation={selectConversationInChat}
             />
           </div>
         )}

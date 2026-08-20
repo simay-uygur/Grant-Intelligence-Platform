@@ -1,4 +1,5 @@
 import type { ApplicationDocument, ChatBlock, Grant, OrganisationProfile } from "@/types";
+import type { ApplicationStatus } from "@/data/mockApplications";
 import { OrganisationForm } from "@/components/widgets/OrganisationForm";
 import { ResearchStatus } from "@/components/widgets/ResearchStatus";
 import { GrantResults } from "@/components/grants/GrantResults";
@@ -15,6 +16,14 @@ export interface BlockCallbacks {
   getDocument: (id: string) => ApplicationDocument | undefined;
   getProfile: () => OrganisationProfile | undefined;
   getGrantById: (id: string) => Grant | undefined;
+  /**
+   * The open draft's row in the applications store, looked up by document id.
+   * Undefined when no row matches — an older document, or a store that's been
+   * cleared — which the editor treats as "hide the control".
+   */
+  getApplicationStatus: (documentId: string) => ApplicationStatus | undefined;
+  onUpdateApplicationStatus: (documentId: string, status: ApplicationStatus) => void;
+  onViewInPipeline: () => void;
   formDisabled?: boolean;
   hasGrantResults?: boolean;
 }
@@ -109,6 +118,13 @@ export function BlockRenderer({
           profile={callbacks.getProfile()}
           grant={grant}
           onSectionChange={callbacks.onSectionChange}
+          // Bound here so the editor never has to know the `app-${docId}`
+          // id scheme — it just gets a status and a setter.
+          applicationStatus={callbacks.getApplicationStatus(doc.id)}
+          onApplicationStatusChange={(status) =>
+            callbacks.onUpdateApplicationStatus(doc.id, status)
+          }
+          onViewInPipeline={callbacks.onViewInPipeline}
         />
       );
     }

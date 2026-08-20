@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CalendarClock, Coins, MessagesSquare, Rows3 } from "lucide-react";
+import { CalendarClock, FileText, MessagesSquare, Rows3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import type { Conversation } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import { formatDeadline } from "@/utils/deadline";
+import { type ApplicationLink, resolveApplicationLink } from "@/utils/applicationLink";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -27,90 +29,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-
-// Pipeline order: how far an application has travelled, with the two terminal
-// outcomes last. Drives both the rendering order and which groups exist.
-const STATUS_ORDER: readonly ApplicationStatus[] = [
-  "drafting",
-  "submitted",
-  "under_review",
-  "approved",
-  "rejected",
-];
-
-const STATUS_LABEL: Record<ApplicationStatus, string> = {
-  drafting: "Drafting",
-  submitted: "Submitted",
-  under_review: "Under review",
-  approved: "Approved",
-  rejected: "Rejected",
-};
-
-/** Narrows the Select's plain-string value back to the status union. */
-function isStatus(value: string): value is ApplicationStatus {
-  return value in STATUS_LABEL;
-}
-
-const STATUS_DESCRIPTION: Record<ApplicationStatus, string> = {
-  drafting: "Still being written — not yet sent to the funder.",
-  submitted: "Sent to the funder, awaiting acknowledgement.",
-  under_review: "With the funder's evaluators; a decision is pending.",
-  approved: "Funded — the funder accepted the application.",
-  rejected: "Not funded this round.",
-};
-
-/**
- * Per-column empty copy. Each stage gets its own line rather than one shared
- * "No applications" — an empty Rejected column is good news, an empty
- * Drafting column just means nothing has been started.
- */
-const STATUS_EMPTY: Record<ApplicationStatus, string> = {
-  drafting: "Nothing in draft",
-  submitted: "Nothing sent to a funder",
-  under_review: "Nothing with reviewers",
-  approved: "No approvals yet",
-  rejected: "No rejections — so far",
-};
-
-/**
- * Semantic tints built from the design tokens (never raw palette literals),
- * so each status keeps its meaning and its contrast in both light and dark
- * mode: neutral = not out the door yet, brand = in flight, warning = waiting
- * on someone else, success = funded, destructive = declined.
- *
- * `submitted` is the one exception to "same classes in both themes": --brand
- * has no .dark override (it stays a dark blue), so `text-brand` on a dark
- * card falls to roughly 1.9:1. The blue signal moves to the fill and border
- * there, and the label switches to --foreground, which does flip.
- */
-const STATUS_BADGE: Record<ApplicationStatus, string> = {
-  drafting: "border-border bg-muted text-muted-foreground",
-  submitted: "border-brand/40 bg-brand/15 text-brand dark:text-foreground",
-  under_review: "border-warning/40 bg-warning/10 text-warning",
-  approved: "border-success/30 bg-success/10 text-success",
-  rejected: "border-destructive/30 bg-destructive/10 text-destructive",
-};
-
-/**
- * Once a funder has approved or rejected an application, its call deadline is
- * history — flagging it as "Closed" or "Closes in 5 days" would be noise at
- * best and alarming at worst. Urgency shows only while the outcome is still
- * open: drafting, submitted, under review.
- */
-const TERMINAL_STATUSES: readonly ApplicationStatus[] = ["approved", "rejected"];
-
-function showsDeadlineUrgency(status: ApplicationStatus): boolean {
-  return !TERMINAL_STATUSES.includes(status);
-}
-
-/** Left edge accent, so a card's status reads at a glance while scanning. */
-const STATUS_ACCENT: Record<ApplicationStatus, string> = {
-  drafting: "border-l-border",
-  submitted: "border-l-brand/60",
-  under_review: "border-l-warning/60",
-  approved: "border-l-success/60",
-  rejected: "border-l-destructive/60",
-};
+import {
+  STATUS_ACCENT,
+  STATUS_BADGE,
+  STATUS_DESCRIPTION,
+  STATUS_EMPTY,
+  STATUS_LABEL,
+  STATUS_ORDER,
+  isStatus,
+  showsDeadlineUrgency,
+} from "@/components/pipeline/statusPresentation";
 
 function StatusBadge({ status }: { status: ApplicationStatus }) {
   return (
@@ -198,15 +126,9 @@ function ApplicationCard({
 
       <CardContent className="mt-auto p-3 pt-0">
         <dl className="space-y-1.5 text-xs text-muted-foreground">
-          {/* The applicant organisation lives in the details sheet now — the
-              card face keeps only what's worth scanning across a column. */}
-          <div className="flex items-center gap-2">
-            <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <dt className="sr-only">Funding</dt>
-            <dd className="truncate" title={application.fundingAmount}>
-              {application.fundingAmount}
-            </dd>
-          </div>
+          {/* Applicant, funding and "last updated" all live in the details
+              sheet now. The face keeps only what's worth scanning down a
+              column: who's funding it, what it is, when it closes. */}
           {/* flex-wrap so the urgency badge drops to its own line rather than
               squeezing the date when a column is at its narrowest. */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -225,9 +147,6 @@ function ApplicationCard({
           className="relative z-10 mt-3 border-t border-border pt-2"
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="text-[11px] text-muted-foreground">
-            Updated {formatDistanceToNow(new Date(application.updatedAt), { addSuffix: true })}
-          </p>
           {ghost ? (
             // Stands in for the Select so the ghost keeps the card's exact
             // silhouette while it fades — a shorter ghost would read as a jump.
@@ -287,12 +206,26 @@ function ApplicationDetailsSheet({
   open,
   onOpenChange,
   onStatusChange,
+  link,
+  onOpenConversation,
 }: {
   application: DemoApplication | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
+  link: ApplicationLink;
+  onOpenConversation: (conversationId: string) => void;
 }) {
+  const reasonId = "application-actions-reason";
+
+  // Close before navigating: the pipeline unmounts on the view switch, and
+  // leaving an open sheet behind would strand focus on a gone trigger.
+  const goToConversation = () => {
+    if (!link.conversationId) return;
+    onOpenChange(false);
+    onOpenConversation(link.conversationId);
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -369,6 +302,44 @@ function ApplicationDetailsSheet({
                   {formatDistanceToNow(new Date(application.updatedAt), { addSuffix: true })}
                 </DetailField>
               </dl>
+
+              <div className="mt-5 border-t border-border pt-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Go to
+                </h3>
+                <div className="mt-2 flex flex-col gap-2">
+                  {/* Both actions stay visible but disabled when there's
+                      nothing to open, with the reason spelled out below —
+                      a hidden button just leaves the user wondering. */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={goToConversation}
+                    disabled={!link.hasLiveDraft}
+                    aria-describedby={link.hasLiveDraft ? undefined : reasonId}
+                    className="justify-start rounded-lg hover:bg-muted"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Open application draft
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={goToConversation}
+                    disabled={!link.conversationId}
+                    aria-describedby={link.conversationId ? undefined : reasonId}
+                    className="justify-start rounded-lg hover:bg-muted"
+                  >
+                    <MessagesSquare className="h-4 w-4" />
+                    Open source conversation
+                  </Button>
+                  {link.reason && (
+                    <p id={reasonId} className="text-[11px] text-muted-foreground">
+                      {link.reason}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
 
             <SheetFooter className="shrink-0 border-t border-border px-5 py-4">
@@ -528,12 +499,17 @@ export function PipelineDashboard({
   hydrated,
   persistenceOk,
   updateStatus,
+  conversations,
+  onOpenConversation,
 }: {
   onGoToChat: () => void;
   applications: DemoApplication[];
   hydrated: boolean;
   persistenceOk: boolean;
   updateStatus: (applicationId: string, status: ApplicationStatus) => void;
+  /** Read-only: used solely to work out what a card can link back to. */
+  conversations: Conversation[];
+  onOpenConversation: (conversationId: string) => void;
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -547,6 +523,8 @@ export function PipelineDashboard({
     setDetailsId(applicationId);
     setDetailsOpen(true);
   }, []);
+
+  const detailsApplication = applications.find((a) => a.id === detailsId) ?? null;
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
@@ -693,10 +671,16 @@ export function PipelineDashboard({
       )}
 
       <ApplicationDetailsSheet
-        application={applications.find((a) => a.id === detailsId) ?? null}
+        application={detailsApplication}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         onStatusChange={handleStatusChange}
+        link={
+          detailsApplication
+            ? resolveApplicationLink(detailsApplication, conversations)
+            : { conversationId: null, hasLiveDraft: false, reason: null }
+        }
+        onOpenConversation={onOpenConversation}
       />
     </section>
   );
