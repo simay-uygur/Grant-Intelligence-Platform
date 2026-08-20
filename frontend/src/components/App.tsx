@@ -12,7 +12,7 @@ import {
   grantService,
   isMockMode,
 } from "@/services";
-import { clearAuthToken, logout } from "@/services/apiClient";
+import { clearAuthToken, logout, type SseEvent } from "@/services/apiClient";
 import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -53,8 +53,9 @@ const MOCK_RESEARCH_STEPS = [
 ];
 
 const LIVE_RESEARCH_STEPS = [
-  "Preparing search criteria",
+  "Generating search keywords",
   "Searching live EU Horizon opportunities",
+  "Filtering & ranking best matches",
 ];
 const AUTH_TOKEN_KEY = "gi.auth.token";
 
@@ -322,30 +323,40 @@ export function App() {
       const state: ResearchState = {
         steps: researchSteps.map((label, i) => ({
           label,
-          status: isMockMode ? (i === 0 ? "active" : "pending") : i === 0 ? "done" : "active",
+          status: i === 0 ? ("active" as const) : ("pending" as const),
         })),
       };
       const messageId = askAssistant([{ type: "research_status", state }]);
 
       try {
-        if (isMockMode) {
-          for (let i = 0; i < researchSteps.length; i++) {
-            await new Promise((resolve) => setTimeout(resolve, 450));
-            setBlocks(messageId, (blocks) =>
-              blocks.map((block) => {
-                if (block.type !== "research_status") return block;
-                const steps = block.state.steps.map((step, idx) => {
-                  if (idx < i + 1) return { ...step, status: "done" as const };
-                  if (idx === i + 1) return { ...step, status: "active" as const };
-                  return { ...step, status: "pending" as const };
-                });
-                return { type: "research_status", state: { steps } };
-              }),
-            );
-          }
-        }
+        const handleProgress = (event: SseEvent) => {
+          if (!event.stage) return;
+          const stageIndexMap: Record<string, number> = {
+            keywords: 0,
+            search: 1,
+            select: 2,
+          };
+          const activeIndex = stageIndexMap[event.stage] ?? 0;
+          setBlocks(messageId, (blocks) =>
+            blocks.map((block) => {
+              if (block.type !== "research_status") return block;
+              const steps = block.state.steps.map((step, idx) => {
+                if (idx < activeIndex) return { ...step, status: "done" as const };
+                if (idx === activeIndex) {
+                  return {
+                    ...step,
+                    status: "active" as const,
+                    detail: event.message || step.detail,
+                  };
+                }
+                return { ...step, status: "pending" as const };
+              });
+              return { type: "research_status", state: { steps } };
+            }),
+          );
+        };
 
-        const result = await grantService.searchGrants(profile);
+        const result = await grantService.searchGrants(profile, handleProgress);
         const grants = result.grants;
         setBlocks(messageId, (blocks) =>
           blocks.map((block) =>
@@ -459,7 +470,23 @@ export function App() {
             : await applicationService.findSavedApplication(grant.id);
         const reopened = Boolean(doc);
         if (!doc) {
-          doc = await applicationService.startApplication(grant, profile);
+          const statusMessageId = askAssistant([
+            {
+              type: "text",
+              text: `Drafting application for "${grant.title}"...\nAnalyzing requirements...`,
+            },
+          ]);
+          const handleDraftProgress = (event: SseEvent) => {
+            if (event.message && statusMessageId) {
+              setBlocks(statusMessageId, [
+                {
+                  type: "text",
+                  text: `Drafting application for "${grant.title}"...\n${event.message}`,
+                },
+              ]);
+            }
+          };
+          doc = await applicationService.startApplication(grant, profile, handleDraftProgress);
         }
         c.setDocument(doc, grant.id);
         c.setStage("application");

@@ -67,6 +67,16 @@ interface LastRewrite {
 }
 
 export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }: Props) {
+  if (!doc || !doc.sections || doc.sections.length === 0) {
+    return (
+      <Card className="rounded-2xl p-6 shadow-sm">
+        <InlineNotice tone="empty">
+          This application draft does not have any sections available yet.
+        </InlineNotice>
+      </Card>
+    );
+  }
+
   const sectionSelectId = useId();
   const [activeId, setActiveId] = useState(doc.sections[0]?.id ?? "");
   // sectionId -> in-progress text. A section is "in edit mode" iff it has a
@@ -425,10 +435,10 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                   <button
                     type="button"
                     onClick={() => goToSection(s.id)}
-                    aria-current={s.id === activeSection.id ? "true" : undefined}
+                    aria-current={activeSection && s.id === activeSection.id ? "true" : undefined}
                     className={cn(
                       "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-                      s.id === activeSection.id
+                      s.id === activeSection?.id
                         ? "bg-brand/10 font-medium text-brand"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}

@@ -197,15 +197,24 @@ export class ApiApplicationService implements ApplicationService {
     }
   }
 
-  async startApplication(grant: Grant, profile: OrganisationProfile): Promise<ApplicationDocument> {
-    const payload = await this.client.request<unknown>(
-      `/api/v1/grants/${encodeURIComponent(grant.id)}/start-application`,
+  async startApplication(
+    grant: Grant,
+    profile: OrganisationProfile,
+    onProgress?: (event: SseEvent) => void,
+  ): Promise<ApplicationDocument> {
+    const payload = await this.client.requestSse<unknown>(
+      `/api/v1/grants/${encodeURIComponent(grant.id)}/start-application/stream`,
       {
         method: "POST",
         body: JSON.stringify({ grant, profile }),
       },
+      onProgress,
     );
-    const result = applicationDocumentSchema.safeParse(payload);
+    const rawDocument =
+      typeof payload === "object" && payload !== null && "document" in payload
+        ? (payload as { document: unknown }).document
+        : payload;
+    const result = applicationDocumentSchema.safeParse(rawDocument);
     if (!result.success) throw new ApplicationApiContractError();
     return toApplicationDocument(result.data);
   }
@@ -216,11 +225,12 @@ export class ApiApplicationService implements ApplicationService {
     profile: OrganisationProfile,
     grant: Grant | undefined,
     documentId?: string,
+    onProgress?: (event: SseEvent) => void,
   ): Promise<string> {
     const sectionId = sectionTitle.toLowerCase().replace(/\s+/g, "-");
     const storedDocumentId = documentId ?? grant?.id ?? "active-document";
-    const payload = await this.client.request<unknown>(
-      `/api/v1/documents/${encodeURIComponent(storedDocumentId)}/sections/${encodeURIComponent(sectionId)}`,
+    const payload = await this.client.requestSse<unknown>(
+      `/api/v1/documents/${encodeURIComponent(storedDocumentId)}/sections/${encodeURIComponent(sectionId)}/stream`,
       {
         method: "PATCH",
         body: JSON.stringify({
@@ -230,12 +240,14 @@ export class ApiApplicationService implements ApplicationService {
           grant,
         }),
       },
+      onProgress,
     );
     const result = rewriteSectionResponseSchema.safeParse(payload);
     if (!result.success) throw new ApplicationApiContractError();
     return result.data.content;
   }
 }
+
 
 function toApplicationDocument(
   application: z.infer<typeof applicationDocumentSchema>,

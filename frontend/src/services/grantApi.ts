@@ -48,10 +48,14 @@ const grantResultDtoSchema = z.object({
 
 export const grantSearchResponseSchema = z.object({
   grants: z.array(grantResultDtoSchema),
-  source_summary: z.string(),
-  normalized_filters_applied: z.record(
-    z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
-  ),
+  source_summary: z
+    .string()
+    .optional()
+    .default("Results come from the live EU Funding & Tenders Portal."),
+  normalized_filters_applied: z
+    .record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]))
+    .optional()
+    .default({}),
 });
 
 export type GrantSearchRequestDto = z.infer<typeof grantSearchRequestSchema>;

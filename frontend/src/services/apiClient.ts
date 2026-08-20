@@ -133,4 +133,94 @@ export class ApiClient {
       throw new ApiError("The grant backend returned an invalid JSON response.", res.status);
     }
   }
+
+  async requestSse<T>(
+    path: string,
+    init?: RequestInit,
+    onEvent?: (event: SseEvent) => void,
+  ): Promise<T> {
+    const url = joinApiUrl(this.baseUrl, path);
+    const token = getAuthToken();
+    let res: Response;
+    try {
+      res = await this.fetchImpl.call(globalThis, url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...init?.headers,
+        },
+      });
+    } catch {
+      throw new ApiError(
+        "Unable to reach the grant backend. Check that it is running and try again.",
+      );
+    }
+
+    if (!res.ok) {
+      if (res.status === 401) clearAuthToken();
+      const detail = await errorDetail(res);
+      throw new ApiError(
+        detail ?? `Grant backend request failed (${res.status}). Please try again.`,
+        res.status,
+      );
+    }
+
+    let resultData: unknown = undefined;
+    let streamErrorMessage: string | undefined = undefined;
+
+    const processLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) return;
+      const jsonStr = trimmed.slice(5).trim();
+      if (!jsonStr) return;
+      try {
+        const parsed = JSON.parse(jsonStr) as SseEvent;
+        if (onEvent) onEvent(parsed);
+        if (parsed.event === "result" && parsed.data !== undefined) {
+          resultData = parsed.data;
+        } else if (parsed.event === "error" && parsed.message) {
+          streamErrorMessage = parsed.message;
+        }
+      } catch {
+        // Ignore unparseable lines
+      }
+    };
+
+    if (res.body && typeof res.body.getReader === "function") {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          processLine(line);
+        }
+      }
+      if (buffer.trim()) {
+        processLine(buffer);
+      }
+    } else {
+      const text = await res.text();
+      for (const line of text.split("\n")) {
+        processLine(line);
+      }
+    }
+
+    if (resultData !== undefined) {
+      return resultData as T;
+    }
+
+    if (streamErrorMessage) {
+      throw new ApiError(streamErrorMessage, res.status);
+    }
+
+    throw new ApiError("The grant backend stream ended without returning a result.", res.status);
+  }
 }

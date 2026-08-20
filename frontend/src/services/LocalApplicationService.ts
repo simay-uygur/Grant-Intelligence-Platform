@@ -164,20 +164,47 @@ export class LocalApplicationService implements ApplicationService {
     return undefined;
   }
 
-  async startApplication(grant: Grant, profile: OrganisationProfile): Promise<ApplicationDocument> {
-    await wait(300);
+  async startApplication(
+    grant: Grant,
+    profile: OrganisationProfile,
+    onProgress?: (event: SseEvent) => void,
+  ): Promise<ApplicationDocument> {
+    onProgress?.({
+      event: "thinking",
+      stage: "draft",
+      message: `Analyzing requirements for grant '${grant.title}'...`,
+    });
+    await wait(150);
+    onProgress?.({
+      event: "tool_call",
+      stage: "draft",
+      message: "Drafting application sections...",
+    });
+    await wait(150);
     if (isMockScenario("generate-error")) {
+      onProgress?.({
+        event: "error",
+        stage: "draft",
+        message: "Simulated application drafting error",
+      });
       throw new Error(
         "Simulated failure (?mock=generate-error): the draft couldn't be generated. Nothing was sent anywhere.",
       );
     }
-    return {
+    const doc: ApplicationDocument = {
       id: `doc-${grant.id}-${Date.now()}`,
       grantId: grant.id,
       grantTitle: grant.title,
       sections: makeSections(grant, profile),
       updatedAt: new Date().toISOString(),
     };
+    onProgress?.({
+      event: "result",
+      stage: "draft",
+      message: `Successfully drafted ${doc.sections.length} application sections`,
+      data: { document: doc },
+    });
+    return doc;
   }
 
   async rewriteSection(
@@ -186,9 +213,26 @@ export class LocalApplicationService implements ApplicationService {
     profile: OrganisationProfile,
     grant: Grant | undefined,
     _documentId?: string,
+    onProgress?: (event: SseEvent) => void,
   ): Promise<string> {
-    await wait(700);
+    onProgress?.({
+      event: "thinking",
+      stage: "rewrite",
+      message: `Analyzing section '${sectionTitle}' and user instructions...`,
+    });
+    await wait(350);
+    onProgress?.({
+      event: "tool_call",
+      stage: "rewrite",
+      message: `Rewriting section '${sectionTitle}'...`,
+    });
+    await wait(350);
     if (isMockScenario("rewrite-error")) {
+      onProgress?.({
+        event: "error",
+        stage: "rewrite",
+        message: "Simulated section rewrite error",
+      });
       throw new Error(
         "Simulated failure (?mock=rewrite-error): the mock rewrite didn't finish. Your text is unchanged.",
       );

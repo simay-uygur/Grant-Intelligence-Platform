@@ -116,4 +116,32 @@ describe("ApiClient", () => {
     expect(storage.get("gi.auth.token")).toBeUndefined();
     expect(eventFired).toBe(true);
   });
+
+  test("requestSse streams events and resolves final result data", async () => {
+    const sseBody = [
+      'data: {"event": "thinking", "stage": "keywords", "message": "Analyzing profile..."}\n\n',
+      'data: {"event": "progress", "stage": "search", "message": "Searching..."}\n\n',
+      'data: {"event": "result", "stage": "select", "data": {"items": [1, 2, 3]}}\n\n',
+    ].join("");
+
+    const receivedEvents: unknown[] = [];
+    const client = new ApiClient(
+      "http://localhost:8000",
+      async () =>
+        new Response(sseBody, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+    );
+
+    const result = await client.requestSse<{ items: number[] }>(
+      "/api/v1/grants/search/stream",
+      { method: "POST" },
+      (event) => receivedEvents.push(event),
+    );
+
+    expect(receivedEvents).toHaveLength(3);
+    expect(result).toEqual({ items: [1, 2, 3] });
+  });
 });
+

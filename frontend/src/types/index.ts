@@ -85,6 +85,7 @@ export interface ApplicationDocument {
 export interface ResearchStep {
   label: string;
   status: "pending" | "active" | "done";
+  detail?: string;
 }
 
 /** Progress of the current research session (grant matching in progress for a profile). */

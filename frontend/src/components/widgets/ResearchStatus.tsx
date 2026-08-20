@@ -75,20 +75,14 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
               marker has to stay true of the finished result too. */}
           <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-foreground">
             {hasError ? "Research failed" : allDone ? "Research complete" : "Researching grants…"}
-            {isMockMode ? (
-              <DemoBadge marker="demo-data" compact />
-            ) : (
-              <span className="shrink-0 rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
-                Live search
-              </span>
-            )}
+            {isMockMode && <DemoBadge marker="demo-data" compact />}
           </h3>
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
             {hasError
               ? "The grant search hit a problem — you can retry below."
               : preparingResults
                 ? "Preparing your recommendations…"
-                : (activeStep?.label ?? "Matching your profile against live grant opportunities.")}
+                : (activeStep?.detail ?? activeStep?.label ?? "Matching your profile against live grant opportunities.")}
           </div>
         </div>
         {!hasError && (
@@ -117,15 +111,22 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
               )}
             >
               <StepMarker status={step.status} index={i} />
-              <span
-                className={cn(
-                  "min-w-0 flex-1 break-words",
-                  step.status === "pending" ? "text-muted-foreground" : "text-foreground",
-                  step.status === "active" && "font-medium",
+              <div className="min-w-0 flex-1 break-words">
+                <span
+                  className={cn(
+                    "block",
+                    step.status === "pending" ? "text-muted-foreground" : "text-foreground",
+                    step.status === "active" && "font-medium",
+                  )}
+                >
+                  {step.label}
+                </span>
+                {step.detail && (
+                  <span className="mt-0.5 block text-xs text-muted-foreground/90 font-normal">
+                    {step.detail}
+                  </span>
                 )}
-              >
-                {step.label}
-              </span>
+              </div>
               <StepStatusIndicator status={step.status} />
             </li>
           ))}
