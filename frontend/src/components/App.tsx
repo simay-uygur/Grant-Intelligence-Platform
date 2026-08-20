@@ -487,12 +487,18 @@ export function App() {
               const data = event.data as Record<string, unknown> | undefined;
               const sectionIdx = (data?.section_index as number | undefined) ?? 0;
               const total = (data?.total_sections as number | undefined) ?? 12;
-              const percent =
+              let percent =
                 (data?.progress_percent as number | undefined) ??
                 (sectionIdx ? Math.round((sectionIdx / total) * 100) : 0);
 
+              if (event.event === "result") {
+                percent = 100;
+              }
+
               let sectionTitle = "Preparing sections...";
-              if (event.message) {
+              if (event.event === "result") {
+                sectionTitle = "Application draft completed!";
+              } else if (event.message) {
                 const match = event.message.match(/Section \d+\/\d+: (.*?) \(/);
                 if (match && match[1]) {
                   sectionTitle = match[1];
@@ -507,7 +513,7 @@ export function App() {
                   state: {
                     grantTitle: grant.title,
                     currentSectionTitle: sectionTitle,
-                    sectionIndex: sectionIdx || 1,
+                    sectionIndex: event.event === "result" ? total : sectionIdx || 1,
                     totalSections: total,
                     percent,
                   },
@@ -516,6 +522,20 @@ export function App() {
             }
           };
           doc = await applicationService.startApplication(grant, profile, handleDraftProgress);
+          if (statusMessageId) {
+            setBlocks(statusMessageId, () => [
+              {
+                type: "draft_progress",
+                state: {
+                  grantTitle: grant.title,
+                  currentSectionTitle: "Application draft completed!",
+                  sectionIndex: 12,
+                  totalSections: 12,
+                  percent: 100,
+                },
+              },
+            ]);
+          }
         }
         c.setDocument(doc, grant.id);
         c.setStage("application");

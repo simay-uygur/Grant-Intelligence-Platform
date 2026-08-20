@@ -287,8 +287,9 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
   const handleExportPdf = () => {
     setExportError(exportAsPdf(doc) ? null : "pdf");
   };
-  const handleExportWord = () => {
-    setExportError(exportAsWord(doc) ? null : "word");
+  const handleExportWord = async () => {
+    const ok = await exportAsWord(doc);
+    setExportError(ok ? null : "word");
   };
 
   const goToSection = (id: string) => setActiveId(id);

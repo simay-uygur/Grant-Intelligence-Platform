@@ -125,25 +125,81 @@ export function exportAsPdf(doc: ApplicationDocument): boolean {
   }
 }
 
-export function exportAsWord(doc: ApplicationDocument): boolean {
+import {
+  Document as DocxDocument,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  BorderStyle,
+} from "docx";
+
+export async function exportAsWord(doc: ApplicationDocument): Promise<boolean> {
   try {
-    const html = renderDocumentHtml(doc);
-    const wordHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-    xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-    ${html}</html>`;
-    const blob = new Blob(["\ufeff", wordHtml], {
-      type: "application/msword",
+    const children: Paragraph[] = [
+      new Paragraph({
+        text: `Grant Application — ${doc.grantTitle}`,
+        heading: HeadingLevel.HEADING_1,
+        border: {
+          bottom: {
+            color: "1E3A8A",
+            space: 6,
+            style: BorderStyle.SINGLE,
+            size: 12,
+          },
+        },
+        spacing: { after: 300 },
+      }),
+    ];
+
+    doc.sections.forEach((s, idx) => {
+      children.push(
+        new Paragraph({
+          text: `${idx + 1}. ${s.title}`,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 240, after: 120 },
+        }),
+      );
+
+      const paragraphs = s.content.split("\n").filter((p) => p.trim().length > 0);
+      paragraphs.forEach((pText) => {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: pText,
+                size: 23,
+                font: "Calibri",
+              }),
+            ],
+            spacing: { after: 140, line: 300 },
+          }),
+        );
+      });
     });
+
+    const docxDoc = new DocxDocument({
+      sections: [
+        {
+          properties: {},
+          children,
+        },
+      ],
+    });
+
+    const blob = await Packer.toBlob(docxDoc);
+    const safeTitle = (doc.grantTitle || "Grant_Application").replace(/[^a-z0-9]+/gi, "_");
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${doc.grantTitle.replace(/[^a-z0-9]+/gi, "_")}.doc`;
+    a.download = `${safeTitle}_Application.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     return true;
-  } catch {
+  } catch (err) {
+    console.error("Word export failed:", err);
     return false;
   }
 }
