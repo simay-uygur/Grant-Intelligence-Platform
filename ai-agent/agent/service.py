@@ -1,47 +1,112 @@
 # agent/service.py
-# The service layer the backend calls. Maps to the frontend's methods.
-# Now with error handling so failures return safe values instead of crashing.
+# Thin backend adapter. It does NOT orchestrate the workflow — it hands the
+# request to the Claude Agent SDK agent (run_agent), which decides everything.
 
+import asyncio
 import os
+
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
-from tools.keyword_agent import generate_keywords
-from tools.grant_searcher import search_all
-from tools.grant_selector import select_grants
+from agent.sdk_agent import run_agent
 from tools.start_application import start_application as _start_application
 from tools.rewrite_section import rewrite_section as _rewrite_section
 
 
-def search_grants(profile, max_grants=3):
+def _run(coro):
+    """Run an async coroutine from sync backend code safely."""
+    try:
+        return asyncio.run(coro)
+    except RuntimeError:
+        # If an event loop is already running (e.g. inside async FastAPI),
+        # create a new loop in a fresh thread.
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            return ex.submit(lambda: asyncio.run(coro)).result()
+
+
+def search_grants(profile, user_request=None, conversation_history=None, max_grants=3):
     """
     searchGrants(profile) -> Grant[]
-    Pipeline: keywords -> broad search -> select best. Returns [] on failure.
+
+    Backward compatible: the backend can still call search_grants(profile).
+    Optional user_request lets the user steer the search in natural language
+    (e.g. "only SMEs", "later deadlines", "search robotics and manufacturing").
+    conversation_history is optional prior context.
+
+    The agent (not this function) decides keywords, tool calls, ranking, and selection.
     """
-    try:
-        keywords = generate_keywords(profile, max_keywords=5)
-    except Exception as e:
-        print(f"[service] keyword generation failed: {e}")
-        fallback = str(profile.get("sector") or "innovation").split()[0].lower()
-        keywords = [fallback]
-
-    try:
-        candidates = search_all(keywords, page_size=10)
-    except Exception as e:
-        print(f"[service] grant search failed: {e}")
+    if not isinstance(profile, dict):
         return []
 
-    if not candidates:
-        print("[service] no candidate grants found.")
-        return []
+    # Default instruction if the user gave none.
+    message = user_request or f"Find the best matching EU grants (up to {max_grants})."
 
     try:
-        grants = select_grants(candidates, profile, max_grants=max_grants)
+        result = _run(run_agent(
+            profile=profile,
+            user_message=message,
+            conversation_history=conversation_history,
+        ))
     except Exception as e:
-        print(f"[service] grant selection failed: {e}")
+        print(f"[service] agent run failed: {e}")
         return []
 
-    return grants or []
+    return result.get("final_grants") or []
+
+
+def start_conversation(profile, user_message=None):
+    """
+    Start a NEW multi-turn conversation.
+    Returns {"final_grants": [...], "reply": "...", "session_id": "..."}.
+    The backend should store the returned session_id against the user,
+    then pass it to continue_conversation() on the next turn.
+    """
+    if not isinstance(profile, dict):
+        return {"final_grants": [], "reply": "Invalid profile.", "session_id": None}
+    message = user_message or "Find the best matching EU grants for this organisation."
+    try:
+        return _run(run_agent(profile=profile, user_message=message))
+    except Exception as e:
+        print(f"[service] start_conversation failed: {e}")
+        return {"final_grants": [], "reply": f"Error: {e}", "session_id": None}
+
+
+def continue_conversation(session_id, user_message, profile=None):
+    """
+    Continue an EXISTING conversation by its session_id (survives restarts).
+    The backend looks up the user's stored session_id and passes it here.
+    Returns {"final_grants": [...], "reply": "...", "session_id": "..."}.
+    """
+    if not session_id:
+        return {"final_grants": [], "reply": "Missing session_id.", "session_id": None}
+    try:
+        return _run(run_agent(
+            profile=profile or {},
+            user_message=user_message,
+            session_id=session_id,
+        ))
+    except Exception as e:
+        print(f"[service] continue_conversation failed: {e}")
+        return {"final_grants": [], "reply": f"Error: {e}", "session_id": session_id}
+
+def process_agent_message(profile, user_message, conversation_history=None):
+    """
+    General entry point for a conversational turn. Returns both the structured
+    grants (if any) and the agent's natural-language reply, so the backend can
+    support multi-turn steering.
+    """
+    if not isinstance(profile, dict):
+        return {"final_grants": [], "reply": "Invalid profile."}
+    try:
+        return _run(run_agent(
+            profile=profile,
+            user_message=user_message,
+            conversation_history=conversation_history,
+        ))
+    except Exception as e:
+        print(f"[service] agent run failed: {e}")
+        return {"final_grants": [], "reply": f"Error: {e}"}
 
 
 def search_grants_stream(profile, max_grants=3):
@@ -158,20 +223,15 @@ def search_grants_stream(profile, max_grants=3):
 
 
 def start_application(grant, profile):
-    """
-    startApplication(grant, profile) -> ApplicationDocument
-    Returns a minimal error document on failure rather than crashing.
-    """
+    """startApplication(grant, profile) -> ApplicationDocument"""
     try:
         return _start_application(grant, profile)
     except Exception as e:
         print(f"[service] start_application failed: {e}")
         return {
-            "id": "error",
-            "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
+            "id": "error", "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
             "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
-            "sections": [],
-            "updatedAt": "",
+            "sections": [], "updatedAt": "",
             "error": "Could not draft the application. Please try again.",
         }
 
@@ -258,17 +318,11 @@ def start_application_stream(grant, profile):
 
 
 def rewrite_section(section_title, current_content, profile, grant=None, instruction=None):
-    """
-    rewriteSection(...) -> string
-    Returns the original content unchanged if the rewrite fails.
-    """
+    """rewriteSection(...) -> string"""
     try:
         return _rewrite_section(
-            section_title=section_title,
-            current_content=current_content,
-            profile=profile,
-            grant=grant,
-            instruction=instruction,
+            section_title=section_title, current_content=current_content,
+            profile=profile, grant=grant, instruction=instruction,
         )
     except Exception as e:
         print(f"[service] rewrite_section failed: {e}")
