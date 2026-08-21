@@ -103,8 +103,7 @@ function ApplicationCard({
       )}
       {/* Stacked rather than badge-beside-org: columns get narrow on tablet,
           and a side-by-side row would squeeze the funder name to an ellipsis. */}
-      <CardHeader className="gap-2 p-3 pb-2">
-        <StatusBadge status={application.status} />
+      <CardHeader className="gap-1 p-3 pb-2">
         {/* break-words: columns get narrow, and neither of these may spill
             past the card edge if a single word outruns the line. */}
         <p className="break-words text-[11px] font-medium uppercase tracking-wider text-muted-foreground">

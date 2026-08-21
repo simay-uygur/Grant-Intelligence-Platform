@@ -226,14 +226,6 @@ function SidebarContent({
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   {label}
-                  {id === "saved" && Boolean(savedCount && savedCount > 0) && (
-                    <span
-                      className="ml-auto rounded-full bg-sidebar-accent/70 px-2 py-0.5 text-[11px] font-medium text-sidebar-foreground/90"
-                      aria-label={`${savedCount} saved ${savedCount === 1 ? "grant" : "grants"}`}
-                    >
-                      {savedCount}
-                    </span>
-                  )}
                 </button>
               </li>
             );
