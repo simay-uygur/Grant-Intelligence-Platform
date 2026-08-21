@@ -68,7 +68,8 @@ interface LastRewrite {
 
 export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }: Props) {
   const sectionSelectId = useId();
-  const [activeId, setActiveId] = useState(doc.sections[0]?.id ?? "");
+  const sections = doc?.sections ?? [];
+  const [activeId, setActiveId] = useState(sections[0]?.id ?? "");
   // sectionId -> in-progress text. A section is "in edit mode" iff it has a
   // key here — this map lives above the active-section view, so switching
   // sections (or the mobile dropdown) never discards an unsaved draft.
@@ -134,11 +135,21 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
     flushDrafts();
   }, [drafts, flushDrafts]);
 
+  if (sections.length === 0) {
+    return (
+      <Card className="rounded-2xl p-6 shadow-sm">
+        <InlineNotice tone="empty">
+          This application draft does not have any sections available yet.
+        </InlineNotice>
+      </Card>
+    );
+  }
+
   const activeIndex = Math.max(
     0,
-    doc.sections.findIndex((s) => s.id === activeId),
+    sections.findIndex((s) => s.id === activeId),
   );
-  const activeSection = doc.sections[activeIndex] ?? doc.sections[0];
+  const activeSection = sections[activeIndex] ?? sections[0];
 
   const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
   const isDirty = (id: string) => {
@@ -276,8 +287,9 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
   const handleExportPdf = () => {
     setExportError(exportAsPdf(doc) ? null : "pdf");
   };
-  const handleExportWord = () => {
-    setExportError(exportAsWord(doc) ? null : "word");
+  const handleExportWord = async () => {
+    const ok = await exportAsWord(doc);
+    setExportError(ok ? null : "word");
   };
 
   const goToSection = (id: string) => setActiveId(id);
@@ -425,10 +437,10 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
                   <button
                     type="button"
                     onClick={() => goToSection(s.id)}
-                    aria-current={s.id === activeSection.id ? "true" : undefined}
+                    aria-current={activeSection && s.id === activeSection.id ? "true" : undefined}
                     className={cn(
                       "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-                      s.id === activeSection.id
+                      s.id === activeSection?.id
                         ? "bg-brand/10 font-medium text-brand"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}

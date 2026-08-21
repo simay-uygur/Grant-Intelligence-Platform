@@ -27,6 +27,32 @@ SECTIONS = [
 ]
 
 
+def draft_single_section(grant, profile, section_title):
+    """Draft one application section via Bedrock."""
+    prompt = (
+        f"You are writing a real EU grant application section: '{section_title}'.\n\n"
+        f"GRANT:\n{json.dumps(grant, indent=2)}\n\n"
+        f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
+        f"Write substantive, specific, professional prose for the '{section_title}' section (roughly 100-150 words). "
+        "Use the organisation's real details, not placeholders. Align with the grant's programme and stated priorities.\n"
+        "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
+    )
+    try:
+        response = client.converse(
+            modelId=MODEL_ID,
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"maxTokens": 1200},
+        )
+        text = ""
+        for block in response["output"]["message"]["content"]:
+            if "text" in block:
+                text += block["text"]
+        return text.strip()
+    except Exception as e:
+        print(f"[start_application] Failed to draft section '{section_title}': {e}")
+        return f"Draft content for {section_title} based on {grant.get('title', 'grant')} priorities."
+
+
 def start_application(grant, profile):
     """
     Draft a grant application document.

@@ -411,7 +411,7 @@ function SidebarContent({
 /** Desktop sidebar: always in the layout at md+ widths, hidden below that. */
 export function Sidebar(props: SidebarProps) {
   return (
-    <aside className="hidden h-screen w-72 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:block">
+    <aside className="hidden h-full w-72 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:block">
       <SidebarContent {...props} />
     </aside>
   );
