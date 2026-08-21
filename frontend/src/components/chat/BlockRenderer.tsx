@@ -6,6 +6,8 @@ import { ApplicationDocumentView } from "@/components/documents/ApplicationDocum
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { AlertCircle, CheckCircle2, Compass } from "lucide-react";
 
+import { DraftProgressCard } from "@/components/widgets/DraftProgressCard";
+
 export interface BlockCallbacks {
   onSubmitProfile: (profile: OrganisationProfile) => void;
   onRetryResearch: () => void;
@@ -17,6 +19,8 @@ export interface BlockCallbacks {
   getGrantById: (id: string) => Grant | undefined;
   formDisabled?: boolean;
   hasGrantResults?: boolean;
+  startingGrantId?: string | null;
+  existingGrantIds?: Set<string>;
 }
 
 export function BlockRenderer({
@@ -78,6 +82,8 @@ export function BlockRenderer({
           hasResults={callbacks.hasGrantResults}
         />
       );
+    case "draft_progress":
+      return <DraftProgressCard state={block.state} />;
     case "grant_results":
       return (
         <GrantResults
@@ -89,6 +95,8 @@ export function BlockRenderer({
           // offer a way forward. No new callback, no new block type.
           onRetryResearch={callbacks.onRetryResearch}
           startDisabled={callbacks.formDisabled}
+          startingGrantId={callbacks.startingGrantId}
+          existingGrantIds={callbacks.existingGrantIds}
         />
       );
     case "document": {

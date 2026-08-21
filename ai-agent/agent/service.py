@@ -47,7 +47,7 @@ def search_grants(profile, max_grants=3):
 def search_grants_stream(profile, max_grants=3):
     """
     Generator streaming events through each pipeline stage:
-    keywords -> search -> select -> result
+    keywords -> live per-keyword search with candidate counts -> select -> result
     """
     yield {
         "event": "thinking",
@@ -58,10 +58,11 @@ def search_grants_stream(profile, max_grants=3):
     keywords = []
     try:
         keywords = generate_keywords(profile, max_keywords=5)
+        keywords_str = ", ".join(f"'{k}'" for k in keywords)
         yield {
             "event": "progress",
             "stage": "keywords",
-            "message": f"Generated {len(keywords)} search keywords",
+            "message": f"Generated keywords: {keywords_str}",
             "data": {"keywords": keywords},
         }
     except Exception as e:
@@ -71,40 +72,44 @@ def search_grants_stream(profile, max_grants=3):
         yield {
             "event": "error",
             "stage": "keywords",
-            "message": f"Keyword generation fallback used: {keywords}",
+            "message": f"Keyword generation fallback used: '{fallback}'",
             "data": {"keywords": keywords, "error": str(e)},
         }
 
-    yield {
-        "event": "thinking",
-        "stage": "search",
-        "message": "Searching live EU Funding & Tenders Portal...",
-    }
+    pool = {}
+    from tools.eu_horizon_api import eu_horizon_api
 
-    candidates = []
-    try:
-        candidates = search_all(keywords, page_size=10)
+    for i, kw in enumerate(keywords, 1):
         yield {
-            "event": "progress",
+            "event": "thinking",
             "stage": "search",
-            "message": f"Retrieved {len(candidates)} candidate grants",
-            "data": {"candidate_count": len(candidates)},
+            "message": f"Querying live EU Portal for '{kw}' ({i}/{len(keywords)})... {len(pool)} candidate opportunities found so far",
+            "data": {"keyword": kw, "keyword_index": i, "candidate_count": len(pool)},
         }
-    except Exception as e:
-        print(f"[service] grant search failed: {e}")
-        yield {
-            "event": "error",
-            "stage": "search",
-            "message": f"Grant search failed: {e}",
-            "data": {"error": str(e)},
-        }
-        yield {
-            "event": "result",
-            "stage": "select",
-            "message": "Grant search completed with 0 results",
-            "data": {"grants": []},
-        }
-        return
+        try:
+            results = eu_horizon_api(kw, page_size=10)
+            added_count = 0
+            for g in results:
+                key = g.get("identifier") or g.get("title")
+                if key and key not in pool:
+                    pool[key] = g
+                    added_count += 1
+            yield {
+                "event": "progress",
+                "stage": "search",
+                "message": f"Searched '{kw}' (+{len(results)} calls, {added_count} new) — {len(pool)} total unique candidate grants pooled",
+                "data": {"keyword": kw, "added": added_count, "candidate_count": len(pool)},
+            }
+        except Exception as e:
+            print(f"[service] grant search failed for '{kw}': {e}")
+            yield {
+                "event": "error",
+                "stage": "search",
+                "message": f"Search for '{kw}' failed: {e}",
+                "data": {"keyword": kw, "error": str(e)},
+            }
+
+    candidates = list(pool.values())
 
     if not candidates:
         yield {
@@ -124,7 +129,8 @@ def search_grants_stream(profile, max_grants=3):
     yield {
         "event": "thinking",
         "stage": "select",
-        "message": "Filtering open calls and ranking best matches...",
+        "message": f"Filtering open calls and ranking top matches from {len(candidates)} candidate grants with Bedrock AI...",
+        "data": {"candidate_count": len(candidates)},
     }
 
     try:
@@ -170,33 +176,84 @@ def start_application(grant, profile):
         }
 
 
+SECTIONS_LIST = [
+    "Organisation Overview",
+    "Project Summary",
+    "Problem Statement",
+    "Proposed Solution",
+    "Innovation",
+    "Objectives",
+    "Expected Impact",
+    "Sustainability",
+    "Implementation Plan",
+    "Timeline",
+    "Budget Overview",
+    "Risk Management",
+]
+
+
 def start_application_stream(grant, profile):
-    """Generator streaming events for drafting a full application document."""
+    """Generator streaming real-time events for drafting a full application document."""
+    from tools.start_application import SECTIONS, draft_single_section
+    import time
+
+    total = len(SECTIONS)
+    doc_id = f"doc-{grant.get('id', 'unknown')}-{int(time.time())}"
+    sections = []
+
     yield {
         "event": "thinking",
         "stage": "draft",
-        "message": f"Analyzing requirements for grant '{grant.get('title', '')}'...",
-    }
-    yield {
-        "event": "tool_call",
-        "stage": "draft",
-        "message": "Drafting application sections with Bedrock agent...",
+        "message": f"Analyzing requirements for grant '{grant.get('title', '')}' ({total} sections)...",
     }
 
-    doc = start_application(grant, profile)
-    if doc.get("error"):
-        yield {
-            "event": "error",
-            "stage": "draft",
-            "message": doc["error"],
-            "data": {"document": doc},
+    try:
+        for i, (section_id, section_title) in enumerate(SECTIONS, 1):
+            percent = int((i / total) * 100)
+            yield {
+                "event": "progress",
+                "stage": "draft",
+                "message": f"Drafting Section {i}/{total}: {section_title} ({percent}% complete)...",
+                "data": {
+                    "section_index": i,
+                    "total_sections": total,
+                    "progress_percent": percent,
+                },
+            }
+
+            content = draft_single_section(grant, profile, section_title)
+            section_obj = {"id": section_id, "title": section_title, "content": content}
+            sections.append(section_obj)
+
+        doc = {
+            "id": doc_id,
+            "grantId": grant.get("id", ""),
+            "grantTitle": grant.get("title", ""),
+            "sections": sections,
+            "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-    else:
+
         yield {
             "event": "result",
             "stage": "draft",
-            "message": f"Successfully drafted {len(doc.get('sections', []))} application sections",
+            "message": f"Successfully drafted all {len(sections)} application sections",
             "data": {"document": doc},
+        }
+    except Exception as e:
+        print(f"[service] start_application_stream failed: {e}")
+        error_doc = {
+            "id": "error",
+            "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
+            "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
+            "sections": [],
+            "updatedAt": "",
+            "error": str(e),
+        }
+        yield {
+            "event": "error",
+            "stage": "draft",
+            "message": f"Could not draft application: {e}",
+            "data": {"document": error_doc},
         }
 
 

@@ -85,6 +85,7 @@ export interface ApplicationDocument {
 export interface ResearchStep {
   label: string;
   status: "pending" | "active" | "done";
+  detail?: string;
 }
 
 /** Progress of the current research session (grant matching in progress for a profile). */
@@ -109,11 +110,21 @@ export interface Attachment {
   status: "uploading" | "uploaded" | "failed";
 }
 
+export interface DraftProgressState {
+  grantTitle: string;
+  currentSectionTitle?: string;
+  sectionIndex?: number;
+  totalSections?: number;
+  percent: number;
+  error?: string;
+}
+
 export type ChatBlock =
   | { type: "text"; text: string }
   | { type: "question"; text: string }
   | { type: "structured_form"; profile?: Partial<OrganisationProfile> }
   | { type: "research_status"; state: ResearchState }
+  | { type: "draft_progress"; state: DraftProgressState }
   | { type: "grant_results"; grants: Grant[]; sourceSummary?: string }
   | { type: "document"; documentId: string }
   | { type: "error"; message: string }

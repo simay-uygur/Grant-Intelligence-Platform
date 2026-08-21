@@ -3,14 +3,16 @@ import type { OrganisationProfile } from "../types";
 import { ApiGrantService } from "./ApiGrantService";
 import { ApiClient } from "./apiClient";
 
-test("calls the versioned grant endpoint and returns mapped live results", async () => {
+test("calls the versioned grant stream endpoint and returns mapped live results", async () => {
   let requestedUrl = "";
   let requestedInit: RequestInit | undefined;
   const fetchImpl: typeof fetch = async (input, init) => {
     requestedUrl = String(input);
     requestedInit = init;
-    return new Response(
-      JSON.stringify({
+    const sseBody = `data: ${JSON.stringify({
+      event: "result",
+      stage: "select",
+      data: {
         grants: [
           {
             id: "HORIZON-1",
@@ -25,9 +27,12 @@ test("calls the versioned grant endpoint and returns mapped live results", async
         ],
         source_summary: "Live Horizon search.",
         normalized_filters_applied: {},
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
+      },
+    })}\n\n`;
+    return new Response(sseBody, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
   };
   const profile: OrganisationProfile = {
     organisationName: "Northlight",
@@ -50,7 +55,7 @@ test("calls the versioned grant endpoint and returns mapped live results", async
 
   const result = await service.searchGrants(profile);
 
-  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/search");
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/search/stream");
   expect(requestedInit?.method).toBe("POST");
   expect(JSON.parse(String(requestedInit?.body))).toEqual({
     query: "AI inspection Manufacturing",

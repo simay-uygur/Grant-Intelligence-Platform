@@ -220,22 +220,29 @@ test("returns no saved application when the grant lookup is not found", async ()
   expect(await service.findSavedApplication("MOCK-1")).toBeUndefined();
 });
 
-test("starts an application through the backend document endpoint", async () => {
+test("starts an application through the backend document stream endpoint", async () => {
   let requestedUrl = "";
   let requestedInit: RequestInit | undefined;
   const fetchImpl: typeof fetch = async (input, init) => {
     requestedUrl = String(input);
     requestedInit = init;
-    return new Response(
-      JSON.stringify({
-        id: "doc-1",
-        grantId: "MOCK-1",
-        grantTitle: "Manufacturing Research and Innovation Action",
-        sections: [{ id: "executive-summary", title: "Executive Summary", content: "Draft" }],
-        updatedAt: "2026-07-30T00:00:00Z",
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
+    const sseBody = `data: ${JSON.stringify({
+      event: "result",
+      stage: "draft",
+      data: {
+        document: {
+          id: "doc-1",
+          grantId: "MOCK-1",
+          grantTitle: "Manufacturing Research and Innovation Action",
+          sections: [{ id: "executive-summary", title: "Executive Summary", content: "Draft" }],
+          updatedAt: "2026-07-30T00:00:00Z",
+        },
+      },
+    })}\n\n`;
+    return new Response(sseBody, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
   };
   const service = new ApiApplicationService(
     undefined,
@@ -244,26 +251,31 @@ test("starts an application through the backend document endpoint", async () => 
 
   const document = await service.startApplication(grant, profile);
 
-  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/start-application");
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/start-application/stream");
   expect(requestedInit?.method).toBe("POST");
   expect(JSON.parse(String(requestedInit?.body))).toEqual({ grant, profile });
   expect(document.sections[0]?.title).toBe("Executive Summary");
 });
 
-test("rewrites a section through the backend document endpoint", async () => {
+test("rewrites a section through the backend document stream endpoint", async () => {
   let requestedUrl = "";
   let requestedInit: RequestInit | undefined;
   const fetchImpl: typeof fetch = async (input, init) => {
     requestedUrl = String(input);
     requestedInit = init;
-    return new Response(
-      JSON.stringify({
+    const sseBody = `data: ${JSON.stringify({
+      event: "result",
+      stage: "rewrite",
+      data: {
         sectionId: "executive-summary",
         title: "Executive Summary",
         content: "Rewritten by backend mock",
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
+      },
+    })}\n\n`;
+    return new Response(sseBody, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
   };
   const service = new ApiApplicationService(
     undefined,
@@ -279,7 +291,7 @@ test("rewrites a section through the backend document endpoint", async () => {
   );
 
   expect(requestedUrl).toBe(
-    "http://localhost:8000/api/v1/documents/doc-1/sections/executive-summary",
+    "http://localhost:8000/api/v1/documents/doc-1/sections/executive-summary/stream",
   );
   expect(requestedInit?.method).toBe("PATCH");
   expect(JSON.parse(String(requestedInit?.body))).toEqual({
