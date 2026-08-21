@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Building2, CalendarClock, Coins, FileText, MessagesSquare, Rows3 } from "lucide-react";
+import { Building2, CalendarClock, Coins, FileText, MessagesSquare, Rows3, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
@@ -67,6 +67,7 @@ function ApplicationCard({
   application,
   onStatusChange,
   onOpenDetails,
+  onDelete,
   /** Rendering the card as it leaves its old column — visual only, never interactive. */
   ghost,
   /** Rendering the card as it arrives in its new column. */
@@ -77,6 +78,7 @@ function ApplicationCard({
   application: DemoApplication;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   onOpenDetails: () => void;
+  onDelete?: () => void;
   ghost?: boolean;
   entering?: boolean;
   celebrate?: boolean;
@@ -104,11 +106,28 @@ function ApplicationCard({
       {/* Stacked rather than badge-beside-org: columns get narrow on tablet,
           and a side-by-side row would squeeze the funder name to an ellipsis. */}
       <CardHeader className="gap-1 p-3 pb-2">
-        {/* break-words: columns get narrow, and neither of these may spill
-            past the card edge if a single word outruns the line. */}
-        <p className="break-words text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          {application.grantOrganisation}
-        </p>
+        <div className="flex items-start justify-between gap-2">
+          {/* break-words: columns get narrow, and neither of these may spill
+              past the card edge if a single word outruns the line. */}
+          <p className="break-words text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            {application.grantOrganisation}
+          </p>
+          {!ghost && onDelete && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              aria-label={`Delete ${application.grantTitle} application from pipeline`}
+              className="relative z-10 -mr-1 -mt-1 h-6 w-6 shrink-0 rounded-md text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
         <h4 className="break-words text-sm font-semibold leading-snug text-card-foreground">
           {ghost ? (
             application.grantTitle
@@ -214,6 +233,8 @@ function ApplicationDetailsSheet({
   onStatusChange,
   link,
   onOpenConversation,
+  onOpenApplication,
+  onDeleteApplication,
   onGoToChat,
 }: {
   application: DemoApplication | null;
@@ -222,6 +243,8 @@ function ApplicationDetailsSheet({
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   link: ApplicationLink;
   onOpenConversation: (conversationId: string) => void;
+  onOpenApplication?: (applicationId: string) => void;
+  onDeleteApplication?: (applicationId: string) => void;
   onGoToChat: () => void;
 }) {
   const reasonId = "application-actions-reason";
@@ -237,6 +260,18 @@ function ApplicationDetailsSheet({
   const goToChat = () => {
     onOpenChange(false);
     onGoToChat();
+  };
+
+  const openInNewChat = () => {
+    if (!application) return;
+    onOpenChange(false);
+    onOpenApplication?.(application.id);
+  };
+
+  const handleDelete = () => {
+    if (!application) return;
+    onOpenChange(false);
+    onDeleteApplication?.(application.id);
   };
 
   return (
@@ -325,17 +360,27 @@ function ApplicationDetailsSheet({
                   aria-label="Application actions"
                   className="flex flex-col gap-2 border-t border-border pt-4"
                 >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={goToConversation}
-                    disabled={!link.hasLiveDraft}
-                    aria-describedby={link.hasLiveDraft ? undefined : reasonId}
-                    className="justify-start rounded-lg hover:bg-muted"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Open application draft
-                  </Button>
+                  {link.hasLiveDraft ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={goToConversation}
+                      className="justify-start rounded-lg hover:bg-muted"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Open application draft
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={openInNewChat}
+                      className="justify-start rounded-lg hover:bg-muted"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Open draft in new chat
+                    </Button>
+                  )}
                   {link.conversationId ? (
                     <Button
                       type="button"
@@ -355,6 +400,17 @@ function ApplicationDetailsSheet({
                     >
                       <MessagesSquare className="h-4 w-4" />
                       Open in chat
+                    </Button>
+                  )}
+                  {onDeleteApplication && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDelete}
+                      className="justify-start rounded-lg border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete application from pipeline
                     </Button>
                   )}
                   {link.reason && (
@@ -390,6 +446,7 @@ function StatusColumn({
   applications,
   onStatusChange,
   onOpenDetails,
+  onDeleteApplication,
   ghost,
   enteringId,
   isDestination,
@@ -399,6 +456,7 @@ function StatusColumn({
   applications: DemoApplication[];
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   onOpenDetails: (applicationId: string) => void;
+  onDeleteApplication?: (applicationId: string) => void;
   /** A card leaving this column, still drawn in the slot it just vacated. */
   ghost?: { application: DemoApplication; index: number };
   /** The card that just arrived in this column. */
@@ -458,6 +516,9 @@ function StatusColumn({
                   application={application}
                   onStatusChange={onStatusChange}
                   onOpenDetails={() => onOpenDetails(application.id)}
+                  onDelete={
+                    onDeleteApplication ? () => onDeleteApplication(application.id) : undefined
+                  }
                   ghost={isGhost}
                   entering={!isGhost && application.id === enteringId}
                   celebrate={!isGhost && application.id === celebratingId}
@@ -496,17 +557,21 @@ export function PipelineDashboard({
   hydrated,
   persistenceOk,
   updateStatus,
+  deleteApplication,
   conversations,
   onOpenConversation,
+  onOpenApplication,
 }: {
   onGoToChat: () => void;
   applications: DemoApplication[];
   hydrated: boolean;
   persistenceOk: boolean;
   updateStatus: (applicationId: string, status: ApplicationStatus) => void;
+  deleteApplication?: (applicationId: string) => void;
   /** Read-only: used solely to work out what a card can link back to. */
   conversations: Conversation[];
   onOpenConversation: (conversationId: string) => void;
+  onOpenApplication?: (applicationId: string) => void;
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -664,6 +729,7 @@ export function PipelineDashboard({
               applications={grouped.get(status) ?? []}
               onStatusChange={handleStatusChange}
               onOpenDetails={openDetails}
+              onDeleteApplication={deleteApplication}
               ghost={
                 move?.fromStatus === status
                   ? { application: move.application, index: move.fromIndex }
@@ -688,6 +754,8 @@ export function PipelineDashboard({
             : { conversationId: null, hasLiveDraft: false, reason: null }
         }
         onOpenConversation={onOpenConversation}
+        onOpenApplication={onOpenApplication}
+        onDeleteApplication={deleteApplication}
         onGoToChat={onGoToChat}
       />
     </section>

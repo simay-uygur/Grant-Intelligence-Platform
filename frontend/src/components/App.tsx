@@ -1066,10 +1066,12 @@ export function App() {
                 reuses this same view toggle rather than adding a route. */}
             <PipelineDashboard
               onGoToChat={() => setMainView("chat")}
+              onOpenApplication={handleOpenApplication}
               applications={apps.applications}
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
+              deleteApplication={apps.deleteApplication}
               conversations={c.conversations}
               onOpenConversation={selectConversationInChat}
             />
