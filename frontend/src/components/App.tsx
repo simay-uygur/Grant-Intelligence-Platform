@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
+import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import {
@@ -28,6 +29,7 @@ import { AccountModal } from "@/components/AccountModal";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
+import { SavedGrants } from "@/components/SavedGrants";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -175,6 +177,7 @@ export function App() {
   const { synchronizeBackendMessages } = c;
   const apps = useApplications();
   const addApplication = apps.addApplication;
+  const shortlist = useShortlist();
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -793,6 +796,11 @@ export function App() {
       // preparing-results skeletons, or they'd spin forever above the
       // no-matches state.
       hasGrantResults: c.activeConversation?.grants !== undefined,
+      getApplicationStatus: (documentId) =>
+        apps.applications.find((a) => a.id === documentId || a.id === `app-${documentId}`)?.status,
+      onUpdateApplicationStatus: (documentId, status) =>
+        apps.updateStatus(documentId.startsWith("app-") ? documentId : `app-${documentId}`, status),
+      onViewInPipeline: () => setMainView("pipeline"),
       startingGrantId,
       existingGrantIds: new Set([
         ...apps.applications.filter((a) => !a.id.startsWith("app-demo-")).map((a) => a.grantId),
@@ -800,7 +808,7 @@ export function App() {
       ]),
     }),
     [
-      apps.applications,
+      apps,
       busy,
       c.activeConversation,
       c.updateDocumentSection,
@@ -885,6 +893,7 @@ export function App() {
         isMockMode={isMockMode}
         mainView={mainView}
         onSelectView={setMainView}
+        savedCount={shortlist.savedGrants.length}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
       />
@@ -900,6 +909,7 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
+        savedCount={shortlist.savedGrants.length}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
       />
@@ -1044,6 +1054,12 @@ export function App() {
           )}
         </div>
 
+        {mainView === "saved" && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <SavedGrants onGoToChat={() => setMainView("chat")} />
+          </div>
+        )}
+
         {mainView === "pipeline" && (
           <div className="min-h-0 flex-1 overflow-y-auto">
             {/* The pipeline's empty state sends people back to the chat; it
@@ -1055,7 +1071,9 @@ export function App() {
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
-              isMockMode={isMockMode}
+              deleteApplication={apps.deleteApplication}
+              conversations={c.conversations}
+              onOpenConversation={selectConversationInChat}
             />
           </div>
         )}

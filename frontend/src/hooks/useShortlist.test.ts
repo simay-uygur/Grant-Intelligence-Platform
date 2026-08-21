@@ -6,7 +6,7 @@ const saved: SavedGrant = {
   id: "digital-europe",
   title: "Digital Transformation Accelerator for SMEs",
   programme: "Digital Europe Programme",
-  fundingAmount: "EUR 500,000 - EUR 2,000,000",
+  fundingAmount: "€500,000 – €2,000,000",
   deadline: "2026-09-20",
   sourceUrl: "https://example.org/call",
   savedAt: "2026-08-07T10:00:00.000Z",
@@ -18,10 +18,10 @@ describe("toSavedGrant", () => {
     expect(entry).toEqual({
       id: MOCK_GRANTS[0].id,
       title: MOCK_GRANTS[0].title,
-      programme: MOCK_GRANTS[0].programme ?? MOCK_GRANTS[0].source ?? "",
-      fundingAmount: MOCK_GRANTS[0].fundingAmount ?? "",
-      deadline: MOCK_GRANTS[0].deadline ?? "",
-      sourceUrl: MOCK_GRANTS[0].sourceUrl ?? "",
+      programme: MOCK_GRANTS[0].programme,
+      fundingAmount: MOCK_GRANTS[0].fundingAmount,
+      deadline: MOCK_GRANTS[0].deadline,
+      sourceUrl: MOCK_GRANTS[0].sourceUrl,
       savedAt: "2026-08-07T10:00:00.000Z",
     });
   });
@@ -39,6 +39,8 @@ describe("parseShortlist", () => {
     expect(parseShortlist(JSON.stringify({ [saved.id]: saved }))).toEqual({ [saved.id]: saved });
   });
 
+  // Every branch below must yield an empty shortlist rather than throw: a
+  // corrupt key can't be allowed to take down the grant results with it.
   it("returns empty for nothing stored", () => {
     expect(parseShortlist(null)).toEqual({});
     expect(parseShortlist("")).toEqual({});

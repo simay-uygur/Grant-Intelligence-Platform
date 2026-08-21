@@ -16,6 +16,7 @@ export interface ApplicationService {
     status: ApplicationStatus,
   ): Promise<DemoApplication>;
   upsertApplicationSummary?(application: DemoApplication): Promise<void>;
+  deleteApplication?(applicationId: string): Promise<void>;
   saveSection(applicationId: string, sectionId: string, content: string): Promise<void>;
   findSavedApplication(grantId: string): Promise<ApplicationDocument | undefined>;
   startApplication(
