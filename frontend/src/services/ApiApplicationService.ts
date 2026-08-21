@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import type { ApplicationService, OpenedApplication } from "./ApplicationService";
-import { ApiClient, ApiError } from "./apiClient";
+import { ApiClient, ApiError, type SseEvent } from "./apiClient";
 
 const documentSectionSchema = z.object({
   id: z.string().min(1),

@@ -5,6 +5,7 @@ import {
   type DemoApplication,
 } from "@/data/mockApplications";
 import type { ApplicationService, OpenedApplication } from "./ApplicationService";
+import type { SseEvent } from "./apiClient";
 import { isMockScenario } from "./mockScenario";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
