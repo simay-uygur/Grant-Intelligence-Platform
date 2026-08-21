@@ -1,3 +1,4 @@
+import type { ApplicationStatus } from "@/data/mockApplications";
 import type { ApplicationDocument, ChatBlock, Grant, OrganisationProfile } from "@/types";
 import { OrganisationForm } from "@/components/widgets/OrganisationForm";
 import { ResearchStatus } from "@/components/widgets/ResearchStatus";
@@ -17,6 +18,9 @@ export interface BlockCallbacks {
   getDocument: (id: string) => ApplicationDocument | undefined;
   getProfile: () => OrganisationProfile | undefined;
   getGrantById: (id: string) => Grant | undefined;
+  getApplicationStatus?: (documentId: string) => ApplicationStatus | undefined;
+  onUpdateApplicationStatus?: (documentId: string, status: ApplicationStatus) => void;
+  onViewInPipeline?: () => void;
   formDisabled?: boolean;
   hasGrantResults?: boolean;
   startingGrantId?: string | null;
@@ -69,7 +73,7 @@ export function BlockRenderer({
     case "structured_form":
       return (
         <OrganisationForm
-          initial={block.profile}
+          initial={callbacks.getProfile() ?? block.profile}
           disabled={callbacks.formDisabled}
           onSubmit={callbacks.onSubmitProfile}
         />
@@ -117,6 +121,11 @@ export function BlockRenderer({
           profile={callbacks.getProfile()}
           grant={grant}
           onSectionChange={callbacks.onSectionChange}
+          applicationStatus={callbacks.getApplicationStatus?.(doc.id)}
+          onApplicationStatusChange={(status) =>
+            callbacks.onUpdateApplicationStatus?.(doc.id, status)
+          }
+          onViewInPipeline={callbacks.onViewInPipeline}
         />
       );
     }

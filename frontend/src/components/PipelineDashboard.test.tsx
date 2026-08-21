@@ -35,11 +35,11 @@ describe("PipelineDashboard Component Integration", () => {
       <PipelineDashboard
         applications={sampleApplications}
         hydrated={true}
-        isMockMode={true}
         persistenceOk={true}
         onGoToChat={vi.fn()}
-        onOpenApplication={vi.fn()}
         updateStatus={vi.fn()}
+        conversations={[]}
+        onOpenConversation={vi.fn()}
       />,
     );
 
@@ -48,26 +48,28 @@ describe("PipelineDashboard Component Integration", () => {
     expect(screen.getByText("Green Energy Transition")).toBeDefined();
   });
 
-  it("triggers onOpenApplication when open button is clicked", async () => {
-    const handleOpen = vi.fn().mockResolvedValue(undefined);
+  it("opens details sheet when card title is clicked", async () => {
+    const handleOpenConv = vi.fn();
     render(
       <PipelineDashboard
         applications={sampleApplications}
         hydrated={true}
-        isMockMode={true}
         persistenceOk={true}
         onGoToChat={vi.fn()}
-        onOpenApplication={handleOpen}
         updateStatus={vi.fn()}
+        conversations={[]}
+        onOpenConversation={handleOpenConv}
       />,
     );
 
-    const openButtons = screen.getAllByRole("button", { name: /^Open$/i });
-    expect(openButtons.length).toBeGreaterThan(0);
+    const titleButton = screen.getByRole("button", {
+      name: "View AI Innovation Fund application details",
+    });
+    expect(titleButton).toBeDefined();
     await act(async () => {
-      fireEvent.click(openButtons[0]);
+      fireEvent.click(titleButton);
     });
 
-    expect(handleOpen).toHaveBeenCalledWith("app-1");
+    expect(screen.getByRole("dialog")).toBeDefined();
   });
 });
