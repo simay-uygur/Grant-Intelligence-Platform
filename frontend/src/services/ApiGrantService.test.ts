@@ -82,4 +82,3 @@ test("calls the versioned grant stream endpoint and returns mapped live results"
     sourceSummary: "Live Horizon search.",
   });
 });
-

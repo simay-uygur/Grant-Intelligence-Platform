@@ -32,4 +32,3 @@ export class ApiGrantService implements GrantService {
     };
   }
 }
-

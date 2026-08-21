@@ -82,7 +82,9 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
               ? "The grant search hit a problem — you can retry below."
               : preparingResults
                 ? "Preparing your recommendations…"
-                : (activeStep?.detail ?? activeStep?.label ?? "Matching your profile against live grant opportunities.")}
+                : (activeStep?.detail ??
+                  activeStep?.label ??
+                  "Matching your profile against live grant opportunities.")}
           </div>
         </div>
         {!hasError && (

@@ -32,4 +32,3 @@ export interface ApplicationService {
     onProgress?: (event: SseEvent) => void,
   ): Promise<string>;
 }
-

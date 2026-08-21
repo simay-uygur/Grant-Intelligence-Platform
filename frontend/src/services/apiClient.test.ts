@@ -144,4 +144,3 @@ describe("ApiClient", () => {
     expect(result).toEqual({ items: [1, 2, 3] });
   });
 });
-

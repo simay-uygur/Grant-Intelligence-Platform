@@ -251,9 +251,7 @@ test("starts an application through the backend document stream endpoint", async
 
   const document = await service.startApplication(grant, profile);
 
-  expect(requestedUrl).toBe(
-    "http://localhost:8000/api/v1/grants/MOCK-1/start-application/stream",
-  );
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/start-application/stream");
   expect(requestedInit?.method).toBe("POST");
   expect(JSON.parse(String(requestedInit?.body))).toEqual({ grant, profile });
   expect(document.sections[0]?.title).toBe("Executive Summary");
@@ -304,4 +302,3 @@ test("rewrites a section through the backend document stream endpoint", async ()
   });
   expect(content).toBe("Rewritten by backend mock");
 });
-

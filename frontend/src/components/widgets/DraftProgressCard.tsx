@@ -65,11 +65,7 @@ export function DraftProgressCard({ state }: Props) {
                 title={`Section ${stepNum}`}
                 className={cn(
                   "h-1.5 flex-1 rounded-full transition-all duration-300",
-                  isDone
-                    ? "bg-brand"
-                    : isCurrent
-                      ? "bg-brand/60 animate-pulse"
-                      : "bg-muted",
+                  isDone ? "bg-brand" : isCurrent ? "bg-brand/60 animate-pulse" : "bg-muted",
                 )}
               />
             );

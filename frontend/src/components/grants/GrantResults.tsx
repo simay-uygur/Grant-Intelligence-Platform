@@ -76,7 +76,11 @@ export function GrantResults({
   const handleToggleSaved = (grant: Grant) => {
     const nextSaved = !isSaved(grant.id);
     toggleSave(grant);
-    setSavedToast(nextSaved ? `Saved "${grant.title}" to your shortlisted grants.` : `Removed "${grant.title}" from saved grants.`);
+    setSavedToast(
+      nextSaved
+        ? `Saved "${grant.title}" to your shortlisted grants.`
+        : `Removed "${grant.title}" from saved grants.`,
+    );
     setTimeout(() => setSavedToast(null), 3000);
   };
 
@@ -314,7 +318,7 @@ function GrantCard({
           <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
             {grant.programme === "Horizon Europe"
               ? "EU Horizon API"
-              : (grant.programme || grant.source || "EU Horizon API")}
+              : grant.programme || grant.source || "EU Horizon API"}
           </div>
           <button
             type="button"

@@ -7,4 +7,3 @@ export interface GrantService {
     onProgress?: (event: SseEvent) => void,
   ): Promise<GrantSearchResult>;
 }
-
