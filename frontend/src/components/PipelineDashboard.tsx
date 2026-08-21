@@ -215,6 +215,7 @@ function ApplicationDetailsSheet({
   onStatusChange,
   link,
   onOpenConversation,
+  onGoToChat,
 }: {
   application: DemoApplication | null;
   open: boolean;
@@ -222,6 +223,7 @@ function ApplicationDetailsSheet({
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   link: ApplicationLink;
   onOpenConversation: (conversationId: string) => void;
+  onGoToChat: () => void;
 }) {
   const reasonId = "application-actions-reason";
 
@@ -231,6 +233,11 @@ function ApplicationDetailsSheet({
     if (!link.conversationId) return;
     onOpenChange(false);
     onOpenConversation(link.conversationId);
+  };
+
+  const goToChat = () => {
+    onOpenChange(false);
+    onGoToChat();
   };
 
   return (
@@ -319,9 +326,6 @@ function ApplicationDetailsSheet({
                   aria-label="Application actions"
                   className="flex flex-col gap-2 border-t border-border pt-4"
                 >
-                  {/* Actions are disabled rather than hidden when unavailable,
-                      so the sheet has a consistent shape across applications —
-                      a hidden button just leaves the user wondering. */}
                   <Button
                     type="button"
                     variant="outline"
@@ -333,17 +337,27 @@ function ApplicationDetailsSheet({
                     <FileText className="h-4 w-4" />
                     Open application draft
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={goToConversation}
-                    disabled={!link.conversationId}
-                    aria-describedby={link.conversationId ? undefined : reasonId}
-                    className="justify-start rounded-lg hover:bg-muted"
-                  >
-                    <MessagesSquare className="h-4 w-4" />
-                    Open source conversation
-                  </Button>
+                  {link.conversationId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={goToConversation}
+                      className="justify-start rounded-lg hover:bg-muted"
+                    >
+                      <MessagesSquare className="h-4 w-4" />
+                      Open source conversation
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={goToChat}
+                      className="justify-start rounded-lg hover:bg-muted"
+                    >
+                      <MessagesSquare className="h-4 w-4" />
+                      Open in chat
+                    </Button>
+                  )}
                   {link.reason && (
                     <p id={reasonId} className="text-[11px] text-muted-foreground">
                       {link.reason}
@@ -590,11 +604,6 @@ export function PipelineDashboard({
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Every application across all of your conversations, grouped by stage.
         </p>
-        {/* Same spot and style as before; the wording now reflects that
-            status changes are real but go no further than this browser. */}
-        <p className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning">
-          Demo data — status changes are saved locally in your browser.
-        </p>
         {!persistenceOk && (
           <p
             role="status"
@@ -680,6 +689,7 @@ export function PipelineDashboard({
             : { conversationId: null, hasLiveDraft: false, reason: null }
         }
         onOpenConversation={onOpenConversation}
+        onGoToChat={onGoToChat}
       />
     </section>
   );
