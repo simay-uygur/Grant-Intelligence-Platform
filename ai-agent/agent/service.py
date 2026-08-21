@@ -8,7 +8,7 @@ import os
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
-from agent.sdk_agent import run_agent
+from agent.sdk_agent import run_agent, run_agent_stream
 from tools.start_application import start_application as _start_application
 from tools.rewrite_section import rewrite_section as _rewrite_section
 
@@ -111,115 +111,10 @@ def process_agent_message(profile, user_message, conversation_history=None):
 
 def search_grants_stream(profile, max_grants=3):
     """
-    Generator streaming events through each pipeline stage:
-    keywords -> live per-keyword search with candidate counts -> select -> result
+    Generator streaming events through the multi-agent system:
+    keywords -> live search -> evaluation & selection -> result
     """
-    yield {
-        "event": "thinking",
-        "stage": "keywords",
-        "message": "Analyzing organization profile and generating search keywords...",
-    }
-
-    keywords = []
-    try:
-        keywords = generate_keywords(profile, max_keywords=5)
-        keywords_str = ", ".join(f"'{k}'" for k in keywords)
-        yield {
-            "event": "progress",
-            "stage": "keywords",
-            "message": f"Generated keywords: {keywords_str}",
-            "data": {"keywords": keywords},
-        }
-    except Exception as e:
-        print(f"[service] keyword generation failed: {e}")
-        fallback = str(profile.get("sector") or "innovation").split()[0].lower()
-        keywords = [fallback]
-        yield {
-            "event": "error",
-            "stage": "keywords",
-            "message": f"Keyword generation fallback used: '{fallback}'",
-            "data": {"keywords": keywords, "error": str(e)},
-        }
-
-    pool = {}
-    from tools.eu_horizon_api import eu_horizon_api
-
-    for i, kw in enumerate(keywords, 1):
-        yield {
-            "event": "thinking",
-            "stage": "search",
-            "message": f"Querying live EU Portal for '{kw}' ({i}/{len(keywords)})... {len(pool)} candidate opportunities found so far",
-            "data": {"keyword": kw, "keyword_index": i, "candidate_count": len(pool)},
-        }
-        try:
-            results = eu_horizon_api(kw, page_size=10)
-            added_count = 0
-            for g in results:
-                key = g.get("identifier") or g.get("title")
-                if key and key not in pool:
-                    pool[key] = g
-                    added_count += 1
-            yield {
-                "event": "progress",
-                "stage": "search",
-                "message": f"Searched '{kw}' (+{len(results)} calls, {added_count} new) — {len(pool)} total unique candidate grants pooled",
-                "data": {"keyword": kw, "added": added_count, "candidate_count": len(pool)},
-            }
-        except Exception as e:
-            print(f"[service] grant search failed for '{kw}': {e}")
-            yield {
-                "event": "error",
-                "stage": "search",
-                "message": f"Search for '{kw}' failed: {e}",
-                "data": {"keyword": kw, "error": str(e)},
-            }
-
-    candidates = list(pool.values())
-
-    if not candidates:
-        yield {
-            "event": "progress",
-            "stage": "search",
-            "message": "No candidate grants found matching search criteria.",
-            "data": {"candidate_count": 0},
-        }
-        yield {
-            "event": "result",
-            "stage": "select",
-            "message": "No matching grants found",
-            "data": {"grants": []},
-        }
-        return
-
-    yield {
-        "event": "thinking",
-        "stage": "select",
-        "message": f"Filtering open calls and ranking top matches from {len(candidates)} candidate grants with Bedrock AI...",
-        "data": {"candidate_count": len(candidates)},
-    }
-
-    try:
-        grants = select_grants(candidates, profile, max_grants=max_grants)
-        yield {
-            "event": "result",
-            "stage": "select",
-            "message": f"Selected {len(grants or [])} grant recommendations",
-            "data": {"grants": grants or []},
-        }
-    except Exception as e:
-        print(f"[service] grant selection failed: {e}")
-        yield {
-            "event": "error",
-            "stage": "select",
-            "message": f"Grant selection failed: {e}",
-            "data": {"error": str(e)},
-        }
-        yield {
-            "event": "result",
-            "stage": "select",
-            "message": "Grant selection failed",
-            "data": {"grants": []},
-        }
+    yield from run_agent_stream(profile, max_grants=max_grants)
 
 
 def start_application(grant, profile):

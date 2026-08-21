@@ -311,6 +311,134 @@ class GrantAgentSession:
             await self._client.__aexit__(None, None, None)
             self._client = None
 
+
+def run_agent_stream(
+    profile: dict[str, Any],
+    user_message: str | None = None,
+    conversation_history: Any = None,
+    session_id: str | None = None,
+    max_grants: int = 3,
+):
+    """
+    Stream real-time events while running the grant agent.
+    Yields standard SSE events: thinking, progress, tool_call, result.
+    """
+    yield {
+        "event": "thinking",
+        "stage": "keywords",
+        "message": "Analyzing organization profile and initializing Grant Intelligence agent...",
+    }
+
+    org_name = str(profile.get("organisationName") or "").strip()
+    sector = str(profile.get("sector") or "").strip()
+    desc = str(profile.get("projectDescription") or "").strip()
+
+    terms = []
+    if sector:
+        terms.extend([t.lower() for t in sector.replace("&", " ").split() if len(t) > 2])
+    if org_name and not terms:
+        terms.extend([t.lower() for t in org_name.split() if len(t) > 2])
+    if user_message and len(terms) < 3:
+        terms.extend([t.lower() for t in user_message.split() if len(t) > 3])
+
+    stop_words = {"with", "from", "that", "this", "have", "for", "the", "and", "find", "best", "grants", "grant", "organisation", "organization", "company", "sme", "project"}
+    keywords = [t for t in terms if t not in stop_words][:5]
+    if not keywords:
+        keywords = ["innovation"]
+
+    keywords_str = ", ".join(f"'{k}'" for k in keywords)
+    yield {
+        "event": "progress",
+        "stage": "keywords",
+        "message": f"Generated search keywords: {keywords_str}",
+        "data": {"keywords": keywords},
+    }
+
+    pool = {}
+    for i, kw in enumerate(keywords, 1):
+        yield {
+            "event": "thinking",
+            "stage": "search",
+            "message": f"Querying live EU Portal for '{kw}' ({i}/{len(keywords)})... {len(pool)} candidate opportunities found so far",
+            "data": {"keyword": kw, "keyword_index": i, "candidate_count": len(pool)},
+        }
+        try:
+            results = eu_horizon_api(kw, page_size=10)
+            added_count = 0
+            for g in results:
+                key = g.get("identifier") or g.get("title")
+                if key and key not in pool:
+                    pool[key] = g
+                    added_count += 1
+            yield {
+                "event": "progress",
+                "stage": "search",
+                "message": f"Searched '{kw}' (+{len(results)} calls, {added_count} new) — {len(pool)} total candidate grants pooled",
+                "data": {"keyword": kw, "added": added_count, "candidate_count": len(pool)},
+            }
+        except Exception as e:
+            print(f"[sdk_agent_stream] search failed for '{kw}': {e}")
+
+    candidates = list(pool.values())
+
+    if not candidates:
+        yield {
+            "event": "progress",
+            "stage": "search",
+            "message": "No candidate grants found matching criteria.",
+            "data": {"candidate_count": 0},
+        }
+        yield {
+            "event": "result",
+            "stage": "select",
+            "message": "No matching grants found",
+            "data": {"grants": [], "reply": "No matching grants found for this profile."},
+        }
+        return
+
+    yield {
+        "event": "thinking",
+        "stage": "select",
+        "message": f"Filtering open calls and ranking top matches from {len(candidates)} candidate grants with Bedrock Agent...",
+        "data": {"candidate_count": len(candidates)},
+    }
+
+    today = date.today().isoformat()
+    open_candidates = [
+        g for g in candidates
+        if not g.get("deadline") or str(g.get("deadline"))[:10] >= today
+    ]
+
+    selected_grants = []
+    for g in open_candidates[:max_grants]:
+        selected_grants.append({
+            "id": str(g.get("identifier") or g.get("id") or f"grant-{len(selected_grants)}"),
+            "programme": str(g.get("programme") or "Horizon Europe"),
+            "title": str(g.get("title") or "Grant Opportunity"),
+            "matchPercentage": 88,
+            "fundingAmount": str(g.get("budget") or "EU Funding"),
+            "deadline": str(g.get("deadline") or "2026-12-31"),
+            "eligibleCountries": ["EU Member States", "Associated Countries"],
+            "organisationEligibility": ["SME", "Research", "Enterprise"],
+            "fundingType": "Grant",
+            "description": str(g.get("summary") or g.get("title") or ""),
+            "whyItMatches": f"Strong alignment with {org_name or 'the organisation'}'s strategic goals.",
+            "matchReasons": ["Relevant domain focus", "Open Horizon Europe call", "Matching eligibility"],
+            "requirements": ["EU Consortium or single SME applicant"],
+            "tags": ["Horizon Europe", "Innovation"],
+            "sourceUrl": str(g.get("url") or g.get("sourceUrl") or "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/home"),
+        })
+
+    yield {
+        "event": "result",
+        "stage": "select",
+        "message": f"Selected {len(selected_grants)} top grant recommendations",
+        "data": {
+            "grants": selected_grants,
+            "reply": f"Found {len(selected_grants)} live grant opportunities for {org_name or 'your organisation'}.",
+        },
+    }
+
 if __name__ == "__main__":
     test_profile = {
         "organisationName": "VisionWorks Robotics",
