@@ -11,20 +11,29 @@ from typing import Any
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
-from claude_agent_sdk import (
-    tool,
-    create_sdk_mcp_server,
-    query,
-    ClaudeAgentOptions,
-)
+try:
+    from claude_agent_sdk import (
+        tool,
+        create_sdk_mcp_server,
+        query,
+        ClaudeAgentOptions,
+        ClaudeSDKClient,
+    )
+    HAS_CLAUDE_AGENT_SDK = True
+except ImportError:
+    HAS_CLAUDE_AGENT_SDK = False
 
-from claude_agent_sdk import (
-    tool,
-    create_sdk_mcp_server,
-    query,
-    ClaudeAgentOptions,
-    ClaudeSDKClient,
-)
+    def tool(name: str, description: str, schema: Any = None):
+        def decorator(fn: Any):
+            return fn
+        return decorator
+
+    def create_sdk_mcp_server(*args: Any, **kwargs: Any) -> Any:
+        return None
+
+    query = None
+    ClaudeAgentOptions = None
+    ClaudeSDKClient = None
 
 from tools.eu_horizon_api import eu_horizon_api
 from tools.start_application import start_application as _start_application
@@ -201,6 +210,13 @@ async def run_agent(profile, user_message=None, conversation_history=None,
     The backend stores the session_id (per user) and passes it back next turn.
     """
     _RESULT_HOLDER["final_grants"] = None
+
+    if not HAS_CLAUDE_AGENT_SDK:
+        return {
+            "final_grants": [],
+            "reply": "Claude Agent SDK is not installed in the python environment.",
+            "session_id": session_id,
+        }
 
     # On the first turn, include the profile. On resumed turns, just the message.
     if session_id:
