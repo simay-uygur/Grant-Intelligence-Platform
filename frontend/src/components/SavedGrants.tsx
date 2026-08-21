@@ -130,9 +130,6 @@ export function SavedGrants({ onGoToChat }: { onGoToChat: () => void }) {
           Grants you&apos;ve bookmarked while researching, newest first. Saved here as their own
           record, so they stay even if you delete the conversation that found them.
         </p>
-        <p className="mt-2">
-          <DemoBadge marker="demo-data" />
-        </p>
       </header>
 
       {!hydrated ? (
