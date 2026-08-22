@@ -157,6 +157,13 @@ export class LocalApplicationService implements ApplicationService {
     writeLocalApplications(upsertLocalApplication(applications, application));
   }
 
+  async deleteApplication(applicationId: string): Promise<void> {
+    await wait(50);
+    const applications = readLocalApplications() ?? MOCK_APPLICATIONS;
+    const filtered = applications.filter((app) => app.id !== applicationId);
+    writeLocalApplications(filtered);
+  }
+
   async saveSection(_applicationId: string, _sectionId: string, _content: string): Promise<void> {
     await wait(50);
   }

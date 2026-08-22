@@ -35,6 +35,11 @@ def _published_service() -> ModuleType:
     if agent_root not in sys.path:
         sys.path.insert(0, agent_root)
 
+    import agent
+    ai_agent_sub = str(_AGENT_ROOT / "agent")
+    if ai_agent_sub not in agent.__path__:
+        agent.__path__.append(ai_agent_sub)
+
     spec = spec_from_file_location(_MODULE_NAME, _SERVICE_PATH)
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not load the agent service at {_SERVICE_PATH}.")

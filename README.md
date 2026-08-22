@@ -23,7 +23,7 @@ An intelligent grant discovery, matchmaking, and application-drafting platform d
 ### Backend
 * **API Framework:** FastAPI, Python 3.11+
 * **Validation & Settings:** Pydantic v2, pydantic-settings
-* **Database & Storage:** SQLite (conversation history, user authentication, application drafts)
+* **Database & Storage:** SQLite (local dev), PostgreSQL / AWS Managed DB support
 * **Streaming Protocol:** Server-Sent Events (SSE) with `text/event-stream` for real-time AI thinking events
 * **HTTP & Web Server:** Uvicorn, HTTPX
 
@@ -50,10 +50,15 @@ An intelligent grant discovery, matchmaking, and application-drafting platform d
 ├── backend/              # FastAPI backend services, routes, schemas, and SQLite models
 ├── ai-agent/             # Bedrock-backed autonomous agent, MCP servers, and tool implementations
 ├── agent/                # Stable backend facade for agent integration
+├── scripts/              # Development helpers and environment mode configuration scripts
+│   ├── set_env_mode.sh   # Switch between 4 Frontend/Backend environment permutations
+│   └── run_dev.sh        # Single-command runner for local backend & frontend
 ├── tests/                # Backend API, database, and SSE integration test suites
-├── docs/                 # Architecture diagrams, deployment guides, and API specifications
+├── docs/                 # Architecture diagrams, deployment guides, API specifications, and Final Report
+│   └── FINAL_PROJECT_REPORT.md # Week 10 Comprehensive Final Report
 ├── storage/              # Local SQLite database and persistent backend logs
 ├── DEPLOYMENT_NOTES.md   # Deployment configuration and environment specifications
+├── commands.md           # Development, testing, and environment mode commands
 └── docker-compose.yml    # Local multi-container development configuration
 ```
 
@@ -69,38 +74,53 @@ An intelligent grant discovery, matchmaking, and application-drafting platform d
 
 ---
 
-## Quick Start
+## Quick Start & Environment Configuration
 
-### 1. Install Frontend Dependencies
+### 1. Install Dependencies
 
 ```bash
+# Frontend
 cd frontend
 bun install
-```
+cd ..
 
-### 2. Install Backend Dependencies
-
-```bash
+# Backend
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
 
+### 2. Configure Environment Mode (Local vs. Deployed)
+
+Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`) and Backend (`SESSION_STORAGE_TYPE`):
+
+```bash
+# Option A: Both Local (Frontend Mock + Backend SQLite)
+./scripts/set_env_mode.sh --both-local
+
+# Option B: Frontend Connected to Local Backend API (Recommended for local dev)
+./scripts/set_env_mode.sh --fe-deployed-db-local
+
+# Option C: Both Deployed / Hosted (Frontend API + AWS RDS Database)
+./scripts/set_env_mode.sh --both-deployed
+```
+
 ---
 
 ## Running Locally
 
-### Frontend
+### Method 1: Single Command (Recommended)
+
+Run both backend and frontend dev servers together:
 
 ```bash
-cd frontend
-bun run dev
+./scripts/run_dev.sh
 ```
 
-The frontend development server starts on `http://localhost:8080`.
+### Method 2: Two-Terminal Workflow
 
-### Backend
+**Terminal 1 — Backend:**
 
 ```bash
 source .venv/bin/activate
@@ -110,17 +130,26 @@ export AWS_PROFILE=grant-platform
 export AWS_REGION=us-east-1
 export CLAUDE_CODE_USE_BEDROCK=1
 
-# Start the FastAPI server
+# Start FastAPI server on port 8000
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The backend API server starts on `http://localhost:8000`.
+The backend server starts on `http://localhost:8000`.
+
+**Terminal 2 — Frontend:**
+
+```bash
+cd frontend
+bun run dev
+```
+
+The frontend development server starts on `http://localhost:8080`.
 
 ---
 
 ## Testing & Quality Assurance
 
-### Run Frontend Lint and Tests
+### Run Frontend Lint and Unit Tests
 
 ```bash
 cd frontend
@@ -135,6 +164,13 @@ source .venv/bin/activate
 pytest tests -q
 ```
 
+### Run End-to-End Browser Tests
+
+```bash
+cd frontend
+bun run test:e2e
+```
+
 ---
 
 ## API Documentation
@@ -143,8 +179,6 @@ When the backend server is running locally, interactive API specifications and S
 
 * **Swagger UI:** [`http://localhost:8000/docs`](http://localhost:8000/docs)
 * **ReDoc:** [`http://localhost:8000/redoc`](http://localhost:8000/redoc)
-
-For a complete list of endpoints and request/response models, see [docs/backend.md](docs/backend.md).
 
 ---
 
@@ -158,4 +192,4 @@ Public URL -> nginx:80 (Reverse Proxy & SSL)
                     └── /api/*       -> backend:8000 (FastAPI + Amazon Bedrock)
 ```
 
-See [docs/lightsail-deployment-guide.md](docs/lightsail-deployment-guide.md) and [DEPLOYMENT_NOTES.md](DEPLOYMENT_NOTES.md) for full deployment instructions and secrets configuration.
+See [docs/FINAL_PROJECT_REPORT.md](docs/FINAL_PROJECT_REPORT.md) and [DEPLOYMENT_NOTES.md](DEPLOYMENT_NOTES.md) for full deployment architecture, environment configurations, and database options.

@@ -3,10 +3,7 @@
 # Matches the frontend's rewriteSection(sectionTitle, currentContent, profile, grant) -> string
 
 import json
-import boto3
-
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+from tools.config import get_bedrock_client, get_model_id
 
 
 def rewrite_section(section_title, current_content, profile, grant=None, instruction=None):
@@ -42,8 +39,9 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
         "Respond ONLY with the rewritten section text. No preamble, no headings, no quotes."
     )
 
+    client = get_bedrock_client()
     response = client.converse(
-        modelId=MODEL_ID,
+        modelId=get_model_id(),
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         inferenceConfig={"maxTokens": 1000},
     )

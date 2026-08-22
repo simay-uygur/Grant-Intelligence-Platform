@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileDown,
+  KanbanSquare,
   Loader2,
   Pencil,
   Sparkles,
@@ -17,6 +18,7 @@ import type {
   Grant,
   OrganisationProfile,
 } from "@/types";
+import type { ApplicationStatus } from "@/data/mockApplications";
 import { exportAsPdf, exportAsWord } from "@/utils/export";
 import { applicationService, isMockMode } from "@/services";
 import { useDrafts } from "@/hooks/useDrafts";
@@ -39,8 +41,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { DemoBadge } from "@/components/common/DemoBadge";
+import {
+  STATUS_BADGE,
+  STATUS_LABEL,
+  STATUS_ORDER,
+  isStatus,
+} from "@/components/pipeline/statusPresentation";
 import { wordCount } from "@/utils/text";
 
 interface Props {
@@ -48,6 +57,10 @@ interface Props {
   profile?: OrganisationProfile;
   grant?: Grant;
   onSectionChange: (sectionId: string, content: string) => void;
+  /** This draft's pipeline status; undefined when no application row matches. */
+  applicationStatus?: ApplicationStatus;
+  onApplicationStatusChange?: (status: ApplicationStatus) => void;
+  onViewInPipeline?: (applicationId?: string) => void;
 }
 
 // A rewrite is only treated as "replacing manual edits" once the in-progress
@@ -66,7 +79,15 @@ interface LastRewrite {
   wasEditing: boolean;
 }
 
-export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }: Props) {
+export function ApplicationDocumentView({
+  doc,
+  profile,
+  grant,
+  onSectionChange,
+  applicationStatus,
+  onApplicationStatusChange,
+  onViewInPipeline,
+}: Props) {
   const sectionSelectId = useId();
   const sections = doc?.sections ?? [];
   const [activeId, setActiveId] = useState(sections[0]?.id ?? "");
@@ -427,6 +448,62 @@ export function ApplicationDocumentView({ doc, profile, grant, onSectionChange }
               Last saved {formatDistanceToNow(new Date(doc.updatedAt), { addSuffix: true })}
             </span>
           </div>
+
+          {/* Hidden entirely when no application row matches this document —
+              older drafts, or a pipeline the user has cleared — rather than
+              showing a control with nothing behind it. */}
+          {Boolean(onViewInPipeline || applicationStatus) && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+              <span className="text-[11px] font-medium text-muted-foreground">Pipeline status</span>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "shrink-0 whitespace-nowrap font-medium transition-colors duration-200",
+                  STATUS_BADGE[applicationStatus ?? "drafting"],
+                )}
+              >
+                <span className="sr-only">Status: </span>
+                {STATUS_LABEL[applicationStatus ?? "drafting"]}
+              </Badge>
+
+              {onApplicationStatusChange && (
+                <Select
+                  value={applicationStatus ?? "drafting"}
+                  onValueChange={(value) => {
+                    // Radix hands back a plain string; only act on one of ours.
+                    if (isStatus(value)) onApplicationStatusChange(value);
+                  }}
+                >
+                  <SelectTrigger
+                    aria-label="Change pipeline status for this application"
+                    className="h-8 w-auto min-w-36 px-2 text-xs transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_ORDER.map((status) => (
+                      <SelectItem key={status} value={status} className="text-xs">
+                        {STATUS_LABEL[status]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {onViewInPipeline && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onViewInPipeline(doc.id)}
+                  className="h-8 rounded-lg text-xs hover:bg-muted"
+                >
+                  <KanbanSquare className="h-3.5 w-3.5" />
+                  View in pipeline
+                </Button>
+              )}
+            </div>
+          )}
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4 p-0 md:flex-row md:gap-6">
