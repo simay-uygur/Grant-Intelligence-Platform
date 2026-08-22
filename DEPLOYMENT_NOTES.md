@@ -74,6 +74,34 @@ This is acceptable for an MVP or disposable staging environment. Before
 production data matters, move the database to persistent managed PostgreSQL or
 another persistent storage solution.
 
+## Managed Relational Database in AWS (RDS vs. Lightsail DB)
+
+To ensure user accounts, conversation history, and application drafts survive container redeployments, replace container-local SQLite with a managed relational database in AWS.
+
+### 1. AWS Relational Database Options Comparison
+
+| Option | Ideal Use Case | Pros | Cons | Estimated Cost |
+| :--- | :--- | :--- | :--- | :--- |
+| **AWS Lightsail Managed Database (PostgreSQL)** *(Recommended Start)* | Staging & Production on Lightsail | • Native integration with Lightsail Containers<br>• Simple setup & zero VPC peering needed<br>• Automated daily backups & SSL included | • Fixed compute tier scaling | ~\$15 / month |
+| **AWS RDS PostgreSQL (`db.t4g.micro`)** | Scalable Production | • Industry standard<br>• Multi-AZ replication & Point-in-time recovery<br>• Storage auto-scaling | • Requires public endpoint / VPC security group configuration for Lightsail access | ~\$15 - \$25 / month |
+| **AWS Aurora Serverless v2 (PostgreSQL)** | Enterprise / High Variable Traffic | • Auto-scales ACUs (capacity) instantly<br>• Sub-millisecond failover & cluster cloning | • Higher baseline cost when active | Pay per ACU-hour |
+
+### 2. Relational Schema Mapping (PostgreSQL Compatible)
+
+- **`users`**: `id` (UUID/VARCHAR PK), `email` (VARCHAR UNIQUE), `password_hash` (TEXT), `created_at` (TIMESTAMP WITH TIME ZONE)
+- **`conversations`**: `id` (UUID PK), `user_id` (VARCHAR FK -> `users.id`), `title` (TEXT), `created_at`, `updated_at`
+- **`messages`**: `id` (UUID PK), `conversation_id` (UUID FK -> `conversations.id`), `role` (VARCHAR), `content` (TEXT), `metadata` (JSONB), `created_at`
+- **`applications`**: `id` (UUID PK), `user_id` (VARCHAR FK -> `users.id`), `grant_id` (VARCHAR), `grant_title` (TEXT), `status` (VARCHAR), `sections` (JSONB), `created_at`, `updated_at`
+
+### 3. Deploying Connection Settings
+
+In GitHub Actions Environment Secrets (`LIGHTSAIL_BACKEND_ENV` for `production` / `staging`), set:
+
+```dotenv
+SESSION_STORAGE_TYPE=hosted
+DATABASE_URL=postgresql://dbuser:dbpassword@rds-instance-endpoint.us-east-1.rds.amazonaws.com:5432/grant_db
+```
+
 Anonymous records created before authentication have no owner and will not
 appear in a newly authenticated user's account.
 
@@ -168,6 +196,8 @@ APP_NAME=Grant Intelligence Backend
 APP_VERSION=0.1.0
 DEBUG=false
 USE_MOCK_BEDROCK=false
+SESSION_STORAGE_TYPE=hosted
+DATABASE_URL=postgresql://user:password@rds-instance-endpoint.us-east-1.rds.amazonaws.com:5432/grant_db
 AWS_REGION=us-east-1
 CLAUDE_CODE_USE_BEDROCK=1
 AWS_ACCESS_KEY_ID=<bedrock-runtime-access-key>
@@ -175,6 +205,8 @@ AWS_SECRET_ACCESS_KEY=<bedrock-runtime-secret-key>
 AUTH_SECRET_KEY=replace-with-a-long-random-secret
 AUTH_TOKEN_TTL_HOURS=168
 ```
+
+Note: Setting `SESSION_STORAGE_TYPE=hosted` in `LIGHTSAIL_BACKEND_ENV` causes Pydantic in `backend/core/config.py` to automatically override the local default (`session_storage_type = "local"`) so the backend runs in hosted mode on AWS.
 
 The `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` inside
 `LIGHTSAIL_BACKEND_ENV` are for the running backend container to call Bedrock.
@@ -213,7 +245,7 @@ to the matching Lightsail service, and activates a new deployment. It can also
 be started manually from GitHub Actions with **Run workflow**.
 
 The workflow installs the Linux Lightsail Control plugin automatically before
-uploading images. No plugin installation is needed on your Mac for GitHub-hosted
+uploading images. No plugin installation is needed on local macOS environments for GitHub-hosted
 deployments.
 
 ## Finding the deployed URLs and logs

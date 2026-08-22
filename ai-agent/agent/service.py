@@ -4,6 +4,7 @@
 
 import asyncio
 import os
+import traceback
 
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
@@ -50,6 +51,7 @@ def search_grants(profile, user_request=None, conversation_history=None, max_gra
         ))
     except Exception as e:
         print(f"[service] agent run failed: {e}")
+        traceback.print_exc()
         return []
 
     return result.get("final_grants") or []
@@ -179,6 +181,27 @@ def start_application_stream(grant, profile):
             content = draft_single_section(grant, profile, section_title)
             section_obj = {"id": section_id, "title": section_title, "content": content}
             sections.append(section_obj)
+
+            percent = int((i / total) * 100)
+            current_doc = {
+                "id": doc_id,
+                "grantId": grant.get("id", ""),
+                "grantTitle": grant.get("title", ""),
+                "sections": list(sections),
+                "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            yield {
+                "event": "progress",
+                "stage": "draft",
+                "message": f"Drafted Section {i}/{total}: {section_title} ({percent}% complete)...",
+                "data": {
+                    "section_index": i,
+                    "total_sections": total,
+                    "progress_percent": percent,
+                    "section": section_obj,
+                    "document": current_doc,
+                },
+            }
 
         doc = {
             "id": doc_id,

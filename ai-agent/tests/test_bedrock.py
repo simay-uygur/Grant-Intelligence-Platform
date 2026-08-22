@@ -3,18 +3,11 @@
 # NOTE: this costs a tiny amount (fractions of a cent).
 
 import json
-import boto3
+from tools.config import get_bedrock_client, get_model_id
 
-# The Bedrock runtime client — this is what sends model requests.
-# region_name must match where you have access (us-east-1).
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
-
-# Sonnet 4.6 requires the "us." inference-profile prefix (not the bare model ID).
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
-
-# Send one message using the Bedrock request format for Anthropic models.
+client = get_bedrock_client()
 response = client.invoke_model(
-    modelId=MODEL_ID,
+    modelId=get_model_id(),
     body=json.dumps({
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 100,

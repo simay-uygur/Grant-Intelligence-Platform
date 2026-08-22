@@ -31,6 +31,66 @@ VITE_API_URL=http://127.0.0.1:8000
 
 Use `VITE_API_MODE=mock` when the frontend should run without backend requests.
 
+## Environment Mode Permutations (Frontend & Backend DB Flags)
+
+Use `scripts/set_env_mode.sh` to switch between Frontend (`VITE_API_MODE`) and Backend Storage (`SESSION_STORAGE_TYPE`):
+
+### Permutation 1: Both Local (Frontend Mock + Backend SQLite)
+
+```bash
+./scripts/set_env_mode.sh --both-local
+```
+
+### Permutation 2: Both Deployed / Hosted (Frontend API + Backend RDS DB)
+
+```bash
+./scripts/set_env_mode.sh --both-deployed
+```
+
+### Permutation 3: Frontend Mock + Backend Deployed DB
+
+```bash
+./scripts/set_env_mode.sh --fe-local-db-deployed
+```
+
+### Permutation 4: Frontend API + Backend Local SQLite
+
+```bash
+./scripts/set_env_mode.sh --fe-deployed-db-local
+```
+
+### Individual Toggles
+
+Frontend Mock:
+
+```bash
+./scripts/set_env_mode.sh --fe-local
+```
+
+Frontend API:
+
+```bash
+./scripts/set_env_mode.sh --fe-deployed
+```
+
+Backend Local SQLite DB:
+
+```bash
+./scripts/set_env_mode.sh --db-local
+```
+
+Backend Hosted RDS DB:
+
+```bash
+./scripts/set_env_mode.sh --db-hosted
+```
+
+### Check Current Active Configuration
+
+```bash
+./scripts/set_env_mode.sh
+```
+
 ## Run the application
 
 Terminal 1 — backend:

@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
+from pydantic import Field, field_validator
 import json
 
 
@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     debug: bool = True
     sqlite_db_path: str = "storage/backend.db"
+
+    # Default fallback is "local" (SQLite / browser storage).
+    # When deployed to AWS Lightsail, the Lightsail container secret / environment variable
+    # SESSION_STORAGE_TYPE=hosted automatically overrides this value to "hosted" (RDS / Cloud DB).
+    session_storage_type: str = "local"  # "local" (SQLite/browser) or "hosted" (RDS/Cloud DB)
+    database_url: str | None = None  # Hosted DB connection string (e.g., postgresql://user:pass@host:5432/dbname)
     chat_history_window: int = 10
     frontend_cors_origins: list[str] = [
         "http://localhost:3000",
@@ -18,7 +24,12 @@ class Settings(BaseSettings):
         "http://localhost:8080",
         "http://127.0.0.1:8080",
     ]
-    use_mock_bedrock: bool = True
+    use_mock_bedrock: bool = Field(default=False, validation_alias="USE_MOCK_BEDROCK")
+    aws_region: str = Field(default="us-east-1", validation_alias="AWS_REGION")
+    bedrock_model_id: str = Field(
+        default="us.anthropic.claude-sonnet-4-6",
+        validation_alias="BEDROCK_MODEL_ID",
+    )
     auth_required: bool = False
     auth_secret_key: str = "development-only-secret-change-before-hosting-9f4c2e7a"
     auth_token_ttl_hours: int = 168
