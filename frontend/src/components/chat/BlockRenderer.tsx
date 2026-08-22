@@ -1,3 +1,4 @@
+import type { ApplicationStatus } from "@/data/mockApplications";
 import type { ApplicationDocument, ChatBlock, Grant, OrganisationProfile } from "@/types";
 import { OrganisationForm } from "@/components/widgets/OrganisationForm";
 import { ResearchStatus } from "@/components/widgets/ResearchStatus";
@@ -5,6 +6,8 @@ import { GrantResults } from "@/components/grants/GrantResults";
 import { ApplicationDocumentView } from "@/components/documents/ApplicationDocument";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { AlertCircle, CheckCircle2, Compass } from "lucide-react";
+
+import { DraftProgressCard } from "@/components/widgets/DraftProgressCard";
 
 export interface BlockCallbacks {
   onSubmitProfile: (profile: OrganisationProfile) => void;
@@ -15,8 +18,13 @@ export interface BlockCallbacks {
   getDocument: (id: string) => ApplicationDocument | undefined;
   getProfile: () => OrganisationProfile | undefined;
   getGrantById: (id: string) => Grant | undefined;
+  getApplicationStatus?: (documentId: string) => ApplicationStatus | undefined;
+  onUpdateApplicationStatus?: (documentId: string, status: ApplicationStatus) => void;
+  onViewInPipeline?: () => void;
   formDisabled?: boolean;
   hasGrantResults?: boolean;
+  startingGrantId?: string | null;
+  existingGrantIds?: Set<string>;
 }
 
 export function BlockRenderer({
@@ -65,7 +73,7 @@ export function BlockRenderer({
     case "structured_form":
       return (
         <OrganisationForm
-          initial={block.profile}
+          initial={callbacks.getProfile() ?? block.profile}
           disabled={callbacks.formDisabled}
           onSubmit={callbacks.onSubmitProfile}
         />
@@ -78,6 +86,8 @@ export function BlockRenderer({
           hasResults={callbacks.hasGrantResults}
         />
       );
+    case "draft_progress":
+      return <DraftProgressCard state={block.state} />;
     case "grant_results":
       return (
         <GrantResults
@@ -89,6 +99,8 @@ export function BlockRenderer({
           // offer a way forward. No new callback, no new block type.
           onRetryResearch={callbacks.onRetryResearch}
           startDisabled={callbacks.formDisabled}
+          startingGrantId={callbacks.startingGrantId}
+          existingGrantIds={callbacks.existingGrantIds}
         />
       );
     case "document": {
@@ -109,6 +121,11 @@ export function BlockRenderer({
           profile={callbacks.getProfile()}
           grant={grant}
           onSectionChange={callbacks.onSectionChange}
+          applicationStatus={callbacks.getApplicationStatus?.(doc.id)}
+          onApplicationStatusChange={(status) =>
+            callbacks.onUpdateApplicationStatus?.(doc.id, status)
+          }
+          onViewInPipeline={callbacks.onViewInPipeline}
         />
       );
     }

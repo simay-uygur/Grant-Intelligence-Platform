@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
+import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import {
@@ -12,7 +13,7 @@ import {
   grantService,
   isMockMode,
 } from "@/services";
-import { clearAuthToken, logout } from "@/services/apiClient";
+import { clearAuthToken, logout, type SseEvent } from "@/services/apiClient";
 import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -28,6 +29,7 @@ import { AccountModal } from "@/components/AccountModal";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
+import { SavedGrants } from "@/components/SavedGrants";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -53,8 +55,9 @@ const MOCK_RESEARCH_STEPS = [
 ];
 
 const LIVE_RESEARCH_STEPS = [
-  "Preparing search criteria",
-  "Searching live EU Horizon opportunities",
+  "Generating search keywords",
+  "Searching EU Horizon API opportunities",
+  "Filtering & ranking best matches",
 ];
 const AUTH_TOKEN_KEY = "gi.auth.token";
 
@@ -174,6 +177,7 @@ export function App() {
   const { synchronizeBackendMessages } = c;
   const apps = useApplications();
   const addApplication = apps.addApplication;
+  const shortlist = useShortlist();
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -184,6 +188,7 @@ export function App() {
   const [mainView, setMainView] = useState<MainView>("chat");
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
+  const [startingGrantId, setStartingGrantId] = useState<string | null>(null);
   const [backendConnection, setBackendConnection] = useState<BackendConnection>(
     isMockMode ? { status: "local" } : { status: "checking" },
   );
@@ -322,30 +327,40 @@ export function App() {
       const state: ResearchState = {
         steps: researchSteps.map((label, i) => ({
           label,
-          status: isMockMode ? (i === 0 ? "active" : "pending") : i === 0 ? "done" : "active",
+          status: i === 0 ? ("active" as const) : ("pending" as const),
         })),
       };
       const messageId = askAssistant([{ type: "research_status", state }]);
 
       try {
-        if (isMockMode) {
-          for (let i = 0; i < researchSteps.length; i++) {
-            await new Promise((resolve) => setTimeout(resolve, 450));
-            setBlocks(messageId, (blocks) =>
-              blocks.map((block) => {
-                if (block.type !== "research_status") return block;
-                const steps = block.state.steps.map((step, idx) => {
-                  if (idx < i + 1) return { ...step, status: "done" as const };
-                  if (idx === i + 1) return { ...step, status: "active" as const };
-                  return { ...step, status: "pending" as const };
-                });
-                return { type: "research_status", state: { steps } };
-              }),
-            );
-          }
-        }
+        const handleProgress = (event: SseEvent) => {
+          if (!event.stage) return;
+          const stageIndexMap: Record<string, number> = {
+            keywords: 0,
+            search: 1,
+            select: 2,
+          };
+          const activeIndex = stageIndexMap[event.stage] ?? 0;
+          setBlocks(messageId, (blocks) =>
+            blocks.map((block) => {
+              if (block.type !== "research_status") return block;
+              const steps = block.state.steps.map((step, idx) => {
+                if (idx < activeIndex) return { ...step, status: "done" as const };
+                if (idx === activeIndex) {
+                  return {
+                    ...step,
+                    status: "active" as const,
+                    detail: event.message || step.detail,
+                  };
+                }
+                return { ...step, status: "pending" as const };
+              });
+              return { type: "research_status", state: { steps } };
+            }),
+          );
+        };
 
-        const result = await grantService.searchGrants(profile);
+        const result = await grantService.searchGrants(profile, handleProgress);
         const grants = result.grants;
         setBlocks(messageId, (blocks) =>
           blocks.map((block) =>
@@ -449,6 +464,7 @@ export function App() {
     async (grant: Grant) => {
       if (!c.activeConversation?.profile) return;
       setAskingAboutGrant(null);
+      setStartingGrantId(grant.id);
       setBusy(true);
       const profile = c.activeConversation.profile;
       try {
@@ -459,7 +475,70 @@ export function App() {
             : await applicationService.findSavedApplication(grant.id);
         const reopened = Boolean(doc);
         if (!doc) {
-          doc = await applicationService.startApplication(grant, profile);
+          const statusMessageId = askAssistant([
+            {
+              type: "draft_progress",
+              state: {
+                grantTitle: grant.title,
+                percent: 0,
+                currentSectionTitle: "Analyzing requirements...",
+              },
+            },
+          ]);
+          const handleDraftProgress = (event: SseEvent) => {
+            if (statusMessageId) {
+              const data = event.data as Record<string, unknown> | undefined;
+              const sectionIdx = (data?.section_index as number | undefined) ?? 0;
+              const total = (data?.total_sections as number | undefined) ?? 12;
+              let percent =
+                (data?.progress_percent as number | undefined) ??
+                (sectionIdx ? Math.round((sectionIdx / total) * 100) : 0);
+
+              if (event.event === "result") {
+                percent = 100;
+              }
+
+              let sectionTitle = "Preparing sections...";
+              if (event.event === "result") {
+                sectionTitle = "Application draft completed!";
+              } else if (event.message) {
+                const match = event.message.match(/Section \d+\/\d+: (.*?) \(/);
+                if (match && match[1]) {
+                  sectionTitle = match[1];
+                } else if (event.message.includes("Analyzing")) {
+                  sectionTitle = "Analyzing requirements...";
+                }
+              }
+
+              setBlocks(statusMessageId, () => [
+                {
+                  type: "draft_progress",
+                  state: {
+                    grantTitle: grant.title,
+                    currentSectionTitle: sectionTitle,
+                    sectionIndex: event.event === "result" ? total : sectionIdx || 1,
+                    totalSections: total,
+                    percent,
+                  },
+                },
+              ]);
+            }
+          };
+          doc = await applicationService.startApplication(grant, profile, handleDraftProgress);
+          if (statusMessageId) {
+            setBlocks(statusMessageId, () => [
+              {
+                type: "draft_progress",
+                state: {
+                  grantTitle: grant.title,
+                  currentSectionTitle: "Application draft completed!",
+                  sectionIndex: 12,
+                  totalSections: 12,
+                  percent: 100,
+                },
+              },
+            ]);
+          }
         }
         c.setDocument(doc, grant.id);
         c.setStage("application");
@@ -495,6 +574,7 @@ export function App() {
         ]);
       } finally {
         setBusy(false);
+        setStartingGrantId(null);
       }
     },
     [addApplication, askAssistant, c],
@@ -716,8 +796,19 @@ export function App() {
       // preparing-results skeletons, or they'd spin forever above the
       // no-matches state.
       hasGrantResults: c.activeConversation?.grants !== undefined,
+      getApplicationStatus: (documentId) =>
+        apps.applications.find((a) => a.id === documentId || a.id === `app-${documentId}`)?.status,
+      onUpdateApplicationStatus: (documentId, status) =>
+        apps.updateStatus(documentId.startsWith("app-") ? documentId : `app-${documentId}`, status),
+      onViewInPipeline: () => setMainView("pipeline"),
+      startingGrantId,
+      existingGrantIds: new Set([
+        ...apps.applications.filter((a) => !a.id.startsWith("app-demo-")).map((a) => a.grantId),
+        ...(c.activeConversation?.document?.grantId ? [c.activeConversation.document.grantId] : []),
+      ]),
     }),
     [
+      apps,
       busy,
       c.activeConversation,
       c.updateDocumentSection,
@@ -725,6 +816,7 @@ export function App() {
       handleRetryResearch,
       handleStartApplication,
       handleSubmitProfile,
+      startingGrantId,
     ],
   );
 
@@ -760,7 +852,9 @@ export function App() {
     const hasGrantResults = Boolean(active.grants?.length);
     const researchCoveringIndicator =
       lastBlock?.type === "research_status" && !lastBlock.state.error && !hasGrantResults;
-    return !researchCoveringIndicator;
+    const draftingCoveringIndicator =
+      last?.role === "assistant" && lastBlock?.type === "draft_progress";
+    return !researchCoveringIndicator && !draftingCoveringIndicator;
   }, [active, busy]);
 
   const { scrollContainerRef, scrollBottomRef, showScrollButton, scrollToBottom } =
@@ -782,7 +876,7 @@ export function App() {
     mainView === "pipeline" ? "Application pipeline" : (active?.title ?? "No conversation");
 
   return (
-    <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
+    <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
@@ -799,6 +893,7 @@ export function App() {
         isMockMode={isMockMode}
         mainView={mainView}
         onSelectView={setMainView}
+        savedCount={shortlist.savedGrants.length}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
       />
@@ -814,6 +909,7 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
+        savedCount={shortlist.savedGrants.length}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
       />
@@ -958,6 +1054,12 @@ export function App() {
           )}
         </div>
 
+        {mainView === "saved" && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <SavedGrants onGoToChat={() => setMainView("chat")} />
+          </div>
+        )}
+
         {mainView === "pipeline" && (
           <div className="min-h-0 flex-1 overflow-y-auto">
             {/* The pipeline's empty state sends people back to the chat; it
@@ -969,7 +1071,9 @@ export function App() {
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
-              isMockMode={isMockMode}
+              deleteApplication={apps.deleteApplication}
+              conversations={c.conversations}
+              onOpenConversation={selectConversationInChat}
             />
           </div>
         )}

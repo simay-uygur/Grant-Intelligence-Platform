@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ExternalLink,
   Globe2,
+  Loader2,
   MessageSquare,
   RefreshCw,
   Scale,
@@ -47,6 +48,8 @@ interface Props {
   onRetryResearch?: () => void;
   /** True while a start is already in flight, so it can't be fired twice. */
   startDisabled?: boolean;
+  startingGrantId?: string | null;
+  existingGrantIds?: Set<string>;
 }
 
 const MAX_COMPARE = 3;
@@ -58,14 +61,28 @@ export function GrantResults({
   onStart,
   onRetryResearch,
   startDisabled,
+  startingGrantId,
+  existingGrantIds,
 }: Props) {
   const { isSaved, toggleSave } = useShortlist();
+  const [savedToast, setSavedToast] = useState<string | null>(null);
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
   // Kept separate from `detailsOpen` so the sheet's exit animation still has
   // a grant to render while it closes, instead of unmounting mid-slide.
   const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const handleToggleSaved = (grant: Grant) => {
+    const nextSaved = !isSaved(grant.id);
+    toggleSave(grant);
+    setSavedToast(
+      nextSaved
+        ? `Saved "${grant.title}" to your shortlisted grants.`
+        : `Removed "${grant.title}" from saved grants.`,
+    );
+    setTimeout(() => setSavedToast(null), 3000);
+  };
 
   const openDetails = (grant: Grant) => {
     setSelectedGrant(grant);
@@ -132,12 +149,18 @@ export function GrantResults({
           )}
         >
           {provenance === "live"
-            ? "Live EU Horizon"
+            ? "EU Horizon API"
             : provenance === "mock"
               ? "Demo data"
               : "Saved results"}
         </span>
       </div>
+
+      {savedToast && (
+        <div className="rounded-lg border border-brand/20 bg-brand/5 px-3.5 py-2 text-xs font-medium text-brand animate-in fade-in slide-in-from-top-1">
+          {savedToast}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4">
         {grants.map((g) => (
@@ -148,24 +171,33 @@ export function GrantResults({
             onStart={onStart}
             onViewDetails={openDetails}
             saved={isSaved(g.id)}
-            onToggleSaved={() => toggleSave(g)}
+            onToggleSaved={() => handleToggleSaved(g)}
             compareChecked={compareIds.has(g.id)}
             onToggleCompare={() => toggleCompare(g.id)}
             compareDisabled={!compareIds.has(g.id) && compareIds.size >= MAX_COMPARE}
             startDisabled={startDisabled}
+            isStarting={startingGrantId === g.id}
+            hasDraft={existingGrantIds?.has(g.id)}
           />
         ))}
       </div>
 
-      {compareIds.size >= 2 && (
-        <div className="sticky bottom-2 flex justify-center">
+      {compareIds.size >= 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
+          <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+            {compareIds.size === 1
+              ? "1 grant selected — choose 1 more to compare."
+              : `${compareIds.size} grants selected for comparison.`}
+          </p>
           <Button
             type="button"
+            size="sm"
             onClick={() => setCompareOpen(true)}
-            className="rounded-full bg-foreground text-background shadow-lg hover:bg-foreground/90"
+            disabled={compareIds.size < 2}
+            className="rounded-full bg-foreground text-background shadow-sm hover:bg-foreground/90"
           >
             <Scale className="h-3.5 w-3.5" />
-            Compare {compareIds.size} grants
+            {compareIds.size >= 2 ? `Compare ${compareIds.size} grants` : "Compare"}
           </Button>
         </div>
       )}
@@ -259,6 +291,8 @@ function GrantCard({
   onToggleCompare,
   compareDisabled,
   startDisabled,
+  isStarting,
+  hasDraft,
 }: {
   grant: Grant;
   onAsk: (g: Grant) => void;
@@ -270,6 +304,8 @@ function GrantCard({
   onToggleCompare: () => void;
   compareDisabled: boolean;
   startDisabled?: boolean;
+  isStarting?: boolean;
+  hasDraft?: boolean;
 }) {
   const matchTier =
     grant.matchPercentage === undefined ? undefined : matchTierFor(grant.matchPercentage);
@@ -287,7 +323,9 @@ function GrantCard({
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 p-0">
         <div className="min-w-0 flex-1">
           <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
-            {grant.programme || grant.source || "Grant opportunity"}
+            {grant.programme === "Horizon Europe"
+              ? "EU Horizon API"
+              : grant.programme || grant.source || "EU Horizon API"}
           </div>
           <button
             type="button"
@@ -408,10 +446,19 @@ function GrantCard({
           type="button"
           size="sm"
           onClick={() => onStart(grant)}
-          disabled={startDisabled}
+          disabled={startDisabled || isStarting}
           className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
         >
-          {startDisabled ? "Starting..." : "Start application"}
+          {isStarting ? (
+            <>
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              Starting...
+            </>
+          ) : hasDraft ? (
+            "Open application"
+          ) : (
+            "Start application"
+          )}
         </Button>
       </CardFooter>
     </article>

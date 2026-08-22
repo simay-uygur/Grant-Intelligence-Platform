@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  Bookmark,
   KanbanSquare,
   Landmark,
   LogOut,
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/sheet";
 
 /** Which main view the app is showing. Local UI state only — never persisted. */
-export type MainView = "chat" | "pipeline";
+export type MainView = "chat" | "pipeline" | "saved";
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -37,6 +38,7 @@ interface SidebarProps {
   isMockMode: boolean;
   mainView: MainView;
   onSelectView: (view: MainView) => void;
+  savedCount?: number;
   onSignOut?: () => void;
   onOpenAccount?: () => void;
 }
@@ -44,6 +46,7 @@ interface SidebarProps {
 const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare },
   { id: "pipeline", label: "Pipeline", icon: KanbanSquare },
+  { id: "saved", label: "Saved", icon: Bookmark },
 ];
 
 function getUserEmail(): string | null {
@@ -115,6 +118,7 @@ function SidebarContent({
   isMockMode: _isMockMode,
   mainView,
   onSelectView,
+  savedCount,
   onSignOut,
   onOpenAccount,
   onNavigate,
@@ -201,7 +205,7 @@ function SidebarContent({
       {/* Switches the main area between the chat and the global pipeline
           dashboard. Purely a view switch — it doesn't touch conversations. */}
       <nav aria-label="Views" className="px-2 pb-3">
-        <ul className="space-y-1">
+        <ul role="list" className="space-y-1">
           {VIEWS.map(({ id, label, icon: Icon }) => {
             const current = mainView === id;
             return (
@@ -411,7 +415,7 @@ function SidebarContent({
 /** Desktop sidebar: always in the layout at md+ widths, hidden below that. */
 export function Sidebar(props: SidebarProps) {
   return (
-    <aside className="hidden h-screen w-72 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:block">
+    <aside className="hidden h-full w-72 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:block">
       <SidebarContent {...props} />
     </aside>
   );

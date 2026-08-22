@@ -144,5 +144,20 @@ export function useApplications() {
       .catch(() => setPersistenceOk(false));
   }, []);
 
-  return { applications, hydrated, persistenceOk, updateStatus, addApplication };
+  const deleteApplication = useCallback((applicationId: string) => {
+    let previous: DemoApplication[] = [];
+    setApplications((prev) => {
+      previous = prev;
+      return prev.filter((a) => a.id !== applicationId);
+    });
+    void applicationService
+      .deleteApplication?.(applicationId)
+      .then(() => setPersistenceOk(true))
+      .catch(() => {
+        setApplications(previous);
+        setPersistenceOk(false);
+      });
+  }, []);
+
+  return { applications, hydrated, persistenceOk, updateStatus, addApplication, deleteApplication };
 }
