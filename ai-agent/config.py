@@ -1,5 +1,5 @@
 # ai-agent/config.py
-# Re-exports centralized Bedrock configuration from tools.config.
+# Re-exports Bedrock configuration for ai-agent package.
 
 from tools.config import AWS_REGION, BEDROCK_MODEL_ID, get_bedrock_client, get_model_id
 

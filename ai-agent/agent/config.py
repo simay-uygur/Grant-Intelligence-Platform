@@ -1,9 +1,6 @@
 # ai-agent/agent/config.py
-# Re-exports centralized ai-agent config for agent.* imports.
+# Re-exports Bedrock configuration for agent subpackage.
 
-try:
-    from config import AWS_REGION, BEDROCK_MODEL_ID, get_bedrock_client, get_model_id
-except ImportError:
-    from ai-agent.config import AWS_REGION, BEDROCK_MODEL_ID, get_bedrock_client, get_model_id  # type: ignore
+from tools.config import AWS_REGION, BEDROCK_MODEL_ID, get_bedrock_client, get_model_id
 
 __all__ = ["AWS_REGION", "BEDROCK_MODEL_ID", "get_bedrock_client", "get_model_id"]
