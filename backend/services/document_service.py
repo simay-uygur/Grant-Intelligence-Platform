@@ -129,6 +129,9 @@ class DocumentService:
             )
         return StoredApplication.model_validate(application)
 
+    def delete_application(self, application_id: str, user_id: str | None = None) -> None:
+        self.application_store.delete_application(application_id, user_id)
+
     def update_application_section(
         self,
         application_id: str,

@@ -231,8 +231,8 @@ export function useConversations() {
   );
 
   const setDocument = useCallback(
-    (doc: ApplicationDocument, grantId: string) => {
-      updateActive((c) => ({ ...c, document: doc, selectedGrantId: grantId }));
+    (doc: ApplicationDocument | undefined, grantId?: string) => {
+      updateActive((c) => ({ ...c, document: doc, selectedGrantId: grantId ?? c.selectedGrantId }));
     },
     [updateActive],
   );

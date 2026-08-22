@@ -74,3 +74,4 @@ docs/integration-and-backend-dev-changes.md
 .gitignore
 docs/lightsail-deployment-architecture.svg
 docs/lightsail-deployment-guide.md
+.env

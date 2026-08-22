@@ -13,7 +13,7 @@ const saved: SavedGrant = {
 };
 
 describe("toSavedGrant", () => {
-  it("snapshots only the fields a standalone shortlist needs", () => {
+  it("snapshots fields including match telemetry a standalone shortlist needs", () => {
     const entry = toSavedGrant(MOCK_GRANTS[0], "2026-08-07T10:00:00.000Z");
     expect(entry).toEqual({
       id: MOCK_GRANTS[0].id,
@@ -23,6 +23,10 @@ describe("toSavedGrant", () => {
       deadline: MOCK_GRANTS[0].deadline,
       sourceUrl: MOCK_GRANTS[0].sourceUrl,
       savedAt: "2026-08-07T10:00:00.000Z",
+      matchPercentage: MOCK_GRANTS[0].matchPercentage,
+      whyItMatches: MOCK_GRANTS[0].whyItMatches,
+      matchReasons: MOCK_GRANTS[0].matchReasons,
+      grant: MOCK_GRANTS[0],
     });
   });
 

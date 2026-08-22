@@ -85,6 +85,23 @@ class ApplicationStore:
                 ON applications (grant_id, updated_at DESC)
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS saved_grants (
+                    grant_id TEXT PRIMARY KEY,
+                    user_id TEXT,
+                    title TEXT NOT NULL,
+                    programme TEXT,
+                    funding_amount TEXT,
+                    deadline TEXT,
+                    source_url TEXT,
+                    match_percentage INTEGER DEFAULT 0,
+                    why_it_matches TEXT,
+                    grant_json TEXT NOT NULL,
+                    saved_at TEXT NOT NULL
+                )
+                """
+            )
 
     def save_application(
         self,
@@ -225,6 +242,14 @@ class ApplicationStore:
         if cursor.rowcount == 0:
             return None
         return self.get_application(application_id, user_id)
+
+    def delete_application(self, application_id: str, user_id: str | None = None) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM applications WHERE id = ? AND (user_id = ? OR ? IS NULL)",
+                (application_id, user_id, user_id),
+            )
+            return cursor.rowcount > 0
 
     def update_section(
         self,
@@ -376,3 +401,104 @@ class ApplicationStore:
             or grant.get("fundingType")
             or "Unknown funder"
         )
+
+    def save_grant(self, grant: dict, user_id: str | None = None) -> dict:
+        grant_id = str(grant.get("id") or grant.get("identifier") or "")
+        title = str(grant.get("title") or "Grant Opportunity")
+        programme = str(grant.get("programme") or grant.get("source") or "")
+        funding_amount = str(grant.get("fundingAmount") or grant.get("budget") or "")
+        deadline = str(grant.get("deadline") or "")
+        raw_source_url = str(grant.get("sourceUrl") or grant.get("url") or "")
+        source_url = _normalize_eu_url(raw_source_url, grant_id)
+        match_percentage = int(grant.get("matchPercentage") or 0)
+        why_it_matches = str(grant.get("whyItMatches") or "")
+        timestamp = self._timestamp()
+
+        grant["sourceUrl"] = source_url
+
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO saved_grants (
+                    grant_id, user_id, title, programme, funding_amount,
+                    deadline, source_url, match_percentage, why_it_matches,
+                    grant_json, saved_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(grant_id) DO UPDATE SET
+                    title = excluded.title,
+                    programme = excluded.programme,
+                    funding_amount = excluded.funding_amount,
+                    deadline = excluded.deadline,
+                    source_url = excluded.source_url,
+                    match_percentage = excluded.match_percentage,
+                    why_it_matches = excluded.why_it_matches,
+                    grant_json = excluded.grant_json,
+                    saved_at = excluded.saved_at,
+                    user_id = excluded.user_id
+                """,
+                (
+                    grant_id, user_id, title, programme, funding_amount,
+                    deadline, source_url, match_percentage, why_it_matches,
+                    json.dumps(grant, ensure_ascii=False), timestamp,
+                ),
+            )
+        return {
+            "id": grant_id,
+            "title": title,
+            "programme": programme,
+            "fundingAmount": funding_amount,
+            "deadline": deadline,
+            "sourceUrl": source_url,
+            "matchPercentage": match_percentage,
+            "whyItMatches": why_it_matches,
+            "savedAt": timestamp,
+            "grant": grant,
+        }
+
+    def list_saved_grants(self, user_id: str | None = None) -> list[dict]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT grant_id, title, programme, funding_amount, deadline,
+                       source_url, match_percentage, why_it_matches, grant_json, saved_at
+                FROM saved_grants
+                WHERE user_id = ? OR ? IS NULL
+                ORDER BY saved_at DESC
+                """,
+                (user_id, user_id),
+            ).fetchall()
+        return [
+            {
+                "id": row["grant_id"],
+                "title": row["title"],
+                "programme": row["programme"],
+                "fundingAmount": row["funding_amount"],
+                "deadline": row["deadline"],
+                "sourceUrl": _normalize_eu_url(row["source_url"], row["grant_id"]),
+                "matchPercentage": row["match_percentage"],
+                "whyItMatches": row["why_it_matches"],
+                "savedAt": row["saved_at"],
+                "grant": json.loads(row["grant_json"]),
+            }
+            for row in rows
+        ]
+
+
+    def delete_saved_grant(self, grant_id: str, user_id: str | None = None) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM saved_grants WHERE grant_id = ? AND (user_id = ? OR ? IS NULL)",
+                (grant_id, user_id, user_id),
+            )
+            return cursor.rowcount > 0
+
+
+def _normalize_eu_url(source_url: str, grant_id: str = "") -> str:
+    """Fix raw/broken API URLs into canonical working EU Funding & Tenders Portal topic links."""
+    if "commission.europa.eu/funding-tenders" in source_url or "topicDetails" in source_url:
+        topic = source_url.split("/")[-1].replace(".html", "").lower()
+        return f"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/{topic}"
+    if not source_url and grant_id.startswith("HORIZON"):
+        return f"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/{grant_id.lower()}"
+    return source_url

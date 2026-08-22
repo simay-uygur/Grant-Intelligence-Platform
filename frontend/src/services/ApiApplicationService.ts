@@ -183,6 +183,12 @@ export class ApiApplicationService implements ApplicationService {
     if (!result.success) throw new ApplicationApiContractError();
   }
 
+  async deleteApplication(applicationId: string): Promise<void> {
+    await this.client.request<void>(`/api/v1/applications/${encodeURIComponent(applicationId)}`, {
+      method: "DELETE",
+    });
+  }
+
   async findSavedApplication(grantId: string): Promise<ApplicationDocument | undefined> {
     try {
       const payload = await this.client.request<unknown>(

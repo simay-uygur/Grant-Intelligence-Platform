@@ -150,50 +150,85 @@ SECTIONS_LIST = [
 
 
 def start_application_stream(grant, profile):
-    """Generator streaming real-time events for drafting a full application document."""
-    from tools.start_application import SECTIONS, draft_single_section
+    """Generator streaming real-time events & token chunks for drafting a full application document."""
+    from tools.start_application import SECTIONS, draft_single_section_stream
     import time
 
     total = len(SECTIONS)
     doc_id = f"doc-{grant.get('id', 'unknown')}-{int(time.time())}"
     sections = []
 
+    org_name = profile.get("organisationName", "Applicant Organisation")
+    grant_title = grant.get("title", "Grant Opportunity")
+
     yield {
         "event": "thinking",
         "stage": "draft",
-        "message": f"Analyzing requirements for grant '{grant.get('title', '')}' ({total} sections)...",
+        "message": f"Analyzing Grant Requirements & Priorities for '{grant_title}' ({total} sections)...",
+        "data": {
+            "thought": f"Extracting eligibility rules and funder priorities for {org_name}...",
+            "section_index": 0,
+            "total_sections": total,
+            "progress_percent": 0,
+        },
     }
 
     try:
         for i, (section_id, section_title) in enumerate(SECTIONS, 1):
-            percent = int((i / total) * 100)
+            percent = int(((i - 1) / total) * 100)
+            
+            # Emit a rich sub-phase thought before drafting the section
             yield {
-                "event": "progress",
+                "event": "thinking",
                 "stage": "draft",
-                "message": f"Drafting Section {i}/{total}: {section_title} ({percent}% complete)...",
+                "message": f"Formulating Section {i}/{total}: {section_title}...",
                 "data": {
+                    "thought": f"Aligning {org_name} capabilities with {section_title} requirements...",
+                    "section_id": section_id,
+                    "section_title": section_title,
                     "section_index": i,
                     "total_sections": total,
                     "progress_percent": percent,
                 },
             }
 
-            content = draft_single_section(grant, profile, section_title)
-            section_obj = {"id": section_id, "title": section_title, "content": content}
+            accumulated = ""
+            for chunk in draft_single_section_stream(grant, profile, section_title):
+                accumulated += chunk
+                words = len(accumulated.split())
+                yield {
+                    "event": "section_chunk",
+                    "stage": "draft",
+                    "message": f"Drafting Section {i}/{total}: {section_title}...",
+                    "data": {
+                        "section_id": section_id,
+                        "section_title": section_title,
+                        "chunk": chunk,
+                        "accumulated_content": accumulated,
+                        "section_index": i,
+                        "total_sections": total,
+                        "progress_percent": percent,
+                        "word_count": words,
+                        "thought": f"Writing {section_title} ({words} words)...",
+                    },
+                }
+
+            section_obj = {"id": section_id, "title": section_title, "content": accumulated}
             sections.append(section_obj)
 
             percent = int((i / total) * 100)
             current_doc = {
                 "id": doc_id,
                 "grantId": grant.get("id", ""),
-                "grantTitle": grant.get("title", ""),
+                "grantTitle": grant_title,
                 "sections": list(sections),
                 "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
+
             yield {
                 "event": "progress",
                 "stage": "draft",
-                "message": f"Drafted Section {i}/{total}: {section_title} ({percent}% complete)...",
+                "message": f"Completed Section {i}/{total}: {section_title} ({percent}% complete)",
                 "data": {
                     "section_index": i,
                     "total_sections": total,

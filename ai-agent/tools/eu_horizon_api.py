@@ -63,14 +63,26 @@ def eu_horizon_api(keyword, page_size=3):
     for item in data.get("results", []):
         meta = item.get("metadata", {})
         identifier = _first(meta.get("identifier"))
+        raw_url = item.get("url")
+        url = _build_portal_url(identifier, raw_url)
         grants.append({
             "title": _first(meta.get("title")) or item.get("title"),
             "identifier": identifier,
             "deadline": _clean_date(_first(meta.get("deadlineDate"))),
             "programme": _programme_from_identifier(identifier),
-            "url": item.get("url"),
+            "url": url,
         })
     return grants
+
+
+def _build_portal_url(identifier: str | None, raw_url: str | None) -> str:
+    """Build a working canonical URL to the EU Funding & Tenders Portal for a given topic ID."""
+    if identifier:
+        clean_id = identifier.strip().lower()
+        return f"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/{clean_id}"
+    if raw_url and "ec.europa.eu" in raw_url:
+        return raw_url
+    return "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-search"
 
 
 def _first(value):
