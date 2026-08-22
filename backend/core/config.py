@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     use_mock_bedrock: bool = Field(default=False, validation_alias="USE_MOCK_BEDROCK")
     aws_region: str = Field(default="us-east-1", validation_alias="AWS_REGION")
     bedrock_model_id: str = Field(
-        default="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+        default="us.anthropic.claude-sonnet-4-6",
         validation_alias="BEDROCK_MODEL_ID",
     )
     auth_required: bool = False
