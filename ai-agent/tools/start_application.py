@@ -35,8 +35,9 @@ def draft_single_section(grant, profile, section_title):
         "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
     )
     try:
+        client = get_bedrock_client()
         response = client.converse(
-            modelId=MODEL_ID,
+            modelId=get_model_id(),
             messages=[{"role": "user", "content": [{"text": prompt}]}],
             inferenceConfig={"maxTokens": 1200},
         )
