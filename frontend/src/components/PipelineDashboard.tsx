@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Building2, CalendarClock, Coins, FileText, MessagesSquare, Rows3, Trash2 } from "lucide-react";
+import { Building2, CalendarClock, Coins, FileText, MessagesSquare, Rows3, Search, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/EmptyState";
 import { DeadlineBadge } from "@/components/grants/DeadlineBadge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -610,6 +611,7 @@ export function PipelineDashboard({
   // The id, not a snapshot, so a status changed inside the sheet re-renders
   // the sheet too. Deliberately not cleared on close: the sheet needs content
   // to render while it slides out (same reason GrantResults keeps its grant).
+  const [searchQuery, setSearchQuery] = useState("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -665,17 +667,31 @@ export function PipelineDashboard({
     };
   }, []);
 
-  // Grouped from live state, so a status change moves the card between
-  // columns and both counts update on the next render.
+  // Filter applications by search query
+  const filteredApplications = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return applications;
+    return applications.filter((app) => {
+      return (
+        app.grantTitle.toLowerCase().includes(q) ||
+        app.grantOrganisation.toLowerCase().includes(q) ||
+        app.applicantOrganisation.toLowerCase().includes(q) ||
+        app.fundingAmount.toLowerCase().includes(q) ||
+        STATUS_LABEL[app.status]?.toLowerCase().includes(q)
+      );
+    });
+  }, [applications, searchQuery]);
+
+  // Grouped from live filtered state
   const grouped = useMemo(() => {
     const byStatus = new Map<ApplicationStatus, DemoApplication[]>(
       STATUS_ORDER.map((status) => [status, []]),
     );
-    for (const application of applications) {
+    for (const application of filteredApplications) {
       byStatus.get(application.status)?.push(application);
     }
     return byStatus;
-  }, [applications]);
+  }, [filteredApplications]);
 
   return (
     // Full main-content width: a kanban board wants the whole viewport, not
@@ -688,13 +704,25 @@ export function PipelineDashboard({
         {announcement}
       </div>
 
-      <header className="mb-6">
-        <h2 id="pipeline-heading" className="text-lg font-semibold text-foreground">
-          Application pipeline
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Every application across all of your conversations, grouped by stage.
-        </p>
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 id="pipeline-heading" className="text-lg font-semibold text-foreground">
+            Application pipeline
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Every application across all of your conversations, grouped by stage.
+          </p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search pipeline applications..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 text-xs"
+          />
+        </div>
         {!persistenceOk && (
           <p
             role="status"

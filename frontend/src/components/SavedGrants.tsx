@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import {
   Bookmark,
   BookmarkCheck,
@@ -5,6 +6,7 @@ import {
   Coins,
   ExternalLink,
   MessagesSquare,
+  Search,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Grant } from "@/types";
@@ -13,8 +15,8 @@ import { useShortlist, type SavedGrant } from "@/hooks/useShortlist";
 import { formatDeadline } from "@/utils/deadline";
 import { Button } from "@/components/ui/button";
 import { DeadlineBadge } from "@/components/grants/DeadlineBadge";
-import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
+import { Input } from "@/components/ui/input";
 
 /**
  * toggleSave takes a full Grant, because SAVING needs the whole record. This
@@ -46,14 +48,24 @@ function grantForRemoval(saved: SavedGrant): Grant {
 }
 
 function SavedGrantCard({ saved, onRemove }: { saved: SavedGrant; onRemove: () => void }) {
+  const matchPct = saved.matchPercentage ?? saved.grant?.matchPercentage;
+  const whyItMatches = saved.whyItMatches ?? saved.grant?.whyItMatches;
+
   return (
     // Same shell as the grant cards in the results list, so a saved grant
     // reads as the same object in a different place.
     <article className="flex h-full flex-col rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
-            {saved.programme}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
+              {saved.programme}
+            </div>
+            {Boolean(matchPct) && (
+              <span className="inline-flex items-center rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand">
+                ★ {matchPct}% Match
+              </span>
+            )}
           </div>
           <h3 className="mt-1 break-words text-base font-semibold text-foreground [overflow-wrap:anywhere]">
             {saved.title}
@@ -71,6 +83,12 @@ function SavedGrantCard({ saved, onRemove }: { saved: SavedGrant; onRemove: () =
           <BookmarkCheck className="h-4 w-4 text-brand" />
         </Button>
       </div>
+
+      {whyItMatches && (
+        <p className="mt-2 rounded-lg bg-brand/[0.04] p-2 text-xs font-medium text-foreground/80 italic line-clamp-2">
+          &ldquo;{whyItMatches}&rdquo;
+        </p>
+      )}
 
       <dl className="mt-4 space-y-1.5 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
@@ -119,17 +137,42 @@ function SavedGrantCard({ saved, onRemove }: { saved: SavedGrant; onRemove: () =
  */
 export function SavedGrants({ onGoToChat }: { onGoToChat: () => void }) {
   const { savedGrants, toggleSave, hydrated } = useShortlist();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredGrants = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return savedGrants;
+    return savedGrants.filter(
+      (g) =>
+        g.title.toLowerCase().includes(q) ||
+        g.programme.toLowerCase().includes(q) ||
+        g.fundingAmount.toLowerCase().includes(q) ||
+        (g.whyItMatches && g.whyItMatches.toLowerCase().includes(q)),
+    );
+  }, [savedGrants, searchQuery]);
 
   return (
     <section aria-labelledby="saved-heading" className="w-full px-4 py-6 sm:px-6">
-      <header className="mb-6">
-        <h2 id="saved-heading" className="text-lg font-semibold text-foreground">
-          Saved grants
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Grants you&apos;ve bookmarked while researching, newest first. Saved here as their own
-          record, so they stay even if you delete the conversation that found them.
-        </p>
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 id="saved-heading" className="text-lg font-semibold text-foreground">
+            Saved grants
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Grants you&apos;ve bookmarked while researching, newest first. Saved here as their own
+            record, so they stay even if you delete the conversation that found them.
+          </p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search saved grants..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 text-xs"
+          />
+        </div>
       </header>
 
       {!hydrated ? (
@@ -144,9 +187,16 @@ export function SavedGrants({ onGoToChat }: { onGoToChat: () => void }) {
           description="Bookmark a grant from your research results and it will be kept here with its funder, funding range and deadline — so you can come back to it without scrolling through the conversation."
           action={{ label: "Find grants in chat", onClick: onGoToChat, icon: MessagesSquare }}
         />
+      ) : filteredGrants.length === 0 ? (
+        <div className="rounded-2xl border bg-card p-8 text-center">
+          <p className="text-sm font-medium text-foreground">No matching saved grants found</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Try adjusting your search query &ldquo;{searchQuery}&rdquo;.
+          </p>
+        </div>
       ) : (
         <ul role="list" className="grid gap-4 lg:grid-cols-2">
-          {savedGrants.map((saved) => (
+          {filteredGrants.map((saved) => (
             <li key={saved.id}>
               <SavedGrantCard saved={saved} onRemove={() => toggleSave(grantForRemoval(saved))} />
             </li>

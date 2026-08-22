@@ -44,6 +44,9 @@ Build a working grant-assistant backend locally first, connect it to the fronten
 - [ ] **Interactive Q&A for Specific Grant-Tailored Application Document**:
   - Enable targeted Q&A in the chat composer specifically for the active grant-tailored application draft.
   - Allow users to ask questions, request section revisions, or query grant compliance directly against the document context.
+- [ ] **Grant-Specific Application Draft Customization & Tailored Templates**:
+  - Support tailored application draft structures customized specifically to the guidelines, work packages, budget rules, and evaluation criteria of individual grant calls.
+  - Enable users to prompt the agent with specific grant call instructions or custom application document requirements.
 - [ ] **Document Attachment & Upload Support**:
   - Enable uploading supporting documents (PDFs, Word docs, organization charts, budget sheets) in the composer.
   - Integrate uploaded document context into Bedrock grant evaluation and proposal drafting prompts.
@@ -69,7 +72,7 @@ Build a working grant-assistant backend locally first, connect it to the fronten
 
 ## Frontend UI & Button State Logic
 
-- [ ] **Search & Filter in Pipeline Dashboard & Saved Grants Views**:
+- [x] **Search & Filter in Pipeline Dashboard & Saved Grants Views**:
   - Add search input bars to filter applications in the Kanban Pipeline Dashboard (by grant title, applicant organisation, or status) and Saved Grants list.
   - Implement real-time client-side text filtering and status filter badges so users can quickly locate specific drafts and saved opportunities.
 - [ ] **Start / Open Application Button State Handling**:
