@@ -184,10 +184,9 @@ export class ApiApplicationService implements ApplicationService {
   }
 
   async deleteApplication(applicationId: string): Promise<void> {
-    await this.client.request<void>(
-      `/api/v1/applications/${encodeURIComponent(applicationId)}`,
-      { method: "DELETE" },
-    );
+    await this.client.request<void>(`/api/v1/applications/${encodeURIComponent(applicationId)}`, {
+      method: "DELETE",
+    });
   }
 
   async findSavedApplication(grantId: string): Promise<ApplicationDocument | undefined> {

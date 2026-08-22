@@ -142,6 +142,20 @@ export interface ChatMessage {
   blocks: ChatBlock[];
 }
 
+export interface SavedGrant {
+  id: string;
+  title: string;
+  programme: string;
+  fundingAmount: string;
+  deadline: string;
+  sourceUrl: string;
+  savedAt: string;
+  matchPercentage?: number;
+  whyItMatches?: string;
+  matchReasons?: string[];
+  grant?: Grant;
+}
+
 export interface Conversation {
   id: string;
   /** Backend chat identifier; absent for mock mode and legacy local conversations. */

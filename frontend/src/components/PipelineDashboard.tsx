@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Building2, CalendarClock, Coins, FileText, MessagesSquare, Rows3, Search, Trash2 } from "lucide-react";
+import {
+  Building2,
+  CalendarClock,
+  Coins,
+  FileText,
+  MessagesSquare,
+  Rows3,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
@@ -103,7 +112,8 @@ function ApplicationCard({
         STATUS_ACCENT[application.status],
         entering && CARD_ENTER_CLASSES,
         ghost && CARD_GHOST_CLASSES,
-        highlighted && "ring-2 ring-brand border-brand shadow-lg shadow-brand/20 bg-brand/[0.04] scale-[1.02]",
+        highlighted &&
+          "ring-2 ring-brand border-brand shadow-lg shadow-brand/20 bg-brand/[0.04] scale-[1.02]",
       )}
     >
       {highlighted && !ghost && (
@@ -534,7 +544,8 @@ function StatusColumn({
             const isGhost = ghost?.application.id === application.id;
             const isHighlighted =
               Boolean(highlightApplicationId) &&
-              (application.id === highlightApplicationId || application.grantId === highlightApplicationId);
+              (application.id === highlightApplicationId ||
+                application.grantId === highlightApplicationId);
             return (
               <li key={isGhost ? `ghost-${application.id}` : application.id} className="h-full">
                 <ApplicationCard

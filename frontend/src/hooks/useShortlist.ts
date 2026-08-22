@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Grant } from "@/types";
+import type { Grant, SavedGrant } from "@/types";
 import { ApiGrantService } from "@/services/ApiGrantService";
+
+export type { SavedGrant };
 
 /**
  * Dedicated, versioned key. Separate from every other key in the app —
@@ -9,29 +11,6 @@ import { ApiGrantService } from "@/services/ApiGrantService";
  * ("gi.drafts.v1") — none of which this hook reads or writes.
  */
 const KEY_SHORTLIST = "gi.shortlist.v1";
-
-/**
- * A saved grant is stored as its own small snapshot rather than as a pointer
- * into the conversation that surfaced it: shortlists outlive conversations,
- * and a saved grant whose conversation has been deleted must still be
- * displayable and actionable on its own. `sourceUrl` is part of that — without
- * it a saved entry is a dead end.
- */
-export interface SavedGrant {
-  id: string;
-  title: string;
-  /** The funding programme / body behind the call. */
-  programme: string;
-  fundingAmount: string;
-  deadline: string;
-  sourceUrl: string;
-  /** ISO timestamp, so a later shortlist view can order by recency. */
-  savedAt: string;
-  matchPercentage?: number;
-  whyItMatches?: string;
-  matchReasons?: string[];
-  grant?: Grant;
-}
 
 /** Keyed by grant id: O(1) membership, and saving twice can't duplicate. */
 type ShortlistStore = Record<string, SavedGrant>;
@@ -155,26 +134,29 @@ export function useShortlist() {
     setHydrated(true);
 
     const api = new ApiGrantService();
-    api.listSavedGrants().then((backendGrants) => {
-      if (Array.isArray(backendGrants) && backendGrants.length > 0) {
-        const merged: ShortlistStore = { ...storeRef.current };
-        for (const item of backendGrants) {
-          merged[item.id] = {
-            id: item.id,
-            title: item.title,
-            programme: item.programme || "",
-            fundingAmount: item.fundingAmount || "",
-            deadline: item.deadline || "",
-            sourceUrl: item.sourceUrl || "",
-            savedAt: item.savedAt || new Date().toISOString(),
-            matchPercentage: item.matchPercentage,
-            whyItMatches: item.whyItMatches,
-            grant: item.grant,
-          };
+    api
+      .listSavedGrants()
+      .then((backendGrants) => {
+        if (Array.isArray(backendGrants) && backendGrants.length > 0) {
+          const merged: ShortlistStore = { ...storeRef.current };
+          for (const item of backendGrants) {
+            merged[item.id] = {
+              id: item.id,
+              title: item.title,
+              programme: item.programme || "",
+              fundingAmount: item.fundingAmount || "",
+              deadline: item.deadline || "",
+              sourceUrl: item.sourceUrl || "",
+              savedAt: item.savedAt || new Date().toISOString(),
+              matchPercentage: item.matchPercentage,
+              whyItMatches: item.whyItMatches,
+              grant: item.grant,
+            };
+          }
+          applyStore(merged, true);
         }
-        applyStore(merged, true);
-      }
-    }).catch(() => {});
+      })
+      .catch(() => {});
   }, [applyStore]);
 
   useEffect(() => {
