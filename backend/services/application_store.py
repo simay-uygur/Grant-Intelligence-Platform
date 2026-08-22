@@ -226,6 +226,14 @@ class ApplicationStore:
             return None
         return self.get_application(application_id, user_id)
 
+    def delete_application(self, application_id: str, user_id: str | None = None) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM applications WHERE id = ? AND (user_id = ? OR ? IS NULL)",
+                (application_id, user_id, user_id),
+            )
+            return cursor.rowcount > 0
+
     def update_section(
         self,
         application_id: str,

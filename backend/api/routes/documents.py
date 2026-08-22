@@ -103,6 +103,22 @@ def update_application_status(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.delete(
+    "/applications/{application_id}",
+    status_code=204,
+    summary="Delete an application",
+    description="Delete a stored application and its draft sections.",
+)
+def delete_application(
+    application_id: str,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> None:
+    try:
+        document_service.delete_application(application_id, current_user["id"] if current_user else None)
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.put(
     "/applications/{application_id}/sections/{section_id}",
     response_model=StoredApplication,

@@ -492,6 +492,8 @@ export function App() {
               const data = event.data as Record<string, unknown> | undefined;
               const sectionIdx = (data?.section_index as number | undefined) ?? 0;
               const total = (data?.total_sections as number | undefined) ?? 12;
+              const thought = (data?.thought as string | undefined) ?? undefined;
+              const wordCount = (data?.word_count as number | undefined) ?? undefined;
               let percent =
                 (data?.progress_percent as number | undefined) ??
                 (sectionIdx ? Math.round((sectionIdx / total) * 100) : 0);
@@ -504,14 +506,27 @@ export function App() {
               if (event.event === "result") {
                 sectionTitle = "Application draft completed!";
               } else if (event.message) {
-                const match = event.message.match(/Section \d+\/\d+: (.*?) \(/);
+                const match = event.message.match(/Section \d+\/\d+: (.*?)(?: \([0-9]+%|\.\.\.|$)/);
                 if (match && match[1]) {
                   sectionTitle = match[1];
                 } else if (event.message.includes("Analyzing")) {
-                  sectionTitle = "Analyzing requirements...";
+                  sectionTitle = "Analyzing grant requirements...";
                 }
               }
 
+              // Real-time token streaming: update single section content live as text chunks arrive
+              if (
+                event.event === "section_chunk" &&
+                typeof data?.section_id === "string" &&
+                typeof data?.accumulated_content === "string"
+              ) {
+                c.updateDocumentSection(data.section_id, data.accumulated_content);
+                if (c.activeConversation?.stage !== "application") {
+                  c.setStage("application");
+                }
+              }
+
+              // Full document snapshot update on section completion
               if (event.data?.document && typeof event.data.document === "object") {
                 const liveDoc = event.data.document as ApplicationDocument;
                 if (liveDoc.sections && liveDoc.sections.length > 0) {
@@ -528,6 +543,8 @@ export function App() {
                   state: {
                     grantTitle: grant.title,
                     currentSectionTitle: sectionTitle,
+                    thought,
+                    wordCount,
                     sectionIndex: event.event === "result" ? total : sectionIdx || 1,
                     totalSections: total,
                     percent,
@@ -590,6 +607,21 @@ export function App() {
       }
     },
     [addApplication, askAssistant, c],
+  );
+
+  const handleDeleteApplication = useCallback(
+    (applicationId: string) => {
+      apps.deleteApplication(applicationId);
+      if (
+        c.activeConversation?.document &&
+        (c.activeConversation.document.id === applicationId ||
+          `app-${c.activeConversation.document.id}` === applicationId ||
+          c.activeConversation.document.grantId === applicationId)
+      ) {
+        c.setDocument(undefined);
+      }
+    },
+    [apps, c],
   );
 
   const handleOpenApplication = useCallback(
@@ -1089,7 +1121,7 @@ export function App() {
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
-              deleteApplication={apps.deleteApplication}
+              deleteApplication={handleDeleteApplication}
               conversations={c.conversations}
               onOpenConversation={selectConversationInChat}
               highlightApplicationId={highlightApplicationId}

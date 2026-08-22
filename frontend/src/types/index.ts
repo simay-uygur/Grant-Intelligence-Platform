@@ -113,6 +113,8 @@ export interface Attachment {
 export interface DraftProgressState {
   grantTitle: string;
   currentSectionTitle?: string;
+  thought?: string;
+  wordCount?: number;
   sectionIndex?: number;
   totalSections?: number;
   percent: number;

@@ -129,6 +129,13 @@ class DocumentService:
             )
         return StoredApplication.model_validate(application)
 
+    def delete_application(self, application_id: str, user_id: str | None = None) -> None:
+        deleted = self.application_store.delete_application(application_id, user_id)
+        if not deleted:
+            raise ApplicationNotFoundError(
+                f"Application '{application_id}' does not exist."
+            )
+
     def update_application_section(
         self,
         application_id: str,

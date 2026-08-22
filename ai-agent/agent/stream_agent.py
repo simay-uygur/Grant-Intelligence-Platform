@@ -18,18 +18,24 @@ def run_agent_stream(
 ):
     """
     Stream real-time events while running the grant search pipeline with real Bedrock LLM calls.
-    Yields standard SSE events: thinking, progress, result.
+    Yields standard SSE events: thinking, progress, result with token streaming and rich sub-steps.
     """
+    org_name = profile.get("organisationName") or "your organisation"
+    sector = profile.get("sector") or "innovation"
+
     yield {
         "event": "thinking",
         "stage": "keywords",
-        "message": "Analyzing organization profile and generating search keywords with Bedrock LLM...",
+        "message": f"Analyzing profile for '{org_name}' and extracting domain keywords with Bedrock LLM...",
+        "data": {
+            "thought": f"Extracting sector topics and tech focus areas for {sector}...",
+        },
     }
 
     client = get_bedrock_client()
     model_id = get_model_id()
 
-    # Step 1: Real Bedrock LLM Keyword Generation
+    # Step 1: Real Bedrock LLM Keyword Generation via converse_stream
     keywords = []
     try:
         kw_prompt = (
@@ -38,18 +44,34 @@ def run_agent_stream(
             f"PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
             'Return ONLY a JSON array of lowercase single words, e.g. ["robotics","ai","manufacturing"]. No other text.'
         )
-        kw_resp = client.converse(
+        kw_resp = client.converse_stream(
             modelId=model_id,
             messages=[{"role": "user", "content": [{"text": kw_prompt}]}],
             inferenceConfig={"maxTokens": 200},
         )
-        raw_text = kw_resp["output"]["message"]["content"][0]["text"].strip()
-        keywords = json.loads(raw_text)
+        stream = kw_resp.get("stream")
+        raw_text = ""
+        if stream:
+            for event in stream:
+                if "contentBlockDelta" in event:
+                    delta = event["contentBlockDelta"].get("delta", {})
+                    if "text" in delta:
+                        raw_text += delta["text"]
+                        yield {
+                            "event": "thinking",
+                            "stage": "keywords",
+                            "message": "Generating EU search keywords...",
+                            "data": {
+                                "thought": f"Synthesizing domain terms: {raw_text.strip()[:60]}...",
+                            },
+                        }
+        cleaned_kw = raw_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        keywords = json.loads(cleaned_kw)
         if not isinstance(keywords, list):
-            keywords = [str(profile.get("sector") or "innovation").split()[0].lower()]
+            keywords = [str(sector).split()[0].lower()]
     except Exception as e:
         print(f"[run_agent_stream] Bedrock keyword generation fallback: {e}")
-        fallback = str(profile.get("sector") or "innovation").split()[0].lower()
+        fallback = str(sector).split()[0].lower()
         keywords = [fallback]
 
     keywords_str = ", ".join(f"'{k}'" for k in keywords)
@@ -67,7 +89,12 @@ def run_agent_stream(
             "event": "thinking",
             "stage": "search",
             "message": f"Querying live EU Portal for '{kw}' ({i}/{len(keywords)})... {len(pool)} candidate opportunities found so far",
-            "data": {"keyword": kw, "keyword_index": i, "candidate_count": len(pool)},
+            "data": {
+                "keyword": kw,
+                "keyword_index": i,
+                "candidate_count": len(pool),
+                "thought": f"Fetching active Horizon Europe calls matching topic '{kw}'...",
+            },
         }
         try:
             results = eu_horizon_api(kw, page_size=10)
@@ -103,12 +130,15 @@ def run_agent_stream(
         }
         return
 
-    # Step 3: Real Bedrock LLM Evaluation & Ranking
+    # Step 3: Real Bedrock LLM Evaluation & Ranking via converse_stream
     yield {
         "event": "thinking",
         "stage": "select",
         "message": f"Evaluating and ranking top matches from {len(candidates)} candidate grants with Bedrock LLM...",
-        "data": {"candidate_count": len(candidates)},
+        "data": {
+            "candidate_count": len(candidates),
+            "thought": f"Scoring eligibility and alignment across {len(candidates)} active calls for {org_name}...",
+        },
     }
 
     today = date.today().isoformat()
@@ -136,17 +166,29 @@ def run_agent_stream(
             "Fill factual fields from the candidate data, and reasoning fields (matchPercentage, whyItMatches, matchReasons, tags) from your analysis. Respond with the JSON array only."
         )
 
-        select_resp = client.converse(
+        select_resp = client.converse_stream(
             modelId=model_id,
             messages=[{"role": "user", "content": [{"text": select_prompt}]}],
             inferenceConfig={"maxTokens": 4000},
         )
-        raw_select = select_resp["output"]["message"]["content"][0]["text"].strip()
-        if raw_select.startswith("```"):
-            raw_select = raw_select.split("```")[1]
-            if raw_select.startswith("json"):
-                raw_select = raw_select[4:]
-        selected_grants = json.loads(raw_select.strip())
+        stream = select_resp.get("stream")
+        raw_select = ""
+        if stream:
+            for event in stream:
+                if "contentBlockDelta" in event:
+                    delta = event["contentBlockDelta"].get("delta", {})
+                    if "text" in delta:
+                        raw_select += delta["text"]
+                        yield {
+                            "event": "thinking",
+                            "stage": "select",
+                            "message": f"Evaluating top grant candidates for {org_name}...",
+                            "data": {
+                                "thought": f"Analysing eligibility criteria and calculating fit scores...",
+                            },
+                        }
+        cleaned_select = raw_select.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        selected_grants = json.loads(cleaned_select)
     except Exception as e:
         print(f"[run_agent_stream] Bedrock grant selection fallback: {e}")
         for g in open_candidates[:max_grants]:

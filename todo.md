@@ -12,10 +12,10 @@ Build a working grant-assistant backend locally first, connect it to the fronten
   - `.env` setup.
   - dependency install flow.
   - local run command.
-- [ ] Replace the current stub grant search source with at least one real external API or web data integration.
-- [ ] Define the first backend API contract needed by the frontend.
-- [ ] Connect frontend to backend with at least one working end-to-end flow.
-- [ ] Add a minimal AI-agent call path that can converse and trigger tools through a backend-managed Bedrock loop.
+- [x] Replace the current stub grant search source with at least one real external API or web data integration.
+- [x] Define the first backend API contract needed by the frontend.
+- [x] Connect frontend to backend with at least one working end-to-end flow.
+- [x] Add a minimal AI-agent call path that can converse and trigger tools through a backend-managed Bedrock loop.
 - [ ] Dockerize the backend local setup.
 
 ## Database Migration & Managed Infrastructure
@@ -33,10 +33,20 @@ Build a working grant-assistant backend locally first, connect it to the fronten
 - [ ] **Research Google Sheets-Style Document Editor**:
   - Investigate frontend grid/spreadsheet and rich document editor libraries (e.g., FortuneSheet, Handsontable, AG Grid, or custom rich document tables) suitable for grant application draft editing.
   - Design a side-by-side layout with a Google Sheets-style main document canvas and an interactive AI side-chat assistant.
-- [ ] **Informative Document Generation & Section Streaming**:
+- [x] **Informative Document Generation & Section Streaming**:
   - Upgrade document writing stream UI to replace plain loading spinners with rich, informative progress indicators.
   - Show real-time section-by-section generation progress (e.g., *"Drafting Executive Summary..."*, *"Writing Methodology & Work Packages..."*, *"Calculating Budget Breakdown..."*).
   - Stream preview text section by section so users visually track document creation steps in real-time.
+- [x] **Real-Time Token Streaming & Rich Sub-Step Progress**:
+  - Implement Amazon Bedrock `converse_stream()` across both Grant Search and Application Document Drafting.
+  - Stream tokens chunk-by-chunk in real time onto the document editor canvas.
+  - Display animated AI thoughts (e.g., 🧠 *"Analyzing eligibility rules..."*) and real-time word counter in `DraftProgressCard`.
+- [ ] **Interactive Q&A for Specific Grant-Tailored Application Document**:
+  - Enable targeted Q&A in the chat composer specifically for the active grant-tailored application draft.
+  - Allow users to ask questions, request section revisions, or query grant compliance directly against the document context.
+- [ ] **Document Attachment & Upload Support**:
+  - Enable uploading supporting documents (PDFs, Word docs, organization charts, budget sheets) in the composer.
+  - Integrate uploaded document context into Bedrock grant evaluation and proposal drafting prompts.
 
 ## Session Storage Management & Environment Configuration
 
@@ -59,6 +69,9 @@ Build a working grant-assistant backend locally first, connect it to the fronten
 
 ## Frontend UI & Button State Logic
 
+- [ ] **Search & Filter in Pipeline Dashboard & Saved Grants Views**:
+  - Add search input bars to filter applications in the Kanban Pipeline Dashboard (by grant title, applicant organisation, or status) and Saved Grants list.
+  - Implement real-time client-side text filtering and status filter badges so users can quickly locate specific drafts and saved opportunities.
 - [ ] **Start / Open Application Button State Handling**:
   - Note: Update "Start Application" button state when an application has been initiated for a grant (e.g. disable button or toggle to "Open Application / Application In Progress").
   - Keep button state synchronized with application status to prevent duplicate application creations (to be integrated cleanly with backend status).

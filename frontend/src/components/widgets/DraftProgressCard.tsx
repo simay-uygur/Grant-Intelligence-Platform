@@ -36,20 +36,33 @@ export function DraftProgressCard({ state }: Props) {
       <CardContent className="space-y-3.5 p-0 pt-1">
         <Progress value={percent} className="h-2 rounded-full" />
 
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/30 px-3 py-2 text-xs sm:px-3.5 sm:py-2.5">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="shrink-0 rounded-md bg-brand/10 px-2 py-0.5 font-medium text-brand">
-              Section {current} of {total}
-            </span>
-            <span className="truncate font-semibold text-foreground">
-              {state.currentSectionTitle ?? "Preparing application sections..."}
-            </span>
+        <div className="flex flex-col gap-2 rounded-xl border bg-muted/30 px-3 py-2 text-xs sm:px-3.5 sm:py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="shrink-0 rounded-md bg-brand/10 px-2 py-0.5 font-medium text-brand">
+                Section {current} of {total}
+              </span>
+              <span className="truncate font-semibold text-foreground">
+                {state.currentSectionTitle ?? "Preparing application sections..."}
+              </span>
+            </div>
+            {Boolean(state.wordCount) && percent < 100 && (
+              <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[11px] font-mono text-muted-foreground">
+                {state.wordCount} words
+              </span>
+            )}
+            {percent === 100 && (
+              <span className="flex shrink-0 items-center gap-1 font-medium text-success">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Done
+              </span>
+            )}
           </div>
-          {percent === 100 && (
-            <span className="flex shrink-0 items-center gap-1 font-medium text-success">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Done
-            </span>
+          {state.thought && percent < 100 && (
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-brand/90 italic animate-pulse">
+              <span>🧠</span>
+              <span className="truncate">{state.thought}</span>
+            </p>
           )}
         </div>
 
