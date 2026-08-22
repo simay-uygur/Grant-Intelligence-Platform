@@ -541,7 +541,9 @@ export function App() {
               }
 
               setBlocks(statusMessageId, (existingBlocks) => {
-                const prevChunk = (existingBlocks[0] as any)?.state?.liveTextChunk;
+                const firstBlock = existingBlocks[0] as
+                  { state?: { liveTextChunk?: string } } | undefined;
+                const prevChunk = firstBlock?.state?.liveTextChunk;
                 return [
                   {
                     type: "draft_progress",
@@ -613,7 +615,7 @@ export function App() {
         setStartingGrantId(null);
       }
     },
-    [addApplication, askAssistant, c],
+    [addApplication, askAssistant, c, setBlocks],
   );
 
   const handleDeleteApplication = useCallback(
