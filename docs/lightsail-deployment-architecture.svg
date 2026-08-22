@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="760" viewBox="0 0 1180 760" role="img" aria-labelledby="title desc">
+  <title id="title">Lightsail deployment architecture</title>
+  <desc id="desc">Diagram showing GitHub Actions building three container images, deploying them to one Lightsail Container Service, and routing public traffic through nginx to frontend and backend containers.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .section { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 14; }
+      .box { fill: #ffffff; stroke: #64748b; stroke-width: 2; rx: 10; }
+      .public { fill: #ecfdf5; stroke: #059669; }
+      .runtime { fill: #eff6ff; stroke: #2563eb; }
+      .external { fill: #fff7ed; stroke: #ea580c; }
+      .danger { fill: #fef2f2; stroke: #dc2626; }
+      .title { fill: #0f172a; font: 700 28px Arial, sans-serif; }
+      .section-title { fill: #334155; font: 700 18px Arial, sans-serif; }
+      .label { fill: #0f172a; font: 700 16px Arial, sans-serif; }
+      .small { fill: #475569; font: 13px Arial, sans-serif; }
+      .tiny { fill: #64748b; font: 12px Arial, sans-serif; }
+      .arrow { stroke: #2563eb; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .route { stroke: #059669; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .note { fill: #334155; font: 14px Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1180" height="760"/>
+  <text class="title" x="40" y="52">Grant Intelligence Platform - Lightsail Deployment</text>
+
+  <rect class="section" x="40" y="85" width="1100" height="235"/>
+  <text class="section-title" x="65" y="120">Build and Deploy Flow</text>
+
+  <rect class="box" x="70" y="150" width="180" height="90"/>
+  <text class="label" x="95" y="182">Git Push</text>
+  <text class="small" x="95" y="205">main -> production</text>
+  <text class="small" x="95" y="225">develop -> staging</text>
+
+  <rect class="box" x="310" y="150" width="210" height="90"/>
+  <text class="label" x="335" y="182">GitHub Actions</text>
+  <text class="small" x="335" y="205">test, build, push images</text>
+  <text class="small" x="335" y="225">deploy-lightsail.yml</text>
+
+  <rect class="box external" x="580" y="150" width="210" height="90"/>
+  <text class="label" x="605" y="182">Lightsail Registry</text>
+  <text class="small" x="605" y="205">frontend image</text>
+  <text class="small" x="605" y="225">backend image, nginx image</text>
+
+  <rect class="box runtime" x="850" y="150" width="250" height="90"/>
+  <text class="label" x="875" y="182">Container Service</text>
+  <text class="small" x="875" y="205">grant-intelligence-develop</text>
+  <text class="small" x="875" y="225">small x 1 node</text>
+
+  <path class="arrow" d="M250 195 H300"/>
+  <path class="arrow" d="M520 195 H570"/>
+  <path class="arrow" d="M790 195 H840"/>
+
+  <rect class="section" x="40" y="355" width="1100" height="335"/>
+  <text class="section-title" x="65" y="390">Runtime Traffic Flow</text>
+
+  <rect class="box" x="70" y="430" width="175" height="85"/>
+  <text class="label" x="95" y="463">User Browser</text>
+  <text class="small" x="95" y="486">public web traffic</text>
+
+  <rect class="box public" x="305" y="430" width="230" height="85"/>
+  <text class="label" x="330" y="463">Lightsail Public URL</text>
+  <text class="small" x="330" y="486">*.cs.amazonlightsail.com</text>
+
+  <rect class="box public" x="600" y="430" width="190" height="85"/>
+  <text class="label" x="625" y="463">nginx</text>
+  <text class="small" x="625" y="486">public port 80</text>
+
+  <rect class="box runtime" x="880" y="375" width="190" height="85"/>
+  <text class="label" x="905" y="408">frontend</text>
+  <text class="small" x="905" y="431">internal port 3000</text>
+  <text class="tiny" x="905" y="449">pages and UI</text>
+
+  <rect class="box runtime" x="880" y="540" width="190" height="85"/>
+  <text class="label" x="905" y="573">backend</text>
+  <text class="small" x="905" y="596">internal port 8000</text>
+  <text class="tiny" x="905" y="614">FastAPI /api/v1</text>
+
+  <rect class="box danger" x="600" y="585" width="190" height="70"/>
+  <text class="label" x="625" y="615">SQLite</text>
+  <text class="small" x="625" y="638">container storage</text>
+
+  <rect class="box external" x="880" y="660" width="190" height="60"/>
+  <text class="label" x="905" y="692">Amazon Bedrock</text>
+  <text class="small" x="905" y="710">runtime AWS billing</text>
+
+  <path class="route" d="M245 472 H295"/>
+  <path class="route" d="M535 472 H590"/>
+  <path class="route" d="M790 450 C825 440 845 425 870 418"/>
+  <text class="note" x="802" y="430">/ and app pages</text>
+  <path class="route" d="M790 500 C825 520 845 560 870 580"/>
+  <text class="note" x="802" y="545">/api/*</text>
+  <path class="arrow" d="M880 610 H800"/>
+  <path class="arrow" d="M975 625 V650"/>
+
+  <text class="tiny" x="65" y="730">Only nginx is public. Frontend and backend are internal containers inside the same Lightsail Container Service.</text>
+</svg>
