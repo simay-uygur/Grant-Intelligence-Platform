@@ -113,10 +113,7 @@ def delete_application(
     application_id: str,
     current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> None:
-    try:
-        document_service.delete_application(application_id, current_user["id"] if current_user else None)
-    except ApplicationNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    document_service.delete_application(application_id, current_user["id"] if current_user else None)
 
 
 @router.put(
