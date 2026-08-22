@@ -35,6 +35,7 @@ except ImportError:
     ClaudeAgentOptions = None
     ClaudeSDKClient = None
 
+from tools.eu_horizon_api import eu_horizon_api
 from tools.start_application import start_application as _start_application
 from tools.rewrite_section import rewrite_section as _rewrite_section
 from tools.config import get_model_id
