@@ -408,10 +408,13 @@ class ApplicationStore:
         programme = str(grant.get("programme") or grant.get("source") or "")
         funding_amount = str(grant.get("fundingAmount") or grant.get("budget") or "")
         deadline = str(grant.get("deadline") or "")
-        source_url = str(grant.get("sourceUrl") or grant.get("url") or "")
+        raw_source_url = str(grant.get("sourceUrl") or grant.get("url") or "")
+        source_url = _normalize_eu_url(raw_source_url, grant_id)
         match_percentage = int(grant.get("matchPercentage") or 0)
         why_it_matches = str(grant.get("whyItMatches") or "")
         timestamp = self._timestamp()
+
+        grant["sourceUrl"] = source_url
 
         with self._connect() as connection:
             connection.execute(
@@ -472,7 +475,7 @@ class ApplicationStore:
                 "programme": row["programme"],
                 "fundingAmount": row["funding_amount"],
                 "deadline": row["deadline"],
-                "sourceUrl": row["source_url"],
+                "sourceUrl": _normalize_eu_url(row["source_url"], row["grant_id"]),
                 "matchPercentage": row["match_percentage"],
                 "whyItMatches": row["why_it_matches"],
                 "savedAt": row["saved_at"],
@@ -481,6 +484,7 @@ class ApplicationStore:
             for row in rows
         ]
 
+
     def delete_saved_grant(self, grant_id: str, user_id: str | None = None) -> bool:
         with self._connect() as connection:
             cursor = connection.execute(
@@ -488,3 +492,13 @@ class ApplicationStore:
                 (grant_id, user_id, user_id),
             )
             return cursor.rowcount > 0
+
+
+def _normalize_eu_url(source_url: str, grant_id: str = "") -> str:
+    """Fix raw/broken API URLs into canonical working EU Funding & Tenders Portal topic links."""
+    if "commission.europa.eu/funding-tenders" in source_url or "topicDetails" in source_url:
+        topic = source_url.split("/")[-1].replace(".html", "").lower()
+        return f"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/{topic}"
+    if not source_url and grant_id.startswith("HORIZON"):
+        return f"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/{grant_id.lower()}"
+    return source_url
