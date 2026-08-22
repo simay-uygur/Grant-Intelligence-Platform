@@ -182,6 +182,27 @@ def start_application_stream(grant, profile):
             section_obj = {"id": section_id, "title": section_title, "content": content}
             sections.append(section_obj)
 
+            percent = int((i / total) * 100)
+            current_doc = {
+                "id": doc_id,
+                "grantId": grant.get("id", ""),
+                "grantTitle": grant.get("title", ""),
+                "sections": list(sections),
+                "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            yield {
+                "event": "progress",
+                "stage": "draft",
+                "message": f"Drafted Section {i}/{total}: {section_title} ({percent}% complete)...",
+                "data": {
+                    "section_index": i,
+                    "total_sections": total,
+                    "progress_percent": percent,
+                    "section": section_obj,
+                    "document": current_doc,
+                },
+            }
+
         doc = {
             "id": doc_id,
             "grantId": grant.get("id", ""),

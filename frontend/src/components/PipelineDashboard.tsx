@@ -74,6 +74,7 @@ function ApplicationCard({
   entering,
   /** True for one beat right after this card's status became "approved". */
   celebrate,
+  highlighted,
 }: {
   application: DemoApplication;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
@@ -82,17 +83,35 @@ function ApplicationCard({
   ghost?: boolean;
   entering?: boolean;
   celebrate?: boolean;
+  highlighted?: boolean;
 }) {
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (highlighted && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlighted]);
+
   return (
     // `relative` anchors the title button's stretched hit area below.
     <Card
+      ref={cardRef}
       className={cn(
-        "relative flex h-full flex-col border-l-4 transition-shadow hover:shadow-md",
+        "relative flex h-full flex-col border-l-4 transition-all duration-300 hover:shadow-md",
         STATUS_ACCENT[application.status],
         entering && CARD_ENTER_CLASSES,
         ghost && CARD_GHOST_CLASSES,
+        highlighted && "ring-2 ring-brand border-brand shadow-lg shadow-brand/20 bg-brand/[0.04] scale-[1.02]",
       )}
     >
+      {highlighted && !ghost && (
+        <div className="absolute -top-3 left-3 z-20">
+          <Badge className="bg-brand text-brand-foreground shadow-sm text-[10px] font-semibold px-2 py-0.5 animate-pulse">
+            ★ Currently Editing
+          </Badge>
+        </div>
+      )}
       {/* A separate layer for the celebration, rather than animating the card
           itself: the card already owns the enter/exit animation above, and a
           single element can't run two independent `animation` utilities at
@@ -451,6 +470,7 @@ function StatusColumn({
   enteringId,
   isDestination,
   celebratingId,
+  highlightApplicationId,
 }: {
   status: ApplicationStatus;
   applications: DemoApplication[];
@@ -464,6 +484,7 @@ function StatusColumn({
   isDestination?: boolean;
   /** The card mid-celebration after just becoming Approved. */
   celebratingId?: string;
+  highlightApplicationId?: string | null;
 }) {
   const headingId = `pipeline-group-${status}`;
 
@@ -510,6 +531,9 @@ function StatusColumn({
         <ul role="list" className="mt-3 flex-1 space-y-2.5">
           {displayList.map((application) => {
             const isGhost = ghost?.application.id === application.id;
+            const isHighlighted =
+              Boolean(highlightApplicationId) &&
+              (application.id === highlightApplicationId || application.grantId === highlightApplicationId);
             return (
               <li key={isGhost ? `ghost-${application.id}` : application.id} className="h-full">
                 <ApplicationCard
@@ -522,6 +546,7 @@ function StatusColumn({
                   ghost={isGhost}
                   entering={!isGhost && application.id === enteringId}
                   celebrate={!isGhost && application.id === celebratingId}
+                  highlighted={!isGhost && isHighlighted}
                 />
               </li>
             );
@@ -561,6 +586,7 @@ export function PipelineDashboard({
   conversations,
   onOpenConversation,
   onOpenApplication,
+  highlightApplicationId,
 }: {
   onGoToChat: () => void;
   applications: DemoApplication[];
@@ -572,6 +598,7 @@ export function PipelineDashboard({
   conversations: Conversation[];
   onOpenConversation: (conversationId: string) => void;
   onOpenApplication?: (applicationId: string) => void;
+  highlightApplicationId?: string | null;
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -738,6 +765,7 @@ export function PipelineDashboard({
               enteringId={move?.toStatus === status ? move.application.id : undefined}
               isDestination={move?.toStatus === status}
               celebratingId={status === "approved" ? (celebratingId ?? undefined) : undefined}
+              highlightApplicationId={highlightApplicationId}
             />
           ))}
         </div>

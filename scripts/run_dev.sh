@@ -19,11 +19,12 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "Starting backend..."
+export PYTHONPATH="${ROOT}:${PYTHONPATH:-}"
 if [ -x ".venv/bin/python" ]; then
-  .venv/bin/python -m uvicorn app.main:app --reload --port 8000 --host 127.0.0.1 &
+  .venv/bin/python -m uvicorn backend.main:app --reload --port 8000 --host 127.0.0.1 &
 else
   echo "Warning: virtualenv not found at .venv; falling back to system python3"
-  python3 -m uvicorn app.main:app --reload --port 8000 --host 127.0.0.1 &
+  python3 -m uvicorn backend.main:app --reload --port 8000 --host 127.0.0.1 &
 fi
 pids+=("$!")
 

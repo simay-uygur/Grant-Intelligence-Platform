@@ -12,7 +12,7 @@ fi
 SESSION=grant-dev
 
 echo "Creating tmux session '$SESSION'..."
-tmux new-session -d -s "$SESSION" -n backend ".venv/bin/python -m uvicorn app.main:app --reload --port 8000 --host 127.0.0.1"
+tmux new-session -d -s "$SESSION" -n backend "PYTHONPATH=. .venv/bin/python -m uvicorn backend.main:app --reload --port 8000 --host 127.0.0.1"
 tmux new-window -t "$SESSION:" -n frontend "bash -lc 'cd frontend && if command -v bun >/dev/null 2>&1; then bun run dev; elif command -v npm >/dev/null 2>&1; then npm run dev; else echo \"No bun/npm found\"; fi'"
 
 echo "Attach to the tmux session with: tmux attach -t $SESSION"

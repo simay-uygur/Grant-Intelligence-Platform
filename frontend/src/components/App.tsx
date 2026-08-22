@@ -18,6 +18,7 @@ import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
+  ApplicationDocument,
   ApplicationStage,
   ChatBlock,
   ChatMessage,
@@ -198,6 +199,7 @@ export function App() {
   const researchInFlight = useRef(false);
   const historySyncRequest = useRef(0);
   const isMobile = useIsMobile();
+  const [highlightApplicationId, setHighlightApplicationId] = useState<string | null>(null);
 
   const handleSignOut = useCallback(() => {
     void logout();
@@ -510,6 +512,16 @@ export function App() {
                 }
               }
 
+              if (event.data?.document && typeof event.data.document === "object") {
+                const liveDoc = event.data.document as ApplicationDocument;
+                if (liveDoc.sections && liveDoc.sections.length > 0) {
+                  c.setDocument(liveDoc, grant.id);
+                  if (c.activeConversation?.stage !== "application") {
+                    c.setStage("application");
+                  }
+                }
+              }
+
               setBlocks(statusMessageId, () => [
                 {
                   type: "draft_progress",
@@ -800,7 +812,13 @@ export function App() {
         apps.applications.find((a) => a.id === documentId || a.id === `app-${documentId}`)?.status,
       onUpdateApplicationStatus: (documentId, status) =>
         apps.updateStatus(documentId.startsWith("app-") ? documentId : `app-${documentId}`, status),
-      onViewInPipeline: () => setMainView("pipeline"),
+      onViewInPipeline: (appId?: string) => {
+        if (appId) {
+          setHighlightApplicationId(appId);
+          setTimeout(() => setHighlightApplicationId(null), 4000);
+        }
+        setMainView("pipeline");
+      },
       startingGrantId,
       existingGrantIds: new Set([
         ...apps.applications.filter((a) => !a.id.startsWith("app-demo-")).map((a) => a.grantId),
@@ -1074,6 +1092,7 @@ export function App() {
               deleteApplication={apps.deleteApplication}
               conversations={c.conversations}
               onOpenConversation={selectConversationInChat}
+              highlightApplicationId={highlightApplicationId}
             />
           </div>
         )}

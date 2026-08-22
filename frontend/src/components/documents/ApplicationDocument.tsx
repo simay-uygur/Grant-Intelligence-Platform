@@ -60,7 +60,7 @@ interface Props {
   /** This draft's pipeline status; undefined when no application row matches. */
   applicationStatus?: ApplicationStatus;
   onApplicationStatusChange?: (status: ApplicationStatus) => void;
-  onViewInPipeline?: () => void;
+  onViewInPipeline?: (applicationId?: string) => void;
 }
 
 // A rewrite is only treated as "replacing manual edits" once the in-progress
@@ -452,48 +452,50 @@ export function ApplicationDocumentView({
           {/* Hidden entirely when no application row matches this document —
               older drafts, or a pipeline the user has cleared — rather than
               showing a control with nothing behind it. */}
-          {applicationStatus && (
+          {Boolean(onViewInPipeline || applicationStatus) && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
               <span className="text-[11px] font-medium text-muted-foreground">Pipeline status</span>
               <Badge
                 variant="outline"
                 className={cn(
                   "shrink-0 whitespace-nowrap font-medium transition-colors duration-200",
-                  STATUS_BADGE[applicationStatus],
+                  STATUS_BADGE[applicationStatus ?? "drafting"],
                 )}
               >
                 <span className="sr-only">Status: </span>
-                {STATUS_LABEL[applicationStatus]}
+                {STATUS_LABEL[applicationStatus ?? "drafting"]}
               </Badge>
 
-              <Select
-                value={applicationStatus}
-                onValueChange={(value) => {
-                  // Radix hands back a plain string; only act on one of ours.
-                  if (isStatus(value)) onApplicationStatusChange?.(value);
-                }}
-              >
-                <SelectTrigger
-                  aria-label="Change pipeline status for this application"
-                  className="h-8 w-auto min-w-36 px-2 text-xs transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+              {onApplicationStatusChange && (
+                <Select
+                  value={applicationStatus ?? "drafting"}
+                  onValueChange={(value) => {
+                    // Radix hands back a plain string; only act on one of ours.
+                    if (isStatus(value)) onApplicationStatusChange(value);
+                  }}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_ORDER.map((status) => (
-                    <SelectItem key={status} value={status} className="text-xs">
-                      {STATUS_LABEL[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    aria-label="Change pipeline status for this application"
+                    className="h-8 w-auto min-w-36 px-2 text-xs transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_ORDER.map((status) => (
+                      <SelectItem key={status} value={status} className="text-xs">
+                        {STATUS_LABEL[status]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               {onViewInPipeline && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={onViewInPipeline}
+                  onClick={() => onViewInPipeline(doc.id)}
                   className="h-8 rounded-lg text-xs hover:bg-muted"
                 >
                   <KanbanSquare className="h-3.5 w-3.5" />
