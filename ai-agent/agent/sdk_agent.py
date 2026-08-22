@@ -237,8 +237,10 @@ async def run_agent(profile, user_message=None, conversation_history=None,
     reply_text = ""
     captured_session_id = session_id
 
+    async for message in query(
         prompt=prompt,
         options=ClaudeAgentOptions(**options_kwargs),
+    ):
         # Capture the session_id from the init message or the result message.
         if hasattr(message, "subtype") and getattr(message, "subtype", None) == "init":
             data = getattr(message, "data", {}) or {}
