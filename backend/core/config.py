@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
+from pydantic import Field, field_validator
 import json
 
 
@@ -24,7 +24,12 @@ class Settings(BaseSettings):
         "http://localhost:8080",
         "http://127.0.0.1:8080",
     ]
-    use_mock_bedrock: bool = True
+    use_mock_bedrock: bool = Field(default=False, validation_alias="USE_MOCK_BEDROCK")
+    aws_region: str = Field(default="us-east-1", validation_alias="AWS_REGION")
+    bedrock_model_id: str = Field(
+        default="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+        validation_alias="BEDROCK_MODEL_ID",
+    )
     auth_required: bool = False
     auth_secret_key: str = "development-only-secret-change-before-hosting-9f4c2e7a"
     auth_token_ttl_hours: int = 168

@@ -19,6 +19,7 @@ from claude_agent_sdk import (
 from tools.eu_horizon_api import eu_horizon_api
 from tools.start_application import start_application
 from tools.rewrite_section import rewrite_section
+from tools.config import get_model_id
 
 
 # --- Tool 1: search EU grants ---
@@ -115,7 +116,7 @@ async def run(user_message: str):
     async for message in query(
         prompt=user_message,
         options=ClaudeAgentOptions(
-            model="us.anthropic.claude-sonnet-4-6",
+            model=get_model_id(),
             system_prompt=SYSTEM_PROMPT,
             mcp_servers={"grants": grant_server},
             allowed_tools=[
