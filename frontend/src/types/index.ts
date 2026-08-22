@@ -115,6 +115,7 @@ export interface DraftProgressState {
   currentSectionTitle?: string;
   thought?: string;
   wordCount?: number;
+  liveTextChunk?: string;
   sectionIndex?: number;
   totalSections?: number;
   percent: number;

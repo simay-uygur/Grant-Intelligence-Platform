@@ -514,12 +514,15 @@ export function App() {
                 }
               }
 
+              let liveTextChunk: string | undefined = undefined;
+
               // Real-time token streaming: update single section content live as text chunks arrive
               if (
                 event.event === "section_chunk" &&
                 typeof data?.section_id === "string" &&
                 typeof data?.accumulated_content === "string"
               ) {
+                liveTextChunk = data.accumulated_content;
                 c.updateDocumentSection(data.section_id, data.accumulated_content);
                 if (c.activeConversation?.stage !== "application") {
                   c.setStage("application");
@@ -537,20 +540,24 @@ export function App() {
                 }
               }
 
-              setBlocks(statusMessageId, () => [
-                {
-                  type: "draft_progress",
-                  state: {
-                    grantTitle: grant.title,
-                    currentSectionTitle: sectionTitle,
-                    thought,
-                    wordCount,
-                    sectionIndex: event.event === "result" ? total : sectionIdx || 1,
-                    totalSections: total,
-                    percent,
+              setBlocks(statusMessageId, (existingBlocks) => {
+                const prevChunk = (existingBlocks[0] as any)?.state?.liveTextChunk;
+                return [
+                  {
+                    type: "draft_progress",
+                    state: {
+                      grantTitle: grant.title,
+                      currentSectionTitle: sectionTitle,
+                      thought,
+                      wordCount,
+                      liveTextChunk: liveTextChunk ?? prevChunk,
+                      sectionIndex: event.event === "result" ? total : sectionIdx || 1,
+                      totalSections: total,
+                      percent,
+                    },
                   },
-                },
-              ]);
+                ];
+              });
             }
           };
           doc = await applicationService.startApplication(grant, profile, handleDraftProgress);

@@ -46,11 +46,6 @@ export function DraftProgressCard({ state }: Props) {
                 {state.currentSectionTitle ?? "Preparing application sections..."}
               </span>
             </div>
-            {Boolean(state.wordCount) && percent < 100 && (
-              <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[11px] font-mono text-muted-foreground">
-                {state.wordCount} words
-              </span>
-            )}
             {percent === 100 && (
               <span className="flex shrink-0 items-center gap-1 font-medium text-success">
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -58,13 +53,26 @@ export function DraftProgressCard({ state }: Props) {
               </span>
             )}
           </div>
-          {state.thought && percent < 100 && (
-            <p className="flex items-center gap-1.5 text-[11px] font-medium text-brand/90 italic animate-pulse">
-              <span>🧠</span>
-              <span className="truncate">{state.thought}</span>
-            </p>
-          )}
         </div>
+
+        {/* Live Streaming Text Preview Container */}
+        {percent < 100 && Boolean(state.liveTextChunk) && (
+          <div className="max-h-36 overflow-y-auto rounded-xl border border-brand/20 bg-card p-3 font-sans text-xs leading-relaxed text-foreground shadow-sm">
+            <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-brand">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-brand animate-ping" />
+                Streaming Live &bull; {state.currentSectionTitle ?? "Drafting"}
+              </span>
+              {Boolean(state.wordCount) && (
+                <span className="font-mono text-muted-foreground">{state.wordCount} words</span>
+              )}
+            </div>
+            <div className="whitespace-pre-wrap font-normal text-muted-foreground [overflow-wrap:anywhere]">
+              {state.liveTextChunk}
+              <span className="ml-1 inline-block h-3.5 w-1.5 bg-brand animate-pulse align-middle" />
+            </div>
+          </div>
+        )}
 
         {/* 12-step dots indicator */}
         <div className="flex items-center gap-1 pt-1">
