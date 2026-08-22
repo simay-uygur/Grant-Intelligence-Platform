@@ -3,6 +3,8 @@
 # Now with error handling so failures return safe values instead of crashing.
 
 import os
+import traceback
+
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
@@ -21,14 +23,16 @@ def search_grants(profile, max_grants=3):
     try:
         keywords = generate_keywords(profile, max_keywords=5)
     except Exception as e:
-        print(f"[service] keyword generation failed: {e}")
+        print(f"[service] ERROR: keyword generation failed: {e}")
+        traceback.print_exc()
         fallback = str(profile.get("sector") or "innovation").split()[0].lower()
         keywords = [fallback]
 
     try:
         candidates = search_all(keywords, page_size=10)
     except Exception as e:
-        print(f"[service] grant search failed: {e}")
+        print(f"[service] ERROR: grant search failed: {e}")
+        traceback.print_exc()
         return []
 
     if not candidates:
@@ -38,7 +42,8 @@ def search_grants(profile, max_grants=3):
     try:
         grants = select_grants(candidates, profile, max_grants=max_grants)
     except Exception as e:
-        print(f"[service] grant selection failed: {e}")
+        print(f"[service] ERROR: grant selection failed: {e}")
+        traceback.print_exc()
         return []
 
     return grants or []

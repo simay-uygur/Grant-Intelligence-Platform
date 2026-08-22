@@ -6,9 +6,8 @@ import json
 import time
 from typing import Any
 
-import boto3
+from tools.config import get_bedrock_client, get_model_id
 
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
 SECTIONS = [
     ("organisation-overview", "Organisation Overview"),
     ("project-summary", "Project Summary"),
@@ -36,8 +35,9 @@ def start_application(grant: dict[str, Any], profile: dict[str, Any]) -> dict[st
         "Write roughly 80-150 words per section and respond ONLY with a JSON array in the "
         "form [{\"title\": \"...\", \"content\": \"...\"}]."
     )
-    response = boto3.client("bedrock-runtime", region_name="us-east-1").converse(
-        modelId=MODEL_ID,
+    client = get_bedrock_client()
+    response = client.converse(
+        modelId=get_model_id(),
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         inferenceConfig={"maxTokens": 8000},
     )

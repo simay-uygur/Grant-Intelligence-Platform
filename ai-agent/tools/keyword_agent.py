@@ -4,10 +4,7 @@
 # for the EU grants API (which works best with single words).
 
 import json
-import boto3
-
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+from tools.config import get_bedrock_client, get_model_id
 
 
 def generate_keywords(profile, max_keywords=5):
@@ -24,8 +21,9 @@ def generate_keywords(profile, max_keywords=5):
         '["robotics","ai","manufacturing"]. No other text.'
     )
 
+    client = get_bedrock_client()
     response = client.converse(
-        modelId=MODEL_ID,
+        modelId=get_model_id(),
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         inferenceConfig={"maxTokens": 200},
     )

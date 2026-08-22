@@ -2,13 +2,7 @@
 # Real agent loop using Claude via Bedrock's Converse API with tool-calling.
 # Claude decides which tool to call; our code executes it and feeds results back.
 
-import boto3
-from tools.survey_user import survey_user
-from tools.eu_horizon_api import eu_horizon_api
-
-# Bedrock client.
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+from tools.config import get_bedrock_client, get_model_id
 
 # --- 1. TOOL REGISTRY: maps tool name -> real Python function ---
 TOOLS = {
@@ -137,9 +131,9 @@ def run_agent():
     ]
 
     while True:
-        # Ask Claude what to do next.
+        client = get_bedrock_client()
         response = client.converse(
-            modelId=MODEL_ID,
+            modelId=get_model_id(),
             messages=messages,
             system=SYSTEM_PROMPT,
             toolConfig=TOOL_CONFIG,

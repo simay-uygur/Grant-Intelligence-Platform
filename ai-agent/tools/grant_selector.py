@@ -6,10 +6,7 @@
 
 import json
 from datetime import date
-import boto3
-
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+from tools.config import get_bedrock_client, get_model_id
 
 
 def _drop_closed(candidates):
@@ -61,8 +58,9 @@ def select_grants(candidates, profile, max_grants=3):
         "Respond with the JSON array only."
     )
 
+    client = get_bedrock_client()
     response = client.converse(
-        modelId=MODEL_ID,
+        modelId=get_model_id(),
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         inferenceConfig={"maxTokens": 4000},
     )

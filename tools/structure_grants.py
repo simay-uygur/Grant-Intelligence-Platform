@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import boto3
-
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+from tools.config import get_bedrock_client, get_model_id
 
 
 def structure_grants(
@@ -30,8 +28,9 @@ def structure_grants(
         "requirements, tags, sourceUrl. Fill factual fields from the raw grants and do not "
         "invent grant calls or source URLs."
     )
-    response = boto3.client("bedrock-runtime", region_name="us-east-1").converse(
-        modelId=MODEL_ID,
+    client = get_bedrock_client()
+    response = client.converse(
+        modelId=get_model_id(),
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         inferenceConfig={"maxTokens": 4000},
     )

@@ -5,10 +5,7 @@
 
 import json
 import time
-import boto3
-
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+from tools.config import get_bedrock_client, get_model_id
 
 # The section list the frontend expects (id + title), in order.
 SECTIONS = [
@@ -53,8 +50,9 @@ def start_application(grant, profile):
         '[{"title": "Organisation Overview", "content": "..."}, ...]'
     )
 
+    client = get_bedrock_client()
     response = client.converse(
-        modelId=MODEL_ID,
+        modelId=get_model_id(),
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         inferenceConfig={"maxTokens": 8000},
     )

@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import boto3
-
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+from tools.config import get_bedrock_client, get_model_id
 
 
 def rewrite_section(
@@ -32,8 +30,9 @@ def rewrite_section(
         "Keep it roughly the same length, use the organisation's real details, and align it "
         "with the grant's programme priorities."
     )
-    response = boto3.client("bedrock-runtime", region_name="us-east-1").converse(
-        modelId=MODEL_ID,
+    client = get_bedrock_client()
+    response = client.converse(
+        modelId=get_model_id(),
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         inferenceConfig={"maxTokens": 1000},
     )
