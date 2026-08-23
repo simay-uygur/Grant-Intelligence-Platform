@@ -18,11 +18,23 @@ _bedrock_client: Any | None = None
 
 
 def get_bedrock_client():
-    """Return a shared singleton boto3 bedrock-runtime client."""
+    """Return a shared singleton boto3 bedrock-runtime client with timeouts and retry configuration."""
     global _bedrock_client
     if _bedrock_client is None:
         import boto3
-        _bedrock_client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+        from botocore.config import Config
+
+        # 10s connect timeout, 60s read timeout, standard retries for transient throttling
+        client_config = Config(
+            connect_timeout=10,
+            read_timeout=60,
+            retries={"max_attempts": 2, "mode": "standard"},
+        )
+        _bedrock_client = boto3.client(
+            "bedrock-runtime",
+            region_name=AWS_REGION,
+            config=client_config,
+        )
     return _bedrock_client
 
 

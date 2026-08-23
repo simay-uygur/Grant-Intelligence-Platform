@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+import time
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from backend.api.error_handlers import register_error_handlers
 from backend.api.router import api_router
@@ -47,10 +49,33 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         openapi_tags=tags_metadata,
     )
+    # Rate limiting for AI & document endpoints to prevent abuse / token drain
+    request_history: dict[str, list[float]] = {}
+
+    @app.middleware("http")
+    async def rate_limit_and_security_middleware(request: Request, call_next):
+        client_ip = request.client.host if request.client else "unknown"
+        path = request.url.path
+
+        # Protect resource-intensive agent and Bedrock endpoints (60 req/min per IP)
+        if any(path.startswith(f"{settings.api_prefix}{prefix}") for prefix in ["/chat", "/documents", "/grants"]):
+            now = time.time()
+            timestamps = [t for t in request_history.get(client_ip, []) if now - t < 60]
+            if len(timestamps) >= 60:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Too many requests. Please wait a moment before trying again."},
+                )
+            timestamps.append(now)
+            request_history[client_ip] = timestamps
+
+        return await call_next(request)
+
+    allow_credentials = "*" not in settings.frontend_cors_origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
+        allow_origins=settings.frontend_cors_origins,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
