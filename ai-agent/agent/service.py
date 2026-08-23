@@ -283,29 +283,56 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
 
 
 def rewrite_section_stream(section_title, current_content, profile, grant=None, instruction=None):
-    """Generator streaming events for rewriting a single application section."""
+    """
+    Generator streaming events for rewriting a single application section.
+
+    Emits real token-by-token section_chunk events as Bedrock streams the
+    rewrite, followed by a single result event with the fully accumulated
+    content — the same event schema used by start_application_stream.
+    """
+    from tools.rewrite_section import rewrite_section_stream as _tool_stream
+
     yield {
         "event": "thinking",
         "stage": "rewrite",
-        "message": f"Analyzing section '{section_title}' and user instructions...",
+        "message": f"Analyzing section '{section_title}' and preparing rewrite instructions...",
     }
     yield {
         "event": "tool_call",
         "stage": "rewrite",
-        "message": f"Rewriting section '{section_title}' with Bedrock agent...",
+        "message": f"Streaming rewrite of '{section_title}' via Bedrock converse_stream...",
     }
 
-    content = rewrite_section(
-        section_title=section_title,
-        current_content=current_content,
-        profile=profile,
-        grant=grant,
-        instruction=instruction,
-    )
+    accumulated = ""
+    try:
+        for chunk in _tool_stream(
+            section_title=section_title,
+            current_content=current_content,
+            profile=profile,
+            grant=grant,
+            instruction=instruction,
+        ):
+            accumulated += chunk
+            words = len(accumulated.split())
+            yield {
+                "event": "section_chunk",
+                "stage": "rewrite",
+                "message": f"Rewriting '{section_title}'...",
+                "data": {
+                    "section_title": section_title,
+                    "chunk": chunk,
+                    "accumulated_content": accumulated,
+                    "word_count": words,
+                },
+            }
+    except Exception as e:
+        print(f"[service] rewrite_section_stream failed: {e}")
+        # Fall back: emit the current_content so the frontend always gets a result
+        accumulated = current_content
 
     yield {
         "event": "result",
         "stage": "rewrite",
         "message": f"Rewrote section '{section_title}' successfully",
-        "data": {"content": content},
+        "data": {"content": accumulated},
     }

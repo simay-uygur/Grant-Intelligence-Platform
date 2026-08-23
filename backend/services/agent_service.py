@@ -15,6 +15,7 @@ class AgentService:
     def __init__(self) -> None:
         os.environ.setdefault("CLAUDE_CODE_USE_BEDROCK", "1")
         os.environ.setdefault("AWS_REGION", "us-east-1")
+        self._cached_functions: dict[str, Callable[..., Any]] = {}
 
     def search_grants(self, profile: dict[str, Any], max_grants: int = 3) -> list[dict[str, Any]]:
         search_grants = self._load_function("search_grants")
@@ -75,6 +76,9 @@ class AgentService:
         )
 
     def _load_function(self, name: str) -> Callable[..., Any]:
+        if name in self._cached_functions:
+            return self._cached_functions[name]
+
         try:
             module = import_module("agent.service")
         except ModuleNotFoundError as exc:
@@ -90,10 +94,10 @@ class AgentService:
 
         try:
             function = getattr(module, name)
+            self._cached_functions[name] = function
+            return function
         except AttributeError as exc:
             logger.warning("Agent function '%s' missing from module: %s", name, exc)
             raise AgentUnavailableError(
                 f"The agent library is missing `agent.service.{name}`."
             ) from exc
-
-        return function
