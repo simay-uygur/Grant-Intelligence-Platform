@@ -24,6 +24,29 @@ Build a working grant-assistant backend locally first, connect it to the fronten
 
 ---
 
+## Areas to Fix / Improve Before Submission
+
+### 🔴 High Priority
+
+- [x] **1. CORS is `allow_origins=["*"]` with no credentials**:
+  - Fixed in [`backend/main.py`](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/backend/main.py): Replaced hardcoded wildcard `["*"]` with `settings.frontend_cors_origins` and dynamic `allow_credentials` support.
+  - Added built-in IP rate limiting middleware (60 req/min) on AI endpoints (`/chat`, `/documents`, `/grants`) to protect against automated spam and Bedrock cost exploitation.
+- [x] **2. Pydantic Validation for `save_grant` endpoint**:
+  - Added `SaveGrantRequest`, `SavedGrantItem`, and `SavedGrantsListResponse` Pydantic models in [`backend/schemas/grants.py`](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/backend/schemas/grants.py).
+  - Strongly typed `POST /api/v1/grants/saved` and `GET /api/v1/grants/saved` with full schema validation and interactive Swagger documentation.
+- [x] **3. Amazon Bedrock Socket Timeouts & Retry Handling**:
+  - Configured `botocore.config.Config(connect_timeout=10, read_timeout=60, retries=...)` in [`ai-agent/tools/config.py`](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/ai-agent/tools/config.py) to prevent hanging threads and automatically handle transient 429 throttling.
+- [x] **4. True Token Streaming in `rewrite_section_stream`**:
+  - Upgraded [`ai-agent/tools/rewrite_section.py`](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/ai-agent/tools/rewrite_section.py) to use Bedrock `converse_stream()`, emitting real-time token chunks to the UI.
+- [x] **5. Start / Open Application Duplicate Guard**:
+  - Synchronized `existingGrantIds` between pipeline applications and active document state to toggle `"Open application"` vs `"Start application"`, preventing accidental duplicate drafts.
+- [x] **6. Backend Module Caching in `AgentService`**:
+  - Implemented dynamic function caching in [`backend/services/agent_service.py`](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/backend/services/agent_service.py) to eliminate repeated `import_module` lookups.
+- [x] **7. Frontend Hook Decomposition**:
+  - Extracted grant research state machine into [`frontend/src/hooks/useGrantSearch.ts`](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/frontend/src/hooks/useGrantSearch.ts) to enhance code modularity.
+- [x] **8. Git and Scratch File Hygiene**:
+  - Updated `.gitignore` to track only necessary build files and ignore scratch files and temporary runtime databases.
+
 ## Completed Tasks [x]
 
 - [x] **Real-Time Token & Live Paragraph Text Streaming**:
