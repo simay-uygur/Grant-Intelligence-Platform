@@ -5,7 +5,13 @@ from fastapi.responses import StreamingResponse
 
 from backend.api.dependencies import get_current_user
 from backend.core.sse import sse_generator_bridge
-from backend.schemas.grants import GrantSearchRequest, GrantSearchResponse
+from backend.schemas.grants import (
+    GrantSearchRequest,
+    GrantSearchResponse,
+    SaveGrantRequest,
+    SavedGrantItem,
+    SavedGrantsListResponse,
+)
 from backend.services.agent_service import AgentUnavailableError
 from backend.services.grant_search import GrantSearchService
 
@@ -55,24 +61,34 @@ async def search_grants_stream(
 
 @router.get(
     "/saved",
+    response_model=SavedGrantsListResponse,
     summary="List saved grants",
     description="Return all bookmarked grants saved in SQLite database with match scores.",
+    response_description="Array of bookmarked grant records with match telemetry.",
 )
-def list_saved_grants(current_user: dict[str, str] | None = Depends(get_current_user)):
+def list_saved_grants(current_user: dict[str, str] | None = Depends(get_current_user)) -> SavedGrantsListResponse:
     from backend.services.document_service import DocumentService
     store = DocumentService().application_store
-    return {"savedGrants": store.list_saved_grants(current_user["id"] if current_user else None)}
+    return SavedGrantsListResponse(
+        savedGrants=store.list_saved_grants(current_user["id"] if current_user else None)
+    )
 
 
 @router.post(
     "/saved",
+    response_model=SavedGrantItem,
     summary="Save a grant",
     description="Bookmark a grant opportunity to SQLite database with full match percentage and reasoning.",
+    response_description="The saved grant record as stored in the database.",
 )
-def save_grant(grant: dict, current_user: dict[str, str] | None = Depends(get_current_user)):
+def save_grant(
+    grant: SaveGrantRequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> SavedGrantItem:
     from backend.services.document_service import DocumentService
     store = DocumentService().application_store
-    return store.save_grant(grant, current_user["id"] if current_user else None)
+    saved = store.save_grant(grant.model_dump(exclude_none=False), current_user["id"] if current_user else None)
+    return SavedGrantItem.model_validate(saved)
 
 
 @router.delete(

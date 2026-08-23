@@ -223,3 +223,44 @@ def test_start_application_rejects_a_mismatched_grant_id(
 
     assert response.status_code == 400
     assert client.get("/api/v1/applications").json()["total"] == 0
+
+
+def test_saved_grants_api_crud_and_validation(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    client = _build_client(tmp_path / "saved_grants_api.db", monkeypatch)
+
+    # 1. Invalid payload missing required fields returns 422 Unprocessable Entity
+    invalid_response = client.post("/api/v1/grants/saved", json={"title": "No ID"})
+    assert invalid_response.status_code == 422
+
+    # 2. Valid save returns 200 with typed response
+    valid_payload = {
+        "id": "HORIZON-TEST-001",
+        "title": "Digital Green Horizon",
+        "programme": "Horizon Europe",
+        "fundingAmount": "EUR 1 000 000",
+        "deadline": "2026-11-30",
+        "matchPercentage": 95,
+        "whyItMatches": "High relevance to sustainability targets.",
+    }
+    save_response = client.post("/api/v1/grants/saved", json=valid_payload)
+    assert save_response.status_code == 200
+    saved_data = save_response.json()
+    assert saved_data["id"] == "HORIZON-TEST-001"
+    assert saved_data["matchPercentage"] == 95
+
+    # 3. List returns typed array
+    list_response = client.get("/api/v1/grants/saved")
+    assert list_response.status_code == 200
+    assert len(list_response.json()["savedGrants"]) == 1
+    assert list_response.json()["savedGrants"][0]["id"] == "HORIZON-TEST-001"
+
+    # 4. Delete saved grant
+    delete_response = client.delete("/api/v1/grants/saved/HORIZON-TEST-001")
+    assert delete_response.status_code == 204
+
+    # 5. Verify empty list after delete
+    empty_list_response = client.get("/api/v1/grants/saved")
+    assert len(empty_list_response.json()["savedGrants"]) == 0

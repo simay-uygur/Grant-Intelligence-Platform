@@ -264,3 +264,59 @@ class GrantSearchResponse(BaseModel):
             }
         }
     }
+
+
+class SaveGrantRequest(BaseModel):
+    id: str = Field(description="Unique grant identifier.", min_length=1)
+    title: str = Field(description="Grant title.", min_length=1)
+    programme: str | None = Field(default=None, description="Grant programme or funder name.")
+    fundingAmount: str | None = Field(default=None, description="Funding range or amount.")
+    deadline: str | None = Field(default=None, description="Application deadline date string.")
+    sourceUrl: str | None = Field(default=None, description="Original call or portal URL.")
+    matchPercentage: int | None = Field(default=None, ge=0, le=100, description="Match score percentage (0-100).")
+    whyItMatches: str | None = Field(default=None, description="Rationale for why this grant matches.")
+    description: str | None = Field(default=None, description="Full description of the grant.")
+    eligibleCountries: list[str] = Field(default_factory=list, description="List of eligible countries.")
+    organisationEligibility: str | list[str] | None = Field(default=None, description="Organisation eligibility criteria.")
+    fundingType: str | None = Field(default=None, description="Type of funding (e.g., Grant, Lump Sum).")
+    matchReasons: list[str] = Field(default_factory=list, description="Key match bullet points.")
+    requirements: list[str] = Field(default_factory=list, description="Key grant requirements.")
+    tags: list[str] = Field(default_factory=list, description="Categorization tags.")
+
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
+            "example": {
+                "id": "HORIZON-CL2-2026-HERITAGE-01",
+                "title": "Preserving cultural heritage through digital workflows",
+                "programme": "Horizon Europe",
+                "fundingAmount": "EUR 2,000,000",
+                "deadline": "2026-09-20",
+                "sourceUrl": "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/horizon-cl2-2026-heritage-01",
+                "matchPercentage": 92,
+                "whyItMatches": "High relevance to digital twin and heritage preservation technologies.",
+            }
+        },
+    )
+
+
+class SavedGrantItem(BaseModel):
+    id: str = Field(description="Unique grant identifier.")
+    title: str = Field(description="Grant title.")
+    programme: str | None = Field(default=None, description="Grant programme name.")
+    fundingAmount: str | None = Field(default=None, description="Funding amount or range.")
+    deadline: str | None = Field(default=None, description="Application deadline.")
+    sourceUrl: str | None = Field(default=None, description="Canonical source URL.")
+    matchPercentage: int | None = Field(default=None, description="Match score percentage.")
+    whyItMatches: str | None = Field(default=None, description="Explanation of fit.")
+    savedAt: str | None = Field(default=None, description="ISO timestamp when the grant was bookmarked.")
+    grant: dict[str, Any] | None = Field(default=None, description="Full original grant payload.")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class SavedGrantsListResponse(BaseModel):
+    savedGrants: list[SavedGrantItem] = Field(
+        default_factory=list,
+        description="List of all saved/bookmarked grants with their match scores.",
+    )
