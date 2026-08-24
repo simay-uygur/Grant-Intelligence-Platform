@@ -155,11 +155,13 @@ export AWS_PROFILE=grant-platform
 export AWS_REGION=us-east-1
 export CLAUDE_CODE_USE_BEDROCK=1
 
-# Start FastAPI server on port 8000
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+# Start FastAPI server on port 8000 (--host 127.0.0.1 = local access only)
+uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-The backend server starts on `http://localhost:8000`.
+The backend server starts on `http://127.0.0.1:8000` — open `http://127.0.0.1:8000/docs`
+for the interactive API docs. (Note: always browse to `127.0.0.1` or `localhost`;
+`0.0.0.0` is a server bind address, not a clickable URL.)
 
 **Terminal 2 — Frontend:**
 
