@@ -1,4 +1,4 @@
-import type { GrantSearchResult, OrganisationProfile } from "@/types";
+import type { Grant, GrantSearchResult, OrganisationProfile, SavedGrant } from "@/types";
 import type { GrantService } from "./GrantService";
 import { ApiClient, type SseEvent } from "./apiClient";
 import { buildGrantSearchRequest, mapGrantResult, parseGrantSearchResponse } from "./grantApi";
@@ -30,5 +30,23 @@ export class ApiGrantService implements GrantService {
       grants: response.grants.map(mapGrantResult),
       sourceSummary: response.source_summary,
     };
+  }
+
+  async listSavedGrants(): Promise<SavedGrant[]> {
+    const data = await this.client.request<{ savedGrants: SavedGrant[] }>("/api/v1/grants/saved");
+    return data.savedGrants ?? [];
+  }
+
+  async saveGrant(grant: Grant | SavedGrant): Promise<SavedGrant> {
+    return await this.client.request<SavedGrant>("/api/v1/grants/saved", {
+      method: "POST",
+      body: JSON.stringify(grant),
+    });
+  }
+
+  async deleteSavedGrant(grantId: string): Promise<void> {
+    await this.client.request<void>(`/api/v1/grants/saved/${encodeURIComponent(grantId)}`, {
+      method: "DELETE",
+    });
   }
 }

@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/dialog";
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
-import { InlineNotice } from "@/components/common/InlineNotice";
 import { EmptyState } from "@/components/EmptyState";
 import {
   grantResultProvenance,

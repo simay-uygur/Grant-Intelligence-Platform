@@ -31,10 +31,7 @@ document_service = DocumentService()
     "/grants/{grant_id}/applications/latest",
     response_model=StoredApplication,
     summary="Get a grant's latest application",
-    description=(
-        "Return the most recently updated non-archived application associated "
-        "with a grant so the chat can reopen it instead of generating a duplicate."
-    ),
+    description=("Return the most recently updated non-archived application associated with a grant so the chat can reopen it instead of generating a duplicate."),
     response_description="Latest saved application for the grant.",
 )
 def get_latest_application_for_grant(grant_id: str, current_user: dict[str, str] | None = Depends(get_current_user)) -> StoredApplication:
@@ -48,10 +45,7 @@ def get_latest_application_for_grant(grant_id: str, current_user: dict[str, str]
     "/applications",
     response_model=ApplicationListResponse,
     summary="List stored applications",
-    description=(
-        "Return application summaries ordered by most recent update for the "
-        "application dashboard. Results can be filtered by lifecycle status."
-    ),
+    description=("Return application summaries ordered by most recent update for the application dashboard. Results can be filtered by lifecycle status."),
     response_description="Paginated application summaries.",
 )
 def list_applications(
@@ -72,10 +66,7 @@ def list_applications(
     "/applications/{application_id}",
     response_model=StoredApplication,
     summary="Get a stored application",
-    description=(
-        "Return one application with its generated sections and the grant/profile "
-        "inputs needed to reopen it."
-    ),
+    description=("Return one application with its generated sections and the grant/profile inputs needed to reopen it."),
     response_description="Stored application output and generation context.",
 )
 def get_application(application_id: str, current_user: dict[str, str] | None = Depends(get_current_user)) -> StoredApplication:
@@ -101,6 +92,19 @@ def update_application_status(
         return document_service.update_application_status(application_id, payload.status, current_user["id"] if current_user else None)
     except ApplicationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/applications/{application_id}",
+    status_code=204,
+    summary="Delete an application",
+    description="Delete a stored application and its draft sections.",
+)
+def delete_application(
+    application_id: str,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> None:
+    document_service.delete_application(application_id, current_user["id"] if current_user else None)
 
 
 @router.put(
@@ -138,18 +142,11 @@ async def start_application(
     payload: StartApplicationRequest,
     current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> ApplicationDocument:
-    payload_grant_id = (
-        payload.grant.id
-        if hasattr(payload.grant, "id")
-        else payload.grant.get("id")
-    )
+    payload_grant_id = payload.grant.id if hasattr(payload.grant, "id") else payload.grant.get("id")
     if payload_grant_id != grant_id:
         raise HTTPException(
             status_code=400,
-            detail=(
-                f"Path grant '{grant_id}' does not match payload grant "
-                f"'{payload_grant_id}'."
-            ),
+            detail=(f"Path grant '{grant_id}' does not match payload grant '{payload_grant_id}'."),
         )
     try:
         return await asyncio.to_thread(document_service.start_application, payload, current_user["id"] if current_user else None)
@@ -168,18 +165,11 @@ async def start_application_stream(
     payload: StartApplicationRequest,
     current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> StreamingResponse:
-    payload_grant_id = (
-        payload.grant.id
-        if hasattr(payload.grant, "id")
-        else payload.grant.get("id")
-    )
+    payload_grant_id = payload.grant.id if hasattr(payload.grant, "id") else payload.grant.get("id")
     if payload_grant_id != grant_id:
         raise HTTPException(
             status_code=400,
-            detail=(
-                f"Path grant '{grant_id}' does not match payload grant "
-                f"'{payload_grant_id}'."
-            ),
+            detail=(f"Path grant '{grant_id}' does not match payload grant '{payload_grant_id}'."),
         )
     return StreamingResponse(
         sse_generator_bridge(
@@ -249,4 +239,3 @@ async def rewrite_section_stream(
             "X-Accel-Buffering": "no",
         },
     )
-

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Grant } from "@/types";
+import type { Grant, SavedGrant } from "@/types";
+import { ApiGrantService } from "@/services/ApiGrantService";
+
+export type { SavedGrant };
 
 /**
  * Dedicated, versioned key. Separate from every other key in the app —
@@ -8,25 +11,6 @@ import type { Grant } from "@/types";
  * ("gi.drafts.v1") — none of which this hook reads or writes.
  */
 const KEY_SHORTLIST = "gi.shortlist.v1";
-
-/**
- * A saved grant is stored as its own small snapshot rather than as a pointer
- * into the conversation that surfaced it: shortlists outlive conversations,
- * and a saved grant whose conversation has been deleted must still be
- * displayable and actionable on its own. `sourceUrl` is part of that — without
- * it a saved entry is a dead end.
- */
-export interface SavedGrant {
-  id: string;
-  title: string;
-  /** The funding programme / body behind the call. */
-  programme: string;
-  fundingAmount: string;
-  deadline: string;
-  sourceUrl: string;
-  /** ISO timestamp, so a later shortlist view can order by recency. */
-  savedAt: string;
-}
 
 /** Keyed by grant id: O(1) membership, and saving twice can't duplicate. */
 type ShortlistStore = Record<string, SavedGrant>;
@@ -110,6 +94,10 @@ export function toSavedGrant(grant: Grant, savedAt: string): SavedGrant {
     deadline: grant.deadline ?? "",
     sourceUrl: grant.sourceUrl ?? "",
     savedAt,
+    matchPercentage: grant.matchPercentage,
+    whyItMatches: grant.whyItMatches,
+    matchReasons: grant.matchReasons,
+    grant,
   };
 }
 
@@ -144,6 +132,31 @@ export function useShortlist() {
     bootstrappedRef.current = true;
     applyStore(loadStore(), false);
     setHydrated(true);
+
+    const api = new ApiGrantService();
+    api
+      .listSavedGrants()
+      .then((backendGrants) => {
+        if (Array.isArray(backendGrants) && backendGrants.length > 0) {
+          const merged: ShortlistStore = { ...storeRef.current };
+          for (const item of backendGrants) {
+            merged[item.id] = {
+              id: item.id,
+              title: item.title,
+              programme: item.programme || "",
+              fundingAmount: item.fundingAmount || "",
+              deadline: item.deadline || "",
+              sourceUrl: item.sourceUrl || "",
+              savedAt: item.savedAt || new Date().toISOString(),
+              matchPercentage: item.matchPercentage,
+              whyItMatches: item.whyItMatches,
+              grant: item.grant,
+            };
+          }
+          applyStore(merged, true);
+        }
+      })
+      .catch(() => {});
   }, [applyStore]);
 
   useEffect(() => {
@@ -159,15 +172,25 @@ export function useShortlist() {
 
   /**
    * Saves an unsaved grant, removes a saved one, and writes straight away —
-   * the write isn't deferred to an effect, so it can't be missed if this
-   * component unmounts in the same tick (a conversation switch, say).
+   * syncing both to local storage and SQLite DB.
    */
   const toggleSave = useCallback(
     (grant: Grant) => {
       const next = { ...storeRef.current };
-      if (next[grant.id]) delete next[grant.id];
-      else next[grant.id] = toSavedGrant(grant, new Date().toISOString());
+      const isSaving = !next[grant.id];
+      if (next[grant.id]) {
+        delete next[grant.id];
+      } else {
+        next[grant.id] = toSavedGrant(grant, new Date().toISOString());
+      }
       applyStore(next, true);
+
+      const api = new ApiGrantService();
+      if (isSaving) {
+        api.saveGrant(grant).catch(() => {});
+      } else {
+        api.deleteSavedGrant(grant.id).catch(() => {});
+      }
     },
     [applyStore],
   );

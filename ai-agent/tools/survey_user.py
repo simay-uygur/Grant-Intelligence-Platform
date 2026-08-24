@@ -5,6 +5,7 @@
 # In the real product, some answers come from form widgets in the chat.
 # Locally, we simulate the user by reading what they type in the terminal.
 
+
 def survey_user(question):
     # Show the agent's question to the user.
     print(f"\n[AGENT ASKS]: {question}")

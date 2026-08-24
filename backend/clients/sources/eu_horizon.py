@@ -118,13 +118,9 @@ class EUHorizonClient:
                 return False
 
         budget_value = self._parse_amount(grant.amount)
-        if payload.budget_min is not None and (
-            budget_value is None or budget_value < payload.budget_min
-        ):
+        if payload.budget_min is not None and (budget_value is None or budget_value < payload.budget_min):
             return False
-        if payload.budget_max is not None and (
-            budget_value is None or budget_value > payload.budget_max
-        ):
+        if payload.budget_max is not None and (budget_value is None or budget_value > payload.budget_max):
             return False
 
         return True
@@ -132,10 +128,7 @@ class EUHorizonClient:
     def _is_horizon_topic(self, metadata: dict[str, Any]) -> bool:
         framework_programme = metadata.get("frameworkProgramme") or []
         programmes = metadata.get("esST_programmes") or []
-        return (
-            self.HORIZON_PROGRAMME_CODE in framework_programme
-            or "Horizon Europe (HORIZON)" in programmes
-        )
+        return self.HORIZON_PROGRAMME_CODE in framework_programme or "Horizon Europe (HORIZON)" in programmes
 
     def _build_summary(self, metadata: dict[str, Any], raw_result: dict[str, Any]) -> str:
         description = self._first(metadata, "descriptionByte")
@@ -167,7 +160,8 @@ class EUHorizonClient:
         for action in actions:
             deadline_dates = action.get("deadlineDates") or []
             if deadline_dates:
-                return deadline_dates[0]
+                first_deadline: str = deadline_dates[0]
+                return first_deadline
         return None
 
     def _extract_budget(self, metadata: dict[str, Any]) -> str | None:
@@ -202,7 +196,8 @@ class EUHorizonClient:
         types = metadata.get("typesOfAction") or metadata.get("esST_typeOfAction") or []
         if not types:
             return None
-        return types[0]
+        action_type: str = types[0]
+        return action_type
 
     def _is_open(self, metadata: dict[str, Any]) -> bool:
         actions_raw = self._first(metadata, "actions")
@@ -237,7 +232,8 @@ class EUHorizonClient:
         values = metadata.get(key) or []
         if not values:
             return None
-        return values[0]
+        first: str = values[0]
+        return first
 
     def _strip_html(self, value: str) -> str:
         cleaned = re.sub(r"<[^>]+>", " ", value)

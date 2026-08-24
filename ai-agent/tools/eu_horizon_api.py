@@ -2,16 +2,26 @@
 # Fetches real EU grant calls from the EU Funding & Tenders Portal (SEDIA search API).
 # Public API — no login, no cost. Request format copied from the portal's own frontend call.
 
+import html
 import json
+import logging
+import re
+from typing import Any
+
 import requests
+
+logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://api.tech.ec.europa.eu/search-api/prod/rest/search"
 
+SUMMARY_MAX_CHARS = 1500
 
-def eu_horizon_api(keyword, page_size=3):
+
+def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
     """
     Search open EU grant calls by keyword.
-    Returns a list of simplified grant dicts: title, identifier, deadline, programme, url.
+    Returns simplified grant dicts: title, identifier, deadline, programme, url,
+    and a cleaned call-text `summary` used for grant-tailored drafting.
     """
     # URL query params (same as the portal uses).
     params = {
@@ -39,10 +49,19 @@ def eu_horizon_api(keyword, page_size=3):
         }
     }
 
-    # Which fields we want back for each grant.
+    # Which fields we want back for each grant. descriptionByte carries the
+    # call text (objectives/scope) used for grant-tailored drafting.
     display_fields = [
-        "type", "identifier", "reference", "title", "status",
-        "startDate", "deadlineDate", "frameworkProgramme", "typesOfAction",
+        "type",
+        "identifier",
+        "reference",
+        "title",
+        "status",
+        "startDate",
+        "deadlineDate",
+        "frameworkProgramme",
+        "typesOfAction",
+        "descriptionByte",
     ]
 
     # Each part is sent as a "file" blob in a multipart form (that's how the portal does it).
@@ -54,7 +73,7 @@ def eu_horizon_api(keyword, page_size=3):
     }
 
     response = requests.post(SEARCH_URL, params=params, files=files)
-    print("[eu_horizon_api] HTTP status:", response.status_code)
+    logger.debug("EU Portal search '%s' -> HTTP %s", keyword, response.status_code)
 
     data = response.json()
 
@@ -63,14 +82,41 @@ def eu_horizon_api(keyword, page_size=3):
     for item in data.get("results", []):
         meta = item.get("metadata", {})
         identifier = _first(meta.get("identifier"))
-        grants.append({
-            "title": _first(meta.get("title")) or item.get("title"),
-            "identifier": identifier,
-            "deadline": _clean_date(_first(meta.get("deadlineDate"))),
-            "programme": _programme_from_identifier(identifier),
-            "url": item.get("url"),
-        })
+        raw_url = item.get("url")
+        url = _build_portal_url(identifier, raw_url)
+        grants.append(
+            {
+                "title": _first(meta.get("title")) or item.get("title"),
+                "identifier": identifier,
+                "deadline": _clean_date(_first(meta.get("deadlineDate"))),
+                "programme": _programme_from_identifier(identifier),
+                "url": url,
+                "summary": _clean_summary(_first(meta.get("descriptionByte")) or item.get("summary")),
+            }
+        )
     return grants
+
+
+def _clean_summary(value: Any) -> str | None:
+    """Strip HTML/entities from the call description and cap its length for prompting."""
+    if not value:
+        return None
+    text = html.unescape(str(value))
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > SUMMARY_MAX_CHARS:
+        text = text[:SUMMARY_MAX_CHARS].rsplit(" ", 1)[0] + "…"
+    return text or None
+
+
+def _build_portal_url(identifier: str | None, raw_url: str | None) -> str:
+    """Build a working canonical URL to the EU Funding & Tenders Portal for a given topic ID."""
+    if identifier:
+        clean_id = identifier.strip().lower()
+        return f"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/{clean_id}"
+    if raw_url and "ec.europa.eu" in raw_url:
+        return raw_url
+    return "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-search"
 
 
 def _first(value):
@@ -78,6 +124,7 @@ def _first(value):
     if isinstance(value, list):
         return value[0] if value else None
     return value
+
 
 def _clean_date(value):
     """Turn '2027-12-01T00:00:00.000+0000' into '2027-12-01'."""
@@ -112,5 +159,5 @@ if __name__ == "__main__":
         print("-", g["title"])
         print("  Deadline:", g["deadline"], "| Programme:", g["programme"])
         print("  URL:", g["url"])
+        print("  Summary:", (g.get("summary") or "MISSING")[:200])
         print()
-

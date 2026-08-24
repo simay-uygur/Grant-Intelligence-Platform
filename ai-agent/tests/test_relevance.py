@@ -2,7 +2,6 @@
 # Runs the agent's search_grants against the frontend's REAL sample profiles
 # and checks whether the recommended grants are relevant to each org's field.
 
-import json
 from agent.service import search_grants
 
 # The actual sample profiles the frontend ships with (copied from sampleProfiles.ts).
@@ -13,11 +12,13 @@ PROFILES = [
             "organisationName": "VisionWorks Robotics",
             "organisationType": "SME",
             "organisationDescription": "AI-assisted quality inspection systems for manufacturing.",
-            "country": "Germany", "region": "Berlin",
+            "country": "Germany",
+            "region": "Berlin",
             "projectTitle": "AI Quality Inspection",
             "projectDescription": "AI-driven visual quality inspection across three European factory pilots.",
             "fundingAmount": "€500,000 – €1,000,000",
-            "projectStartDate": "2026-10-01", "projectDuration": "24 months",
+            "projectStartDate": "2026-10-01",
+            "projectDuration": "24 months",
             "sector": "Digital & AI",
             "eligibilityConstraints": "Open to consortium-based calls and SME innovation grants.",
         },
@@ -30,11 +31,13 @@ PROFILES = [
             "organisationName": "GreenTech Solutions",
             "organisationType": "SME",
             "organisationDescription": "Technologies to reduce energy use and waste for manufacturers.",
-            "country": "Germany", "region": "Bavaria",
+            "country": "Germany",
+            "region": "Bavaria",
             "projectTitle": "Circular Energy Innovation",
             "projectDescription": "Energy-efficient circular manufacturing technology for European SMEs.",
             "fundingAmount": "€500,000 – €1,000,000",
-            "projectStartDate": "2027-01-01", "projectDuration": "24 months",
+            "projectStartDate": "2027-01-01",
+            "projectDuration": "24 months",
             "sector": "Innovation",
             "eligibilityConstraints": "SME-led project with European pilot partners.",
         },
@@ -46,11 +49,13 @@ PROFILES = [
             "organisationName": "University Energy Lab",
             "organisationType": "University",
             "organisationDescription": "University research group on affordable, resilient energy systems.",
-            "country": "Netherlands", "region": "Eindhoven",
+            "country": "Netherlands",
+            "region": "Eindhoven",
             "projectTitle": "Community Energy Storage",
             "projectDescription": "Demonstration of interoperable renewable-energy storage for communities and small industrial sites.",
             "fundingAmount": "€1,000,000 – €2,500,000",
-            "projectStartDate": "2027-03-01", "projectDuration": "36 months",
+            "projectStartDate": "2027-03-01",
+            "projectDuration": "36 months",
             "sector": "Clean energy",
             "eligibilityConstraints": "Research and public-sector partners available for a consortium.",
         },
@@ -61,7 +66,7 @@ PROFILES = [
 
 def check(profile_case):
     label = profile_case["label"]
-    print(f"\n{'='*70}\n TESTING: {label}\n{'='*70}")
+    print(f"\n{'=' * 70}\n TESTING: {label}\n{'=' * 70}")
 
     grants = search_grants(profile_case["profile"], max_grants=3)
     expect = profile_case["expect"]
@@ -82,10 +87,10 @@ def check(profile_case):
         print(f"     match: {match}% | deadline: {deadline} | {relevant}")
         if hits:
             print(f"     matched terms: {hits}")
-        print(f"     why: {g.get('whyItMatches','')[:160]}...")
+        print(f"     why: {g.get('whyItMatches', '')[:160]}...")
 
 
 if __name__ == "__main__":
     for case in PROFILES:
         check(case)
-    print(f"\n{'='*70}\nDone. Review each: are the grants genuinely relevant to that org's field?\n{'='*70}")
+    print(f"\n{'=' * 70}\nDone. Review each: are the grants genuinely relevant to that org's field?\n{'=' * 70}")

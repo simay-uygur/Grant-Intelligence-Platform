@@ -14,3 +14,10 @@ PyJWT>=2.10,<3.0
 pytest>=8.4,<9.0
 pypdf>=4.3,<6.0
 reportlab>=4.4,<5.0
+ruff>=0.9.0
+mypy>=1.14.0
+types-requests
+types-boto3
+sqlalchemy>=2.0.36
+alembic>=1.13
+psycopg[binary]>=3.1

@@ -113,6 +113,9 @@ export interface Attachment {
 export interface DraftProgressState {
   grantTitle: string;
   currentSectionTitle?: string;
+  thought?: string;
+  wordCount?: number;
+  liveTextChunk?: string;
   sectionIndex?: number;
   totalSections?: number;
   percent: number;
@@ -137,6 +140,20 @@ export interface ChatMessage {
   role: "user" | "assistant";
   createdAt: string;
   blocks: ChatBlock[];
+}
+
+export interface SavedGrant {
+  id: string;
+  title: string;
+  programme: string;
+  fundingAmount: string;
+  deadline: string;
+  sourceUrl: string;
+  savedAt: string;
+  matchPercentage?: number;
+  whyItMatches?: string;
+  matchReasons?: string[];
+  grant?: Grant;
 }
 
 export interface Conversation {

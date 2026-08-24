@@ -4,8 +4,12 @@
 # and returns the exact ApplicationDocument shape the frontend expects.
 
 import json
+import logging
 import time
+
 from tools.config import get_bedrock_client, get_model_id
+
+logger = logging.getLogger(__name__)
 
 # The section list the frontend expects (id + title), in order.
 SECTIONS = [
@@ -24,14 +28,24 @@ SECTIONS = [
 ]
 
 
+def _grant_context_block(grant: dict) -> str:
+    """Build the grant context for prompts, highlighting call-text priorities when available."""
+    summary = (grant.get("summary") or "").strip()
+    if summary:
+        return f"GRANT:\n{json.dumps(grant, indent=2)}\n\nGRANT CALL TEXT (official objectives & scope — tailor every section to these priorities):\n{summary}\n"
+    return f"GRANT:\n{json.dumps(grant, indent=2)}\n\n(No detailed call text available — align with the grant programme and title.)\n"
+
+
 def draft_single_section(grant, profile, section_title):
     """Draft one application section via Bedrock."""
     prompt = (
         f"You are writing a real EU grant application section: '{section_title}'.\n\n"
-        f"GRANT:\n{json.dumps(grant, indent=2)}\n\n"
+        f"{_grant_context_block(grant)}\n"
         f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
-        f"Write substantive, specific, professional prose for the '{section_title}' section (roughly 100-150 words). "
-        "Use the organisation's real details, not placeholders. Align with the grant's programme and stated priorities.\n"
+        "Write substantive, specific, professional prose for the "
+        f"'{section_title}' section (roughly 100-150 words). "
+        "Use the organisation's real details, not placeholders. Explicitly connect the "
+        "organisation's capabilities to this specific call's objectives and priorities. "
         "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
     )
     try:
@@ -47,8 +61,39 @@ def draft_single_section(grant, profile, section_title):
                 text += block["text"]
         return text.strip()
     except Exception as e:
-        print(f"[start_application] Failed to draft section '{section_title}': {e}")
+        logger.error("Failed to draft section '%s': %s", section_title, e)
         return f"Draft content for {section_title} based on {grant.get('title', 'grant')} priorities."
+
+
+def draft_single_section_stream(grant, profile, section_title):
+    """Draft one section via Bedrock converse_stream, yielding partial text chunks."""
+    prompt = (
+        f"You are writing a real EU grant application section: '{section_title}'.\n\n"
+        f"{_grant_context_block(grant)}\n"
+        f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
+        "Write substantive, specific, professional prose for the "
+        f"'{section_title}' section (roughly 100-150 words). "
+        "Use the organisation's real details, not placeholders. Explicitly connect the "
+        "organisation's capabilities to this specific call's objectives and priorities. "
+        "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
+    )
+    try:
+        client = get_bedrock_client()
+        response = client.converse_stream(
+            modelId=get_model_id(),
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"maxTokens": 1200},
+        )
+        stream = response.get("stream")
+        if stream:
+            for event in stream:
+                if "contentBlockDelta" in event:
+                    delta = event["contentBlockDelta"].get("delta", {})
+                    if "text" in delta:
+                        yield delta["text"]
+    except Exception as e:
+        logger.error("Stream failed for '%s': %s", section_title, e)
+        yield f"Draft content for {section_title} based on {grant.get('title', 'grant')} priorities."
 
 
 def start_application(grant, profile):
@@ -67,12 +112,13 @@ def start_application(grant, profile):
     prompt = (
         "You are writing a real EU grant application. Draft the content for EACH section listed below, "
         "tailored specifically to this organisation's profile and this grant's priorities.\n\n"
-        f"GRANT:\n{json.dumps(grant, indent=2)}\n\n"
+        f"{_grant_context_block(grant)}\n"
         f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
         f"SECTIONS TO WRITE (in this exact order):\n{json.dumps(section_titles, indent=2)}\n\n"
         "Write substantive, specific, professional prose for each section (roughly 80-150 words each). "
-        "Use the organisation's real details, not placeholders. Align the language with the grant's "
-        "programme and stated priorities.\n\n"
+        "Use the organisation's real details, not placeholders. In every section, explicitly connect "
+        "the organisation's capabilities to this specific call's objectives, scope, and priorities "
+        "rather than producing generic company text.\n\n"
         "Respond ONLY with a JSON array, no other text, in this exact format:\n"
         '[{"title": "Organisation Overview", "content": "..."}, ...]'
     )
@@ -96,8 +142,7 @@ def start_application(grant, profile):
     try:
         drafted = json.loads(cleaned)
     except json.JSONDecodeError:
-        print("[start_application] Could not parse JSON. Raw response:")
-        print(text[:500])
+        logger.error("Could not parse JSON selection response. Raw: %s", text[:500])
         raise
 
     # Match Claude's drafted sections back to our canonical ids.
@@ -119,5 +164,5 @@ def start_application(grant, profile):
         "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
-    print(f"[start_application] Drafted {len(sections)} sections for '{document['grantTitle']}'")
+    logger.info("Drafted %d sections for '%s'", len(sections), document["grantTitle"])
     return document

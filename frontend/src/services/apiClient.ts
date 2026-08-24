@@ -27,7 +27,7 @@ export interface SseCallbacks {
   onError?: (error: Error) => void;
 }
 
-const AUTH_TOKEN_KEY = "gi.auth.token";
+export const AUTH_TOKEN_KEY = "gi.auth.token";
 const LOCAL_DEV_API_BASE_URL = "http://127.0.0.1:8000";
 
 export const AUTH_UNAUTHORIZED_EVENT = "gi:auth:unauthorized";

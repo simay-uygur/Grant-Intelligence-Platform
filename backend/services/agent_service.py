@@ -1,6 +1,7 @@
 import os
+from collections.abc import Callable, Iterator
 from importlib import import_module
-from typing import Any, Callable
+from typing import Any
 
 from backend.core.logging import get_logger
 
@@ -15,12 +16,14 @@ class AgentService:
     def __init__(self) -> None:
         os.environ.setdefault("CLAUDE_CODE_USE_BEDROCK", "1")
         os.environ.setdefault("AWS_REGION", "us-east-1")
+        self._cached_functions: dict[str, Callable[..., Any]] = {}
 
     def search_grants(self, profile: dict[str, Any], max_grants: int = 3) -> list[dict[str, Any]]:
         search_grants = self._load_function("search_grants")
-        return search_grants(profile, max_grants=max_grants)
+        result: list[dict[str, Any]] = search_grants(profile, max_grants=max_grants)
+        return result
 
-    def search_grants_stream(self, profile: dict[str, Any], max_grants: int = 3):
+    def search_grants_stream(self, profile: dict[str, Any], max_grants: int = 3) -> Iterator[dict[str, Any]]:
         search_grants_stream = self._load_function("search_grants_stream")
         yield from search_grants_stream(profile, max_grants=max_grants)
 
@@ -30,13 +33,14 @@ class AgentService:
         profile: dict[str, Any],
     ) -> dict[str, Any]:
         start_application = self._load_function("start_application")
-        return start_application(grant, profile)
+        result: dict[str, Any] = start_application(grant, profile)
+        return result
 
     def start_application_stream(
         self,
         grant: dict[str, Any],
         profile: dict[str, Any],
-    ):
+    ) -> Iterator[dict[str, Any]]:
         start_application_stream = self._load_function("start_application_stream")
         yield from start_application_stream(grant, profile)
 
@@ -49,13 +53,14 @@ class AgentService:
         instruction: str | None = None,
     ) -> str:
         rewrite_section = self._load_function("rewrite_section")
-        return rewrite_section(
+        result: str = rewrite_section(
             section_title,
             current_content,
             profile,
             grant=grant,
             instruction=instruction,
         )
+        return result
 
     def rewrite_section_stream(
         self,
@@ -64,7 +69,7 @@ class AgentService:
         profile: dict[str, Any],
         grant: dict[str, Any] | None = None,
         instruction: str | None = None,
-    ):
+    ) -> Iterator[dict[str, Any]]:
         rewrite_section_stream = self._load_function("rewrite_section_stream")
         yield from rewrite_section_stream(
             section_title,
@@ -75,25 +80,23 @@ class AgentService:
         )
 
     def _load_function(self, name: str) -> Callable[..., Any]:
+        if name in self._cached_functions:
+            return self._cached_functions[name]
+
         try:
             module = import_module("agent.service")
         except ModuleNotFoundError as exc:
             logger.warning("Agent module not found when loading '%s': %s", name, exc)
             if exc.name not in {"agent", "agent.service"}:
-                raise AgentUnavailableError(
-                    f"The agent library could not import dependency `{exc.name}`."
-                ) from exc
-            raise AgentUnavailableError(
-                "The agent library is not installed yet. Put it at "
-                "`Grant-Intelligence-Platform/ai-agent/agent/service.py`."
-            ) from exc
+                raise AgentUnavailableError(f"The agent library could not import dependency `{exc.name}`.") from exc
+            raise AgentUnavailableError("The agent library is not installed yet. Put it at `Grant-Intelligence-Platform/ai-agent/agent/service.py`.") from exc
 
         try:
             function = getattr(module, name)
+            self._cached_functions[name] = function
         except AttributeError as exc:
             logger.warning("Agent function '%s' missing from module: %s", name, exc)
-            raise AgentUnavailableError(
-                f"The agent library is missing `agent.service.{name}`."
-            ) from exc
+            raise AgentUnavailableError(f"The agent library is missing `agent.service.{name}`.") from exc
 
-        return function
+        callable_function: Callable[..., Any] = self._cached_functions[name]
+        return callable_function

@@ -3,17 +3,12 @@ import { formatDistanceToNow } from "date-fns";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
-import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
-import {
-  applicationService,
-  backendService,
-  chatService,
-  grantService,
-  isMockMode,
-} from "@/services";
-import { clearAuthToken, logout, type SseEvent } from "@/services/apiClient";
+import { useGrantSearch } from "@/hooks/useGrantSearch";
+import { applicationService, backendService, chatService, isMockMode } from "@/services";
+import { logout } from "@/services/apiClient";
+import type { SseEvent } from "@/services/apiClient";
 import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -24,7 +19,6 @@ import type {
   ChatMessage,
   Grant,
   OrganisationProfile,
-  ResearchState,
 } from "@/types";
 import { AccountModal } from "@/components/AccountModal";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
@@ -44,23 +38,6 @@ const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   results: "Ask about one of these grants…",
   application: "Ask to revise, expand, or improve this application…",
 };
-
-const MOCK_RESEARCH_STEPS = [
-  "Understanding organisation profile",
-  "Analysing funding requirements",
-  "Checking geographical eligibility",
-  "Searching European grant programmes",
-  "Comparing funding amounts",
-  "Reviewing deadlines",
-  "Ranking the strongest matches",
-];
-
-const LIVE_RESEARCH_STEPS = [
-  "Generating search keywords",
-  "Searching EU Horizon API opportunities",
-  "Filtering & ranking best matches",
-];
-const AUTH_TOKEN_KEY = "gi.auth.token";
 
 type BackendConnection =
   | { status: "local" }
@@ -178,7 +155,6 @@ export function App() {
   const { synchronizeBackendMessages } = c;
   const apps = useApplications();
   const addApplication = apps.addApplication;
-  const shortlist = useShortlist();
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -196,7 +172,6 @@ export function App() {
   const [backendHistorySync, setBackendHistorySync] = useState<BackendHistorySync>({
     status: "idle",
   });
-  const researchInFlight = useRef(false);
   const historySyncRequest = useRef(0);
   const isMobile = useIsMobile();
   const [highlightApplicationId, setHighlightApplicationId] = useState<string | null>(null);
@@ -318,97 +293,42 @@ export function App() {
     synchronizeBackendHistory,
   ]);
 
-  const runResearch = useCallback(
-    async (profile: OrganisationProfile) => {
-      if (researchInFlight.current) return;
-      researchInFlight.current = true;
-      setBusy(true);
-      c.setStage("researching");
-
-      const researchSteps = isMockMode ? MOCK_RESEARCH_STEPS : LIVE_RESEARCH_STEPS;
-      const state: ResearchState = {
-        steps: researchSteps.map((label, i) => ({
-          label,
-          status: i === 0 ? ("active" as const) : ("pending" as const),
-        })),
-      };
-      const messageId = askAssistant([{ type: "research_status", state }]);
-
-      try {
-        const handleProgress = (event: SseEvent) => {
-          if (!event.stage) return;
-          const stageIndexMap: Record<string, number> = {
-            keywords: 0,
-            search: 1,
-            select: 2,
-          };
-          const activeIndex = stageIndexMap[event.stage] ?? 0;
-          setBlocks(messageId, (blocks) =>
-            blocks.map((block) => {
-              if (block.type !== "research_status") return block;
-              const steps = block.state.steps.map((step, idx) => {
-                if (idx < activeIndex) return { ...step, status: "done" as const };
-                if (idx === activeIndex) {
-                  return {
-                    ...step,
-                    status: "active" as const,
-                    detail: event.message || step.detail,
-                  };
-                }
-                return { ...step, status: "pending" as const };
-              });
-              return { type: "research_status", state: { steps } };
-            }),
-          );
-        };
-
-        const result = await grantService.searchGrants(profile, handleProgress);
-        const grants = result.grants;
-        setBlocks(messageId, (blocks) =>
-          blocks.map((block) =>
-            block.type === "research_status"
-              ? {
-                  type: "research_status",
-                  state: {
-                    steps: block.state.steps.map((step) => ({ ...step, status: "done" as const })),
-                  },
-                }
-              : block,
-          ),
-        );
-        c.setGrants(grants);
-        c.setStage("results");
-        askAssistant([
-          {
-            type: "text",
-            text:
-              grants.length === 0
-                ? `I couldn't find any ${isMockMode ? "demo matches" : "live opportunities"} for ${profile.organisationName}. Here's what usually helps:`
-                : isMockMode
-                  ? `I found ${grants.length} demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
-                  : `I found ${grants.length} live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results were ranked by the backend grant agent.`,
-          },
-          { type: "grant_results", grants, sourceSummary: result.sourceSummary },
-        ]);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Research failed";
-        setBlocks(messageId, (blocks) =>
-          blocks.map((b) =>
-            b.type === "research_status"
-              ? {
-                  type: "research_status",
-                  state: { ...b.state, error: message },
-                }
-              : b,
-          ),
-        );
-      } finally {
-        researchInFlight.current = false;
-        setBusy(false);
-      }
+  // ---------------------------------------------------------------------------
+  // Grant search — delegated to useGrantSearch.
+  // App supplies the UI callbacks; the hook owns the research state machine,
+  // in-flight guard, and progress event fan-out.
+  // ---------------------------------------------------------------------------
+  const { runResearch, handleRetryResearch } = useGrantSearch({
+    setBusy,
+    setStage: c.setStage,
+    setGrants: c.setGrants,
+    onResearchStart: (initialState) =>
+      askAssistant([{ type: "research_status", state: initialState }]),
+    onResearchProgress: (messageId, updater) => setBlocks(messageId, updater),
+    onResearchComplete: (grants, sourceSummary, profile) => {
+      askAssistant([
+        {
+          type: "text",
+          text:
+            grants.length === 0
+              ? `I couldn't find any ${isMockMode ? "demo matches" : "live opportunities"} for ${profile.organisationName}. Here's what usually helps:`
+              : isMockMode
+                ? `I found ${grants.length} demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
+                : `I found ${grants.length} live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results were ranked by the backend grant agent.`,
+        },
+        { type: "grant_results", grants, sourceSummary },
+      ]);
     },
-    [askAssistant, c, setBlocks],
-  );
+    onResearchError: (messageId, message) => {
+      setBlocks(messageId, (blocks) =>
+        blocks.map((b) =>
+          b.type === "research_status"
+            ? { type: "research_status", state: { ...b.state, error: message } }
+            : b,
+        ),
+      );
+    },
+  });
 
   const handleSubmitProfile = useCallback(
     (profile: OrganisationProfile) => {
@@ -424,19 +344,13 @@ export function App() {
           type: "text",
           text: isMockMode
             ? "Thanks — that's enough to start. Let me research the best demo matches across European programmes."
-            : "Thanks — that's enough to start. I’ll search the live Horizon opportunities available through the backend.",
+            : "Thanks — that's enough to start. I'll search the live Horizon opportunities available through the backend.",
         },
       ]);
       void runResearch(profile);
     },
     [askAssistant, askUser, c, runResearch],
   );
-
-  const handleRetryResearch = useCallback(() => {
-    if (c.activeConversation?.profile) {
-      void runResearch(c.activeConversation.profile);
-    }
-  }, [c.activeConversation, runResearch]);
 
   const handleAskGrant = useCallback(
     (grant: Grant) => {
@@ -492,6 +406,8 @@ export function App() {
               const data = event.data as Record<string, unknown> | undefined;
               const sectionIdx = (data?.section_index as number | undefined) ?? 0;
               const total = (data?.total_sections as number | undefined) ?? 12;
+              const thought = (data?.thought as string | undefined) ?? undefined;
+              const wordCount = (data?.word_count as number | undefined) ?? undefined;
               let percent =
                 (data?.progress_percent as number | undefined) ??
                 (sectionIdx ? Math.round((sectionIdx / total) * 100) : 0);
@@ -504,14 +420,30 @@ export function App() {
               if (event.event === "result") {
                 sectionTitle = "Application draft completed!";
               } else if (event.message) {
-                const match = event.message.match(/Section \d+\/\d+: (.*?) \(/);
+                const match = event.message.match(/Section \d+\/\d+: (.*?)(?: \([0-9]+%|\.\.\.|$)/);
                 if (match && match[1]) {
                   sectionTitle = match[1];
                 } else if (event.message.includes("Analyzing")) {
-                  sectionTitle = "Analyzing requirements...";
+                  sectionTitle = "Analyzing grant requirements...";
                 }
               }
 
+              let liveTextChunk: string | undefined = undefined;
+
+              // Real-time token streaming: update single section content live as text chunks arrive
+              if (
+                event.event === "section_chunk" &&
+                typeof data?.section_id === "string" &&
+                typeof data?.accumulated_content === "string"
+              ) {
+                liveTextChunk = data.accumulated_content;
+                c.updateDocumentSection(data.section_id, data.accumulated_content);
+                if (c.activeConversation?.stage !== "application") {
+                  c.setStage("application");
+                }
+              }
+
+              // Full document snapshot update on section completion
               if (event.data?.document && typeof event.data.document === "object") {
                 const liveDoc = event.data.document as ApplicationDocument;
                 if (liveDoc.sections && liveDoc.sections.length > 0) {
@@ -522,18 +454,26 @@ export function App() {
                 }
               }
 
-              setBlocks(statusMessageId, () => [
-                {
-                  type: "draft_progress",
-                  state: {
-                    grantTitle: grant.title,
-                    currentSectionTitle: sectionTitle,
-                    sectionIndex: event.event === "result" ? total : sectionIdx || 1,
-                    totalSections: total,
-                    percent,
+              setBlocks(statusMessageId, (existingBlocks) => {
+                const firstBlock = existingBlocks[0] as
+                  { state?: { liveTextChunk?: string } } | undefined;
+                const prevChunk = firstBlock?.state?.liveTextChunk;
+                return [
+                  {
+                    type: "draft_progress",
+                    state: {
+                      grantTitle: grant.title,
+                      currentSectionTitle: sectionTitle,
+                      thought,
+                      wordCount,
+                      liveTextChunk: liveTextChunk ?? prevChunk,
+                      sectionIndex: event.event === "result" ? total : sectionIdx || 1,
+                      totalSections: total,
+                      percent,
+                    },
                   },
-                },
-              ]);
+                ];
+              });
             }
           };
           doc = await applicationService.startApplication(grant, profile, handleDraftProgress);
@@ -589,7 +529,22 @@ export function App() {
         setStartingGrantId(null);
       }
     },
-    [addApplication, askAssistant, c],
+    [addApplication, askAssistant, c, setBlocks],
+  );
+
+  const handleDeleteApplication = useCallback(
+    (applicationId: string) => {
+      apps.deleteApplication(applicationId);
+      if (
+        c.activeConversation?.document &&
+        (c.activeConversation.document.id === applicationId ||
+          `app-${c.activeConversation.document.id}` === applicationId ||
+          c.activeConversation.document.grantId === applicationId)
+      ) {
+        c.setDocument(undefined);
+      }
+    },
+    [apps, c],
   );
 
   const handleOpenApplication = useCallback(
@@ -911,7 +866,6 @@ export function App() {
         isMockMode={isMockMode}
         mainView={mainView}
         onSelectView={setMainView}
-        savedCount={shortlist.savedGrants.length}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
       />
@@ -927,7 +881,6 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
-        savedCount={shortlist.savedGrants.length}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
       />
@@ -1089,7 +1042,7 @@ export function App() {
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
-              deleteApplication={apps.deleteApplication}
+              deleteApplication={handleDeleteApplication}
               conversations={c.conversations}
               onOpenConversation={selectConversationInChat}
               highlightApplicationId={highlightApplicationId}
@@ -1104,7 +1057,6 @@ export function App() {
             disabled={busy || !active}
             onSend={handleUserSend}
             placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
-            isMockMode={isMockMode}
             grantContext={askingAboutGrant}
             onClearGrantContext={() => setAskingAboutGrant(null)}
           />

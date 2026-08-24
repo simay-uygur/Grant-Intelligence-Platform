@@ -1,0 +1,22 @@
+# Ruff configuration
+line-length = 300
+target-version = "py313"
+
+[lint]
+# Enable Pyflakes (F) and pycodestyle (E, W) codes by default.
+# Also enable isort (I), bugbear (B), and complexity (C90).
+select = ["E", "F", "W", "I", "B", "C90", "N", "UP"]
+ignore = ["B011", "N999", "N815", "E402", "B008"]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[lint.mccabe]
+max-complexity = 25
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

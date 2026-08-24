@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getApiBaseUrl, joinApiUrl } from "@/services/apiClient";
+import { AUTH_TOKEN_KEY, getApiBaseUrl, joinApiUrl } from "@/services/apiClient";
 
 type Mode = "login" | "register";
 const apiBaseUrl = getApiBaseUrl();
@@ -30,9 +30,10 @@ export function AuthScreen() {
       };
       if (!response.ok || !payload.token)
         throw new Error(payload.detail ?? "Unable to authenticate.");
-      localStorage.setItem("gi.auth.token", payload.token);
+      localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
       localStorage.setItem("gi.auth.email", payload.user?.email || email);
-      window.location.reload();
+      // Notify other tabs and the ProtectedApp listener via the storage event.
+      window.dispatchEvent(new StorageEvent("storage", { key: AUTH_TOKEN_KEY }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to authenticate.");
     } finally {

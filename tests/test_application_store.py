@@ -1,6 +1,7 @@
 """Direct unit tests for ApplicationStore layer."""
 
 from pathlib import Path
+
 import pytest
 
 from backend.schemas.documents import ApplicationDocument, DocumentSection
@@ -131,3 +132,32 @@ def test_upsert_on_conflict(store: ApplicationStore) -> None:
     assert retrieved is not None
     assert retrieved["grantTitle"] == "AI for Healthcare (Updated)"
     assert retrieved["sections"][0]["content"] == "New Content."
+
+
+def test_saved_grants_persistence(store: ApplicationStore) -> None:
+    grant = {
+        "id": "grant-99",
+        "title": "Clean Tech Accelerator",
+        "programme": "Horizon Europe",
+        "fundingAmount": "€1,000,000",
+        "deadline": "2026-11-30",
+        "sourceUrl": "https://example.org/grant-99",
+        "matchPercentage": 92,
+        "whyItMatches": "High alignment with renewable energy domain.",
+    }
+
+    saved = store.save_grant(grant, user_id="user-1")
+    assert saved["id"] == "grant-99"
+    assert saved["matchPercentage"] == 92
+    assert saved["whyItMatches"] == "High alignment with renewable energy domain."
+
+    listed = store.list_saved_grants(user_id="user-1")
+    assert len(listed) == 1
+    assert listed[0]["title"] == "Clean Tech Accelerator"
+    assert listed[0]["matchPercentage"] == 92
+
+    deleted = store.delete_saved_grant("grant-99", user_id="user-1")
+    assert deleted is True
+
+    listed_after = store.list_saved_grants(user_id="user-1")
+    assert len(listed_after) == 0

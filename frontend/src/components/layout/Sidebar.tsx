@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   Trash2,
-  User,
   X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -38,7 +37,6 @@ interface SidebarProps {
   isMockMode: boolean;
   mainView: MainView;
   onSelectView: (view: MainView) => void;
-  savedCount?: number;
   onSignOut?: () => void;
   onOpenAccount?: () => void;
 }
@@ -118,7 +116,6 @@ function SidebarContent({
   isMockMode: _isMockMode,
   mainView,
   onSelectView,
-  savedCount,
   onSignOut,
   onOpenAccount,
   onNavigate,
