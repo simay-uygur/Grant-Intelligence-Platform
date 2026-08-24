@@ -1,62 +1,33 @@
 from __future__ import annotations
 
-import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
+from sqlalchemy import Connection, select
+from sqlalchemy.engine import Engine
+
+from backend.core.database import build_engine, conversations_table, messages_table, metadata
 from backend.core.logging import get_logger
 
 logger = get_logger("services.conversation_store")
 
 
 class ConversationStore:
-    def __init__(self, database_path: str) -> None:
-        self.database_path = Path(database_path)
-        self.database_path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, database_path: str | None = None) -> None:
+        self.engine: Engine = build_engine(database_path)
         self._initialize_schema()
 
     @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self.database_path)
-        connection.row_factory = sqlite3.Row
-        try:
+    def _connect(self) -> Iterator[Connection]:
+        # engine.begin() commits on success and rolls back on error.
+        with self.engine.begin() as connection:
             yield connection
-            connection.commit()
-        finally:
-            connection.close()
 
     def _initialize_schema(self) -> None:
-        with self._connect() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS conversations (
-                    id TEXT PRIMARY KEY,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS messages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    conversation_id TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY (conversation_id) REFERENCES conversations (id)
-                )
-                """
-            )
-            columns = {row["name"] for row in connection.execute("PRAGMA table_info(conversations)")}
-            if "user_id" not in columns:
-                connection.execute("ALTER TABLE conversations ADD COLUMN user_id TEXT")
-            message_columns = {row["name"] for row in connection.execute("PRAGMA table_info(messages)")}
-            if "user_id" not in message_columns:
-                connection.execute("ALTER TABLE messages ADD COLUMN user_id TEXT")
+        metadata.create_all(self.engine)
 
     def create_conversation(self, user_id: str | None = None) -> dict[str, str]:
         conversation_id = str(uuid4())
@@ -64,11 +35,12 @@ class ConversationStore:
         logger.info("Creating conversation '%s' (user_id=%s)", conversation_id, user_id)
         with self._connect() as connection:
             connection.execute(
-                """
-                INSERT INTO conversations (id, user_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?)
-                """,
-                (conversation_id, user_id, timestamp, timestamp),
+                conversations_table.insert().values(
+                    id=conversation_id,
+                    user_id=user_id,
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                )
             )
         return {
             "conversation_id": conversation_id,
@@ -77,15 +49,15 @@ class ConversationStore:
         }
 
     def get_conversation(self, conversation_id: str, user_id: str | None = None) -> dict[str, str] | None:
+        stmt = select(
+            conversations_table.c.id,
+            conversations_table.c.created_at,
+            conversations_table.c.updated_at,
+        ).where(conversations_table.c.id == conversation_id)
+        if user_id is not None:
+            stmt = stmt.where(conversations_table.c.user_id == user_id)
         with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT id, created_at, updated_at
-                FROM conversations
-                WHERE id = ? AND (user_id = ? OR ? IS NULL)
-                """,
-                (conversation_id, user_id, user_id),
-            ).fetchone()
+            row = connection.execute(stmt).mappings().first()
         if row is None:
             return None
         return {
@@ -101,24 +73,19 @@ class ConversationStore:
 
         timestamp = self._timestamp()
         with self._connect() as connection:
-            cursor = connection.execute(
-                """
-                INSERT INTO messages (conversation_id, user_id, role, content, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (conversation_id, user_id, role, content, timestamp),
+            result = connection.execute(
+                messages_table.insert()
+                .values(
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    role=role,
+                    content=content,
+                    created_at=timestamp,
+                )
+                .returning(messages_table.c.id)
             )
-            connection.execute(
-                """
-                UPDATE conversations
-                SET updated_at = ?
-                WHERE id = ?
-                """,
-                (timestamp, conversation_id),
-            )
-            message_id = cursor.lastrowid
-        if message_id is None:
-            raise RuntimeError(f"Failed to insert message into conversation '{conversation_id}'.")
+            message_id = result.scalar_one()
+            connection.execute(conversations_table.update().where(conversations_table.c.id == conversation_id).values(updated_at=timestamp))
         return {
             "message_id": int(message_id),
             "conversation_id": conversation_id,
@@ -131,16 +98,21 @@ class ConversationStore:
         if self.get_conversation(conversation_id, user_id) is None:
             raise ValueError(f"Conversation '{conversation_id}' does not exist.")
 
+        stmt = (
+            select(
+                messages_table.c.id,
+                messages_table.c.conversation_id,
+                messages_table.c.role,
+                messages_table.c.content,
+                messages_table.c.created_at,
+            )
+            .where(messages_table.c.conversation_id == conversation_id)
+            .order_by(messages_table.c.id.asc())
+        )
+        if user_id is not None:
+            stmt = stmt.where(messages_table.c.user_id == user_id)
         with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT id, conversation_id, role, content, created_at
-                FROM messages
-                WHERE conversation_id = ? AND (user_id = ? OR ? IS NULL)
-                ORDER BY id ASC
-                """,
-                (conversation_id, user_id, user_id),
-            ).fetchall()
+            rows = connection.execute(stmt).mappings().all()
         return [
             {
                 "message_id": row["id"],
@@ -153,25 +125,18 @@ class ConversationStore:
         ]
 
     def get_recent_model_messages(self, conversation_id: str, limit: int, user_id: str | None = None) -> list[dict[str, str]]:
+        stmt = select(messages_table.c.role, messages_table.c.content).where(messages_table.c.conversation_id == conversation_id).where(messages_table.c.role.in_(("user", "assistant"))).order_by(messages_table.c.id.desc()).limit(limit)
+        if user_id is not None:
+            stmt = stmt.where(messages_table.c.user_id == user_id)
         with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT role, content
-                FROM messages
-                WHERE conversation_id = ? AND role IN ('user', 'assistant')
-                  AND (user_id = ? OR ? IS NULL)
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (conversation_id, user_id, user_id, limit),
-            ).fetchall()
-        return [
-            {
-                "role": row["role"],
-                "content": row["content"],
-            }
-            for row in reversed(rows)
-        ]
+            rows = connection.execute(stmt).mappings().all()
+        return [{"role": row["role"], "content": row["content"]} for row in reversed(list(rows))]
 
     def _timestamp(self) -> str:
         return datetime.now(UTC).isoformat()
+
+    # Kept for API compatibility with code that inspected the path directly.
+    @property
+    def database_path(self) -> Any:
+        url = self.engine.url.render_as_string(hide_password=False)
+        return url.removeprefix("sqlite:///")

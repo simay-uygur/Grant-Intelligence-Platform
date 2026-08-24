@@ -11,4 +11,7 @@ COPY . .
 
 RUN mkdir -p /app/storage
 EXPOSE 8000
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Apply database migrations before serving traffic.
+# Idempotent: safe for local SQLite and required once for managed PostgreSQL.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn backend.main:app --host 0.0.0.0 --port 8000"]

@@ -14,8 +14,10 @@ class Settings(BaseSettings):
     # Default fallback is "local" (SQLite / browser storage).
     # When deployed to AWS Lightsail, the Lightsail container secret / environment variable
     # SESSION_STORAGE_TYPE=hosted automatically overrides this value to "hosted" (RDS / Cloud DB).
-    session_storage_type: str = "local"  # "local" (SQLite/browser) or "hosted" (RDS/Cloud DB)
-    database_url: str | None = None  # Hosted DB connection string (e.g., postgresql://user:pass@host:5432/dbname)
+    session_storage_type: str = "local"  # "local" (SQLite/browser) or "hosted" (PostgreSQL)
+    # Managed database connection string. Leave unset for local SQLite.
+    # Example (Lightsail Managed DB): postgresql://user:pass@<endpoint>:5432/grant_db
+    database_url: str | None = None
     chat_history_window: int = 10
     frontend_cors_origins: list[str] = [
         "http://localhost:3000",
