@@ -2,6 +2,7 @@
 # Tests start_application by drafting a document for a sample grant + profile.
 
 import json
+
 from tools.start_application import start_application
 
 # A sample grant (like what final_grants returns).

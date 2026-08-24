@@ -1,13 +1,14 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
 import json
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_name: str = "Grant Intelligence Backend"
     app_version: str = "0.1.0"
     api_prefix: str = "/api/v1"
-    debug: bool = True
+    debug: bool = False
     sqlite_db_path: str = "storage/backend.db"
 
     # Default fallback is "local" (SQLite / browser storage).
@@ -24,6 +25,10 @@ class Settings(BaseSettings):
         "http://localhost:8080",
         "http://127.0.0.1:8080",
     ]
+    cors_origin_regex: str | None = (
+        r"^https?://(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+        r"192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$"
+    )
     use_mock_bedrock: bool = Field(default=False, validation_alias="USE_MOCK_BEDROCK")
     aws_region: str = Field(default="us-east-1", validation_alias="AWS_REGION")
     bedrock_model_id: str = Field(
@@ -31,7 +36,12 @@ class Settings(BaseSettings):
         validation_alias="BEDROCK_MODEL_ID",
     )
     auth_required: bool = False
-    auth_secret_key: str = "development-only-secret-change-before-hosting-9f4c2e7a"
+    # Override via AUTH_SECRET_KEY env var in production. The fallback below is intentionally
+    # distinct from a real secret — it must be replaced before enabling auth_required=True.
+    auth_secret_key: str = Field(
+        default="development-only-secret-change-before-hosting-9f4c2e7a",
+        validation_alias="AUTH_SECRET_KEY",
+    )
     auth_token_ttl_hours: int = 168
 
     model_config = SettingsConfigDict(

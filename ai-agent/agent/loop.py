@@ -5,7 +5,6 @@
 # Import our real tool from the tools folder.
 from tools.survey_user import survey_user
 
-
 # --- 1. TOOL REGISTRY ---
 # Maps tool NAME (string) -> real function. get_weather is gone; survey_user is in.
 TOOLS = {
@@ -40,13 +39,7 @@ def mock_model(messages):
 
     # All questions answered -> summarize what we collected and finish.
     collected = [a["content"] for a in answers]
-    summary = (
-        "Thanks! Here's what I collected:\n"
-        f"- Business: {collected[0]}\n"
-        f"- Goal: {collected[1]}\n"
-        f"- Budget: {collected[2]}\n"
-        f"- Location: {collected[3]}"
-    )
+    summary = f"Thanks! Here's what I collected:\n- Business: {collected[0]}\n- Goal: {collected[1]}\n- Budget: {collected[2]}\n- Location: {collected[3]}"
     return {"type": "final", "content": summary}
 
 

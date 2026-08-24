@@ -3,7 +3,11 @@
 # Matches the frontend's rewriteSection(sectionTitle, currentContent, profile, grant) -> string
 
 import json
+import logging
+
 from tools.config import get_bedrock_client, get_model_id
+
+logger = logging.getLogger(__name__)
 
 
 def rewrite_section(section_title, current_content, profile, grant=None, instruction=None):
@@ -21,11 +25,7 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
     grant_context = json.dumps(grant, indent=2) if grant else "No specific grant selected."
 
     # If the user gave a specific instruction, honour it; otherwise just improve the section.
-    instruction_line = (
-        f"The user specifically asks: {instruction}\n\n"
-        if instruction
-        else "Improve this section: make it more specific, concrete, and persuasive.\n\n"
-    )
+    instruction_line = f"The user specifically asks: {instruction}\n\n" if instruction else "Improve this section: make it more specific, concrete, and persuasive.\n\n"
 
     prompt = (
         f"You are revising one section of an EU grant application.\n\n"
@@ -50,7 +50,7 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
     parts = [b["text"] for b in response["output"]["message"]["content"] if "text" in b]
     new_content = " ".join(parts).strip()
 
-    print(f"[rewrite_section] Rewrote section '{section_title}'")
+    logger.info("Rewrote section '%s'", section_title)
     return new_content
 
 
@@ -64,11 +64,7 @@ def rewrite_section_stream(section_title, current_content, profile, grant=None, 
     """
     grant_context = json.dumps(grant, indent=2) if grant else "No specific grant selected."
 
-    instruction_line = (
-        f"The user specifically asks: {instruction}\n\n"
-        if instruction
-        else "Improve this section: make it more specific, concrete, and persuasive.\n\n"
-    )
+    instruction_line = f"The user specifically asks: {instruction}\n\n" if instruction else "Improve this section: make it more specific, concrete, and persuasive.\n\n"
 
     prompt = (
         f"You are revising one section of an EU grant application.\n\n"

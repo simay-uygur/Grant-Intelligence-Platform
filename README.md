@@ -91,7 +91,29 @@ python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
 
-### 2. Configure Environment Mode (Local vs. Deployed)
+### 2. Configure Environment Variables
+
+Copy the example files and adjust as needed:
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `VITE_API_MODE` | `api` (live backend) or `mock` (frontend-only demo) | `api` |
+| `VITE_API_URL` | Backend origin for the frontend client | `http://127.0.0.1:8000` |
+| `DEBUG` | FastAPI debug mode (keep `false` outside development) | `false` |
+| `SESSION_STORAGE_TYPE` | `local` (SQLite) or `hosted` (RDS) | `local` |
+| `AUTH_REQUIRED` | Enable JWT authentication (`true` in production) | `false` |
+| `AUTH_SECRET_KEY` | JWT signing secret — **required when auth is enabled** (min 32 chars) | dev placeholder |
+| `USE_MOCK_BEDROCK` | Bypass Bedrock calls for offline testing | `false` |
+
+AWS credentials are resolved through your AWS profile / environment (`AWS_PROFILE`, `AWS_REGION`) or the Lightsail container role in production.
+
+### 3. Configure Environment Mode (Local vs. Deployed)
 
 Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`) and Backend (`SESSION_STORAGE_TYPE`):
 
@@ -149,12 +171,24 @@ The frontend development server starts on `http://localhost:8080`.
 
 ## Testing & Quality Assurance
 
+### Backend Lint, Formatting, and Type Checks
+
+```bash
+source .venv/bin/activate
+python -m ruff check backend tests
+python -m ruff format --check backend tests
+python -m mypy backend
+```
+
+Formatting can be applied automatically with `ruff format backend tests`.
+
 ### Run Frontend Lint and Unit Tests
 
 ```bash
 cd frontend
-bun run lint
-bun run test
+bun run lint        # ESLint (also auto-fixes)
+bun run typecheck   # tsc --noEmit
+bun run test        # Vitest unit/integration suite
 ```
 
 ### Run Backend Test Suite
@@ -163,6 +197,8 @@ bun run test
 source .venv/bin/activate
 pytest tests -q
 ```
+
+The same checks run automatically in CI on every push and pull request (`.github/workflows/ci.yml`).
 
 ### Run End-to-End Browser Tests
 

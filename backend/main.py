@@ -1,5 +1,7 @@
 import time
-from fastapi import FastAPI, Request
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -7,7 +9,6 @@ from backend.api.error_handlers import register_error_handlers
 from backend.api.router import api_router
 from backend.core.config import settings
 from backend.core.logging import setup_logging
-
 
 
 def create_app() -> FastAPI:
@@ -28,10 +29,7 @@ def create_app() -> FastAPI:
         },
         {
             "name": "documents",
-            "description": (
-                "SQLite-backed application storage plus drafting and section "
-                "rewrite endpoints backed by the local agent layer."
-            ),
+            "description": ("SQLite-backed application storage plus drafting and section rewrite endpoints backed by the local agent layer."),
         },
         {
             "name": "meta",
@@ -41,11 +39,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         summary="Local-first backend for grant search, chat orchestration, and Bedrock integration.",
-        description=(
-            "This API supports the Grant Intelligence Platform MVP. "
-            "Use it to send chat messages, run grant searches, and fetch "
-            "frontend bootstrap metadata for local integration."
-        ),
+        description=("This API supports the Grant Intelligence Platform MVP. Use it to send chat messages, run grant searches, and fetch frontend bootstrap metadata for local integration."),
         version=settings.app_version,
         openapi_tags=tags_metadata,
     )
@@ -53,7 +47,7 @@ def create_app() -> FastAPI:
     request_history: dict[str, list[float]] = {}
 
     @app.middleware("http")
-    async def rate_limit_and_security_middleware(request: Request, call_next):
+    async def rate_limit_and_security_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         client_ip = request.client.host if request.client else "unknown"
         path = request.url.path
 

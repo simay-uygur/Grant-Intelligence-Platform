@@ -1,14 +1,19 @@
+from collections.abc import Iterator
+from typing import Any
+
 from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.schemas.documents import (
     ApplicationDocument,
     ApplicationListResponse,
     ApplicationStatus,
+    ApplicationSummary,
     RewriteSectionRequest,
     RewriteSectionResponse,
     StartApplicationRequest,
     StoredApplication,
 )
+from backend.schemas.grants import GrantResult
 from backend.services.agent_service import AgentService
 from backend.services.application_store import (
     ApplicationStore,
@@ -26,20 +31,23 @@ class ApplicationSectionNotFoundError(ValueError):
     pass
 
 
+def _grant_to_dict(grant: GrantResult | dict[str, Any] | None) -> dict[str, Any]:
+    """Normalize the grant payload (Pydantic model, raw dict, or absent) to a plain dict."""
+    if isinstance(grant, GrantResult):
+        return grant.model_dump(exclude_none=True, exclude_defaults=True)
+    if grant is None:
+        return {}
+    return grant
+
+
 class DocumentService:
     def __init__(self, database_path: str | None = None) -> None:
         self.agent_service = AgentService()
-        self.application_store = ApplicationStore(
-            database_path=database_path or settings.sqlite_db_path
-        )
+        self.application_store = ApplicationStore(database_path=database_path or settings.sqlite_db_path)
 
     def start_application(self, payload: StartApplicationRequest, user_id: str | None = None) -> ApplicationDocument:
         logger.info("Starting application drafting (user_id=%s)", user_id)
-        grant = (
-            payload.grant.model_dump(exclude_none=True, exclude_defaults=True)
-            if hasattr(payload.grant, "model_dump")
-            else payload.grant
-        )
+        grant = _grant_to_dict(payload.grant)
         document = self.agent_service.start_application(
             grant,
             payload.profile.to_agent_profile(),
@@ -53,12 +61,8 @@ class DocumentService:
         )
         return application_document
 
-    def start_application_stream(self, payload: StartApplicationRequest, user_id: str | None = None):
-        grant = (
-            payload.grant.model_dump(exclude_none=True, exclude_defaults=True)
-            if hasattr(payload.grant, "model_dump")
-            else payload.grant
-        )
+    def start_application_stream(self, payload: StartApplicationRequest, user_id: str | None = None) -> Iterator[dict[str, Any]]:
+        grant = _grant_to_dict(payload.grant)
         for event in self.agent_service.start_application_stream(
             grant,
             payload.profile.to_agent_profile(),
@@ -94,7 +98,7 @@ class DocumentService:
             user_id=user_id,
         )
         return ApplicationListResponse(
-            applications=applications,
+            applications=[ApplicationSummary.model_validate(application) for application in applications],
             total=total,
             limit=limit,
             offset=offset,
@@ -103,17 +107,13 @@ class DocumentService:
     def get_application(self, application_id: str, user_id: str | None = None) -> StoredApplication:
         application = self.application_store.get_application(application_id, user_id)
         if application is None:
-            raise ApplicationNotFoundError(
-                f"Application '{application_id}' does not exist."
-            )
+            raise ApplicationNotFoundError(f"Application '{application_id}' does not exist.")
         return StoredApplication.model_validate(application)
 
     def get_latest_application_for_grant(self, grant_id: str, user_id: str | None = None) -> StoredApplication:
         application = self.application_store.get_latest_application_for_grant(grant_id, user_id)
         if application is None:
-            raise ApplicationNotFoundError(
-                f"Grant '{grant_id}' does not have a saved application."
-            )
+            raise ApplicationNotFoundError(f"Grant '{grant_id}' does not have a saved application.")
         return StoredApplication.model_validate(application)
 
     def update_application_status(
@@ -124,9 +124,7 @@ class DocumentService:
     ) -> StoredApplication:
         application = self.application_store.update_status(application_id, status, user_id)
         if application is None:
-            raise ApplicationNotFoundError(
-                f"Application '{application_id}' does not exist."
-            )
+            raise ApplicationNotFoundError(f"Application '{application_id}' does not exist.")
         return StoredApplication.model_validate(application)
 
     def delete_application(self, application_id: str, user_id: str | None = None) -> None:
@@ -149,9 +147,7 @@ class DocumentService:
         except StoredApplicationSectionNotFoundError as exc:
             raise ApplicationSectionNotFoundError(str(exc)) from exc
         if application is None:
-            raise ApplicationNotFoundError(
-                f"Application '{application_id}' does not exist."
-            )
+            raise ApplicationNotFoundError(f"Application '{application_id}' does not exist.")
         return StoredApplication.model_validate(application)
 
     def rewrite_section(
@@ -161,11 +157,7 @@ class DocumentService:
         payload: RewriteSectionRequest,
         user_id: str | None = None,
     ) -> RewriteSectionResponse:
-        grant = (
-            payload.grant.model_dump(exclude_none=True, exclude_defaults=True)
-            if hasattr(payload.grant, "model_dump")
-            else payload.grant
-        )
+        grant = _grant_to_dict(payload.grant)
         content = self.agent_service.rewrite_section(
             payload.sectionTitle,
             payload.currentContent,
@@ -190,12 +182,8 @@ class DocumentService:
         section_id: str,
         payload: RewriteSectionRequest,
         user_id: str | None = None,
-    ):
-        grant = (
-            payload.grant.model_dump(exclude_none=True, exclude_defaults=True)
-            if hasattr(payload.grant, "model_dump")
-            else payload.grant
-        )
+    ) -> Iterator[dict[str, Any]]:
+        grant = _grant_to_dict(payload.grant)
         for event in self.agent_service.rewrite_section_stream(
             payload.sectionTitle,
             payload.currentContent,
@@ -220,4 +208,3 @@ class DocumentService:
                     "data": response.model_dump(exclude_none=True),
                 }
             yield event
-

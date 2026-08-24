@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator
 
 from backend.core.logging import get_logger
 from backend.schemas.documents import ApplicationDocument, ApplicationStatus
@@ -274,10 +274,7 @@ class ApplicationStore:
                 None,
             )
             if matching_section is None:
-                raise StoredApplicationSectionNotFoundError(
-                    f"Section '{section_id}' does not exist in application "
-                    f"'{application_id}'."
-                )
+                raise StoredApplicationSectionNotFoundError(f"Section '{section_id}' does not exist in application '{application_id}'.")
 
             matching_section["content"] = content
             connection.execute(
@@ -305,12 +302,7 @@ class ApplicationStore:
             "grantOrganisation": self._grant_organisation(grant),
             "applicantOrganisation": str(profile.get("organisationName") or "Unknown applicant"),
             "status": row["status"],
-            "fundingAmount": str(
-                grant.get("fundingAmount")
-                or grant.get("amount")
-                or profile.get("fundingAmount")
-                or "Not specified"
-            ),
+            "fundingAmount": str(grant.get("fundingAmount") or grant.get("amount") or profile.get("fundingAmount") or "Not specified"),
             "deadline": str(grant.get("deadline") or ""),
             "sectionCount": len(sections),
             "createdAt": row["created_at"],
@@ -395,12 +387,7 @@ class ApplicationStore:
 
     @staticmethod
     def _grant_organisation(grant: dict) -> str:
-        return str(
-            grant.get("programme")
-            or grant.get("source")
-            or grant.get("fundingType")
-            or "Unknown funder"
-        )
+        return str(grant.get("programme") or grant.get("source") or grant.get("fundingType") or "Unknown funder")
 
     def save_grant(self, grant: dict, user_id: str | None = None) -> dict:
         grant_id = str(grant.get("id") or grant.get("identifier") or "")
@@ -438,9 +425,17 @@ class ApplicationStore:
                     user_id = excluded.user_id
                 """,
                 (
-                    grant_id, user_id, title, programme, funding_amount,
-                    deadline, source_url, match_percentage, why_it_matches,
-                    json.dumps(grant, ensure_ascii=False), timestamp,
+                    grant_id,
+                    user_id,
+                    title,
+                    programme,
+                    funding_amount,
+                    deadline,
+                    source_url,
+                    match_percentage,
+                    why_it_matches,
+                    json.dumps(grant, ensure_ascii=False),
+                    timestamp,
                 ),
             )
         return {
@@ -483,7 +478,6 @@ class ApplicationStore:
             }
             for row in rows
         ]
-
 
     def delete_saved_grant(self, grant_id: str, user_id: str | None = None) -> bool:
         with self._connect() as connection:

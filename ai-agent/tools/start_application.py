@@ -4,8 +4,12 @@
 # and returns the exact ApplicationDocument shape the frontend expects.
 
 import json
+import logging
 import time
+
 from tools.config import get_bedrock_client, get_model_id
+
+logger = logging.getLogger(__name__)
 
 # The section list the frontend expects (id + title), in order.
 SECTIONS = [
@@ -47,7 +51,7 @@ def draft_single_section(grant, profile, section_title):
                 text += block["text"]
         return text.strip()
     except Exception as e:
-        print(f"[start_application] Failed to draft section '{section_title}': {e}")
+        logger.error("Failed to draft section '%s': %s", section_title, e)
         return f"Draft content for {section_title} based on {grant.get('title', 'grant')} priorities."
 
 
@@ -76,7 +80,7 @@ def draft_single_section_stream(grant, profile, section_title):
                     if "text" in delta:
                         yield delta["text"]
     except Exception as e:
-        print(f"[start_application] Stream failed for '{section_title}': {e}")
+        logger.error("Stream failed for '%s': %s", section_title, e)
         yield f"Draft content for {section_title} based on {grant.get('title', 'grant')} priorities."
 
 
@@ -125,8 +129,7 @@ def start_application(grant, profile):
     try:
         drafted = json.loads(cleaned)
     except json.JSONDecodeError:
-        print("[start_application] Could not parse JSON. Raw response:")
-        print(text[:500])
+        logger.error("Could not parse JSON selection response. Raw: %s", text[:500])
         raise
 
     # Match Claude's drafted sections back to our canonical ids.
@@ -148,5 +151,5 @@ def start_application(grant, profile):
         "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
-    print(f"[start_application] Drafted {len(sections)} sections for '{document['grantTitle']}'")
+    logger.info("Drafted %d sections for '%s'", len(sections), document["grantTitle"])
     return document

@@ -6,13 +6,12 @@ from typing import Any
 
 try:
     from backend.core.config import settings
+
     AWS_REGION = settings.aws_region
     BEDROCK_MODEL_ID = settings.bedrock_model_id
 except ImportError:
     AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-    BEDROCK_MODEL_ID = os.environ.get(
-        "BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-6"
-    )
+    BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-6")
 
 _bedrock_client: Any | None = None
 
@@ -42,6 +41,7 @@ def get_model_id() -> str:
     """Return the configured Bedrock model ID."""
     try:
         from backend.core.config import settings
+
         return settings.bedrock_model_id
     except ImportError:
         return BEDROCK_MODEL_ID

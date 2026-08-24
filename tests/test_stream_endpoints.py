@@ -1,5 +1,6 @@
 import json
 import types
+
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 

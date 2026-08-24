@@ -13,7 +13,6 @@ interface Props {
   onSend: (text: string) => void;
   disabled?: boolean;
   placeholder?: string;
-  isMockMode: boolean;
   /** The grant the user is currently asking about, if any — shown as a removable context chip. */
   grantContext?: Grant | null;
   onClearGrantContext?: () => void;
@@ -76,7 +75,6 @@ export function Composer({
   onSend,
   disabled,
   placeholder,
-  isMockMode,
   grantContext,
   onClearGrantContext,
 }: Props) {

@@ -5,13 +5,16 @@
 import asyncio
 import os
 import traceback
+from typing import Any
 
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
-from agent.sdk_agent import run_agent, run_agent_stream
-from tools.start_application import start_application as _start_application
 from tools.rewrite_section import rewrite_section as _rewrite_section
+from tools.start_application import start_application as _start_application
+
+from agent.sdk_agent import run_agent
+from agent.stream_agent import run_agent_stream
 
 
 def _run(coro):
@@ -22,6 +25,7 @@ def _run(coro):
         # If an event loop is already running (e.g. inside async FastAPI),
         # create a new loop in a fresh thread.
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
             return ex.submit(lambda: asyncio.run(coro)).result()
 
@@ -44,11 +48,13 @@ def search_grants(profile, user_request=None, conversation_history=None, max_gra
     message = user_request or f"Find the best matching EU grants (up to {max_grants})."
 
     try:
-        result = _run(run_agent(
-            profile=profile,
-            user_message=message,
-            conversation_history=conversation_history,
-        ))
+        result = _run(
+            run_agent(
+                profile=profile,
+                user_message=message,
+                conversation_history=conversation_history,
+            )
+        )
     except Exception as e:
         print(f"[service] agent run failed: {e}")
         traceback.print_exc()
@@ -83,14 +89,17 @@ def continue_conversation(session_id, user_message, profile=None):
     if not session_id:
         return {"final_grants": [], "reply": "Missing session_id.", "session_id": None}
     try:
-        return _run(run_agent(
-            profile=profile or {},
-            user_message=user_message,
-            session_id=session_id,
-        ))
+        return _run(
+            run_agent(
+                profile=profile or {},
+                user_message=user_message,
+                session_id=session_id,
+            )
+        )
     except Exception as e:
         print(f"[service] continue_conversation failed: {e}")
         return {"final_grants": [], "reply": f"Error: {e}", "session_id": session_id}
+
 
 def process_agent_message(profile, user_message, conversation_history=None):
     """
@@ -101,11 +110,13 @@ def process_agent_message(profile, user_message, conversation_history=None):
     if not isinstance(profile, dict):
         return {"final_grants": [], "reply": "Invalid profile."}
     try:
-        return _run(run_agent(
-            profile=profile,
-            user_message=user_message,
-            conversation_history=conversation_history,
-        ))
+        return _run(
+            run_agent(
+                profile=profile,
+                user_message=user_message,
+                conversation_history=conversation_history,
+            )
+        )
     except Exception as e:
         print(f"[service] agent run failed: {e}")
         return {"final_grants": [], "reply": f"Error: {e}"}
@@ -126,9 +137,11 @@ def start_application(grant, profile):
     except Exception as e:
         print(f"[service] start_application failed: {e}")
         return {
-            "id": "error", "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
+            "id": "error",
+            "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
             "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
-            "sections": [], "updatedAt": "",
+            "sections": [],
+            "updatedAt": "",
             "error": "Could not draft the application. Please try again.",
         }
 
@@ -151,8 +164,9 @@ SECTIONS_LIST = [
 
 def start_application_stream(grant, profile):
     """Generator streaming real-time events & token chunks for drafting a full application document."""
-    from tools.start_application import SECTIONS, draft_single_section_stream
     import time
+
+    from tools.start_application import SECTIONS, draft_single_section_stream
 
     total = len(SECTIONS)
     doc_id = f"doc-{grant.get('id', 'unknown')}-{int(time.time())}"
@@ -176,7 +190,7 @@ def start_application_stream(grant, profile):
     try:
         for i, (section_id, section_title) in enumerate(SECTIONS, 1):
             percent = int(((i - 1) / total) * 100)
-            
+
             # Emit a rich sub-phase thought before drafting the section
             yield {
                 "event": "thinking",
@@ -254,7 +268,7 @@ def start_application_stream(grant, profile):
         }
     except Exception as e:
         print(f"[service] start_application_stream failed: {e}")
-        error_doc = {
+        error_doc: dict[str, Any] = {
             "id": "error",
             "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
             "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
@@ -274,8 +288,11 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
     """rewriteSection(...) -> string"""
     try:
         return _rewrite_section(
-            section_title=section_title, current_content=current_content,
-            profile=profile, grant=grant, instruction=instruction,
+            section_title=section_title,
+            current_content=current_content,
+            profile=profile,
+            grant=grant,
+            instruction=instruction,
         )
     except Exception as e:
         print(f"[service] rewrite_section failed: {e}")

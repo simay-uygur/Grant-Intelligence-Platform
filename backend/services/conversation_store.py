@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator
 from uuid import uuid4
 
 from backend.core.logging import get_logger
@@ -117,6 +117,8 @@ class ConversationStore:
                 (timestamp, conversation_id),
             )
             message_id = cursor.lastrowid
+        if message_id is None:
+            raise RuntimeError(f"Failed to insert message into conversation '{conversation_id}'.")
         return {
             "message_id": int(message_id),
             "conversation_id": conversation_id,

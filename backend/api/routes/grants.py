@@ -8,25 +8,24 @@ from backend.core.sse import sse_generator_bridge
 from backend.schemas.grants import (
     GrantSearchRequest,
     GrantSearchResponse,
-    SaveGrantRequest,
     SavedGrantItem,
     SavedGrantsListResponse,
+    SaveGrantRequest,
 )
 from backend.services.agent_service import AgentUnavailableError
+from backend.services.document_service import DocumentService
 from backend.services.grant_search import GrantSearchService
 
 router = APIRouter()
 grant_search_service = GrantSearchService()
+document_service = DocumentService()
 
 
 @router.post(
     "/search",
     response_model=GrantSearchResponse,
     summary="Search grants",
-    description=(
-        "Search grant opportunities by passing the organization profile to the "
-        "local agent layer."
-    ),
+    description=("Search grant opportunities by passing the organization profile to the local agent layer."),
     response_description="Agent-shaped grant search results for frontend rendering.",
 )
 async def search_grants(payload: GrantSearchRequest, _current_user: dict[str, str] | None = Depends(get_current_user)) -> GrantSearchResponse:
@@ -39,9 +38,7 @@ async def search_grants(payload: GrantSearchRequest, _current_user: dict[str, st
 @router.post(
     "/search/stream",
     summary="Stream grant search thinking events and results",
-    description=(
-        "Stream real-time thinking events and final grant search results as Server-Sent Events (SSE)."
-    ),
+    description=("Stream real-time thinking events and final grant search results as Server-Sent Events (SSE)."),
     response_class=StreamingResponse,
 )
 async def search_grants_stream(
@@ -67,11 +64,9 @@ async def search_grants_stream(
     response_description="Array of bookmarked grant records with match telemetry.",
 )
 def list_saved_grants(current_user: dict[str, str] | None = Depends(get_current_user)) -> SavedGrantsListResponse:
-    from backend.services.document_service import DocumentService
-    store = DocumentService().application_store
-    return SavedGrantsListResponse(
-        savedGrants=store.list_saved_grants(current_user["id"] if current_user else None)
-    )
+    store = document_service.application_store
+    saved_grants = [SavedGrantItem.model_validate(item) for item in store.list_saved_grants(current_user["id"] if current_user else None)]
+    return SavedGrantsListResponse(savedGrants=saved_grants)
 
 
 @router.post(
@@ -85,8 +80,7 @@ def save_grant(
     grant: SaveGrantRequest,
     current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> SavedGrantItem:
-    from backend.services.document_service import DocumentService
-    store = DocumentService().application_store
+    store = document_service.application_store
     saved = store.save_grant(grant.model_dump(exclude_none=False), current_user["id"] if current_user else None)
     return SavedGrantItem.model_validate(saved)
 
@@ -97,10 +91,8 @@ def save_grant(
     summary="Delete a saved grant",
     description="Remove a bookmarked grant from SQLite database.",
 )
-def delete_saved_grant(grant_id: str, current_user: dict[str, str] | None = Depends(get_current_user)):
-    from backend.services.document_service import DocumentService
-    store = DocumentService().application_store
+def delete_saved_grant(grant_id: str, current_user: dict[str, str] | None = Depends(get_current_user)) -> None:
+    store = document_service.application_store
     deleted = store.delete_saved_grant(grant_id, current_user["id"] if current_user else None)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Saved grant '{grant_id}' not found.")
-

@@ -29,80 +29,53 @@ class AgentProfile(BaseModel):
 class GrantSearchRequest(AgentProfile):
     query: str | None = Field(
         default=None,
-        description=(
-            "Legacy free-text query. If agent profile fields are omitted, this is "
-            "passed as the project description."
-        ),
+        description=("Legacy free-text query. If agent profile fields are omitted, this is passed as the project description."),
         examples=["AI"],
     )
     country: str | None = Field(
         default=None,
-        description=(
-            "Country associated with the applicant profile."
-        ),
+        description=("Country associated with the applicant profile."),
         examples=["Turkey"],
     )
     budget_min: int | None = Field(
         default=None,
-        description=(
-            "Optional backend-side minimum budget filter in euros. Applied after "
-            "normalization when the source provides enough budget information."
-        ),
+        description=("Optional backend-side minimum budget filter in euros. Applied after normalization when the source provides enough budget information."),
         examples=[50000],
     )
     budget_max: int | None = Field(
         default=None,
-        description=(
-            "Optional backend-side maximum budget filter in euros. Applied after "
-            "normalization when the source provides enough budget information."
-        ),
+        description=("Optional backend-side maximum budget filter in euros. Applied after normalization when the source provides enough budget information."),
         examples=[150000],
     )
     keywords: list[str] = Field(
         default_factory=list,
-        description=(
-            "Legacy keyword list. If profile fields are omitted, these are passed as "
-            "the sector or project description."
-        ),
+        description=("Legacy keyword list. If profile fields are omitted, these are passed as the sector or project description."),
         examples=[["education", "ai", "inclusion"]],
     )
     organization_type: str | None = Field(
         default=None,
-        description=(
-            "Legacy spelling mapped to `organisationType` for the agent."
-        ),
+        description=("Legacy spelling mapped to `organisationType` for the agent."),
         examples=["SME"],
     )
     programme_period: str | None = Field(
         default=None,
-        description=(
-            "Optional backend-side filter matched against normalized metadata such as "
-            "`programmePeriod` when available."
-        ),
+        description=("Optional backend-side filter matched against normalized metadata such as `programmePeriod` when available."),
         examples=["2025-2027"],
     )
     action_type: str | None = Field(
         default=None,
-        description=(
-            "Optional backend-side filter for Horizon action type such as `RIA` or "
-            "`IA`. Applied after the API response is normalized."
-        ),
+        description=("Optional backend-side filter for Horizon action type such as `RIA` or `IA`. Applied after the API response is normalized."),
         examples=["RIA"],
     )
     only_open: bool = Field(
         default=False,
-        description=(
-            "Optional backend-side filter. When true, the backend keeps only records "
-            "that appear open based on source metadata."
-        ),
+        description=("Optional backend-side filter. When true, the backend keeps only records that appear open based on source metadata."),
     )
     limit: int = Field(
         default=3,
         ge=1,
         le=25,
-        description=(
-            "Maximum number of grants requested from the agent."
-        ),
+        description=("Maximum number of grants requested from the agent."),
         examples=[10],
     )
 
@@ -221,17 +194,9 @@ class GrantResult(BaseModel):
 
 
 class GrantSearchResponse(BaseModel):
-    grants: list[GrantResult] = Field(
-        description=(
-            "Agent-ranked grant results."
-        )
-    )
-    source_summary: str = Field(
-        description="Human-readable explanation of which source or adapter was used."
-    )
-    normalized_filters_applied: dict[str, Any] = Field(
-        description="Final profile values sent to the agent."
-    )
+    grants: list[GrantResult] = Field(description=("Agent-ranked grant results."))
+    source_summary: str = Field(description="Human-readable explanation of which source or adapter was used.")
+    normalized_filters_applied: dict[str, Any] = Field(description="Final profile values sent to the agent.")
 
     model_config = {
         "json_schema_extra": {

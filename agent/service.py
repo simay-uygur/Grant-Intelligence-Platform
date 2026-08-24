@@ -25,9 +25,7 @@ def _published_service() -> ModuleType:
         return loaded
 
     if not _SERVICE_PATH.is_file():
-        raise ModuleNotFoundError(
-            "The published agent layer is missing ai-agent/agent/service.py."
-        )
+        raise ModuleNotFoundError("The published agent layer is missing ai-agent/agent/service.py.")
 
     # The published service imports its tools as ``tools.*``. Adding the
     # published layer root first makes those imports resolve to ai-agent/tools.
@@ -36,6 +34,7 @@ def _published_service() -> ModuleType:
         sys.path.insert(0, agent_root)
 
     import agent
+
     ai_agent_sub = str(_AGENT_ROOT / "agent")
     if ai_agent_sub not in agent.__path__:
         agent.__path__.append(ai_agent_sub)
@@ -106,4 +105,3 @@ def rewrite_section_stream(
         grant=grant,
         instruction=instruction,
     )
-

@@ -1,4 +1,7 @@
-from backend.schemas.grants import GrantSearchRequest, GrantSearchResponse
+from collections.abc import Iterator
+from typing import Any
+
+from backend.schemas.grants import GrantResult, GrantSearchRequest, GrantSearchResponse
 from backend.services.agent_service import AgentService
 
 
@@ -12,26 +15,20 @@ class GrantSearchService:
             max_grants=payload.limit,
         )
         return GrantSearchResponse(
-            grants=grants,
-            source_summary=(
-                "Results come from the live EU Funding & Tenders Portal and are ranked "
-                "against your profile by the Bedrock-backed grant agent."
-            ),
+            grants=[GrantResult.model_validate(grant) for grant in grants],
+            source_summary=("Results come from the live EU Funding & Tenders Portal and are ranked against your profile by the Bedrock-backed grant agent."),
             normalized_filters_applied=payload.to_agent_profile() | {"limit": payload.limit},
         )
 
-    def search_stream(self, payload: GrantSearchRequest):
+    def search_stream(self, payload: GrantSearchRequest) -> Iterator[dict[str, Any]]:
         for event in self.agent_service.search_grants_stream(
             payload.to_agent_profile(),
             max_grants=payload.limit,
         ):
             if event.get("event") == "result" and "grants" in event.get("data", {}):
                 response = GrantSearchResponse(
-                    grants=event["data"]["grants"],
-                    source_summary=(
-                        "Results come from the live EU Funding & Tenders Portal and are ranked "
-                        "against your profile by the Bedrock-backed grant agent."
-                    ),
+                    grants=[GrantResult.model_validate(grant) for grant in event["data"]["grants"]],
+                    source_summary=("Results come from the live EU Funding & Tenders Portal and are ranked against your profile by the Bedrock-backed grant agent."),
                     normalized_filters_applied=payload.to_agent_profile() | {"limit": payload.limit},
                 )
                 event = {
@@ -39,4 +36,3 @@ class GrantSearchService:
                     "data": response.model_dump(exclude_none=True),
                 }
             yield event
-

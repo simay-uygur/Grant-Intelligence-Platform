@@ -1,6 +1,7 @@
 """Direct unit tests for ApplicationStore layer."""
 
 from pathlib import Path
+
 import pytest
 
 from backend.schemas.documents import ApplicationDocument, DocumentSection

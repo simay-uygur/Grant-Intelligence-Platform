@@ -4,10 +4,10 @@ import hashlib
 import hmac
 import secrets
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterator
 from uuid import uuid4
 
 import jwt
@@ -146,7 +146,7 @@ class AuthService:
     def _hash_password(password: str) -> str:
         salt = secrets.token_bytes(16)
         digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
-        return "scrypt$16384$8$1$%s$%s" % (salt.hex(), digest.hex())
+        return f"scrypt$16384$8$1${salt.hex()}${digest.hex()}"
 
     @staticmethod
     def _verify_password(password: str, encoded: str) -> bool:

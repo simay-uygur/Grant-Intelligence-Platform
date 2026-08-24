@@ -3,12 +3,17 @@
 # Public API — no login, no cost. Request format copied from the portal's own frontend call.
 
 import json
+import logging
+from typing import Any
+
 import requests
+
+logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://api.tech.ec.europa.eu/search-api/prod/rest/search"
 
 
-def eu_horizon_api(keyword, page_size=3):
+def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
     """
     Search open EU grant calls by keyword.
     Returns a list of simplified grant dicts: title, identifier, deadline, programme, url.
@@ -41,8 +46,15 @@ def eu_horizon_api(keyword, page_size=3):
 
     # Which fields we want back for each grant.
     display_fields = [
-        "type", "identifier", "reference", "title", "status",
-        "startDate", "deadlineDate", "frameworkProgramme", "typesOfAction",
+        "type",
+        "identifier",
+        "reference",
+        "title",
+        "status",
+        "startDate",
+        "deadlineDate",
+        "frameworkProgramme",
+        "typesOfAction",
     ]
 
     # Each part is sent as a "file" blob in a multipart form (that's how the portal does it).
@@ -54,7 +66,7 @@ def eu_horizon_api(keyword, page_size=3):
     }
 
     response = requests.post(SEARCH_URL, params=params, files=files)
-    print("[eu_horizon_api] HTTP status:", response.status_code)
+    logger.debug("EU Portal search '%s' -> HTTP %s", keyword, response.status_code)
 
     data = response.json()
 
@@ -65,13 +77,15 @@ def eu_horizon_api(keyword, page_size=3):
         identifier = _first(meta.get("identifier"))
         raw_url = item.get("url")
         url = _build_portal_url(identifier, raw_url)
-        grants.append({
-            "title": _first(meta.get("title")) or item.get("title"),
-            "identifier": identifier,
-            "deadline": _clean_date(_first(meta.get("deadlineDate"))),
-            "programme": _programme_from_identifier(identifier),
-            "url": url,
-        })
+        grants.append(
+            {
+                "title": _first(meta.get("title")) or item.get("title"),
+                "identifier": identifier,
+                "deadline": _clean_date(_first(meta.get("deadlineDate"))),
+                "programme": _programme_from_identifier(identifier),
+                "url": url,
+            }
+        )
     return grants
 
 
@@ -90,6 +104,7 @@ def _first(value):
     if isinstance(value, list):
         return value[0] if value else None
     return value
+
 
 def _clean_date(value):
     """Turn '2027-12-01T00:00:00.000+0000' into '2027-12-01'."""
@@ -125,4 +140,3 @@ if __name__ == "__main__":
         print("  Deadline:", g["deadline"], "| Programme:", g["programme"])
         print("  URL:", g["url"])
         print()
-

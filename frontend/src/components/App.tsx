@@ -3,12 +3,11 @@ import { formatDistanceToNow } from "date-fns";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
-import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { useGrantSearch } from "@/hooks/useGrantSearch";
 import { applicationService, backendService, chatService, isMockMode } from "@/services";
-import { clearAuthToken, logout } from "@/services/apiClient";
+import { logout } from "@/services/apiClient";
 import type { SseEvent } from "@/services/apiClient";
 import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
@@ -39,8 +38,6 @@ const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   results: "Ask about one of these grants…",
   application: "Ask to revise, expand, or improve this application…",
 };
-
-const AUTH_TOKEN_KEY = "gi.auth.token";
 
 type BackendConnection =
   | { status: "local" }
@@ -158,7 +155,6 @@ export function App() {
   const { synchronizeBackendMessages } = c;
   const apps = useApplications();
   const addApplication = apps.addApplication;
-  const shortlist = useShortlist();
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -870,7 +866,6 @@ export function App() {
         isMockMode={isMockMode}
         mainView={mainView}
         onSelectView={setMainView}
-        savedCount={shortlist.savedGrants.length}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
       />
@@ -886,7 +881,6 @@ export function App() {
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
-        savedCount={shortlist.savedGrants.length}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
       />
@@ -1063,7 +1057,6 @@ export function App() {
             disabled={busy || !active}
             onSend={handleUserSend}
             placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
-            isMockMode={isMockMode}
             grantContext={askingAboutGrant}
             onClearGrantContext={() => setAskingAboutGrant(null)}
           />
