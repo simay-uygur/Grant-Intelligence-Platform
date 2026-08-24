@@ -28,14 +28,24 @@ SECTIONS = [
 ]
 
 
+def _grant_context_block(grant: dict) -> str:
+    """Build the grant context for prompts, highlighting call-text priorities when available."""
+    summary = (grant.get("summary") or "").strip()
+    if summary:
+        return f"GRANT:\n{json.dumps(grant, indent=2)}\n\nGRANT CALL TEXT (official objectives & scope — tailor every section to these priorities):\n{summary}\n"
+    return f"GRANT:\n{json.dumps(grant, indent=2)}\n\n(No detailed call text available — align with the grant programme and title.)\n"
+
+
 def draft_single_section(grant, profile, section_title):
     """Draft one application section via Bedrock."""
     prompt = (
         f"You are writing a real EU grant application section: '{section_title}'.\n\n"
-        f"GRANT:\n{json.dumps(grant, indent=2)}\n\n"
+        f"{_grant_context_block(grant)}\n"
         f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
-        f"Write substantive, specific, professional prose for the '{section_title}' section (roughly 100-150 words). "
-        "Use the organisation's real details, not placeholders. Align with the grant's programme and stated priorities.\n"
+        "Write substantive, specific, professional prose for the "
+        f"'{section_title}' section (roughly 100-150 words). "
+        "Use the organisation's real details, not placeholders. Explicitly connect the "
+        "organisation's capabilities to this specific call's objectives and priorities. "
         "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
     )
     try:
@@ -59,10 +69,12 @@ def draft_single_section_stream(grant, profile, section_title):
     """Draft one section via Bedrock converse_stream, yielding partial text chunks."""
     prompt = (
         f"You are writing a real EU grant application section: '{section_title}'.\n\n"
-        f"GRANT:\n{json.dumps(grant, indent=2)}\n\n"
+        f"{_grant_context_block(grant)}\n"
         f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
-        f"Write substantive, specific, professional prose for the '{section_title}' section (roughly 100-150 words). "
-        "Use the organisation's real details, not placeholders. Align with the grant's programme and stated priorities.\n"
+        "Write substantive, specific, professional prose for the "
+        f"'{section_title}' section (roughly 100-150 words). "
+        "Use the organisation's real details, not placeholders. Explicitly connect the "
+        "organisation's capabilities to this specific call's objectives and priorities. "
         "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
     )
     try:
@@ -100,12 +112,13 @@ def start_application(grant, profile):
     prompt = (
         "You are writing a real EU grant application. Draft the content for EACH section listed below, "
         "tailored specifically to this organisation's profile and this grant's priorities.\n\n"
-        f"GRANT:\n{json.dumps(grant, indent=2)}\n\n"
+        f"{_grant_context_block(grant)}\n"
         f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
         f"SECTIONS TO WRITE (in this exact order):\n{json.dumps(section_titles, indent=2)}\n\n"
         "Write substantive, specific, professional prose for each section (roughly 80-150 words each). "
-        "Use the organisation's real details, not placeholders. Align the language with the grant's "
-        "programme and stated priorities.\n\n"
+        "Use the organisation's real details, not placeholders. In every section, explicitly connect "
+        "the organisation's capabilities to this specific call's objectives, scope, and priorities "
+        "rather than producing generic company text.\n\n"
         "Respond ONLY with a JSON array, no other text, in this exact format:\n"
         '[{"title": "Organisation Overview", "content": "..."}, ...]'
     )

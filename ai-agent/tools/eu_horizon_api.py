@@ -2,8 +2,10 @@
 # Fetches real EU grant calls from the EU Funding & Tenders Portal (SEDIA search API).
 # Public API — no login, no cost. Request format copied from the portal's own frontend call.
 
+import html
 import json
 import logging
+import re
 from typing import Any
 
 import requests
@@ -12,11 +14,14 @@ logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://api.tech.ec.europa.eu/search-api/prod/rest/search"
 
+SUMMARY_MAX_CHARS = 1500
+
 
 def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
     """
     Search open EU grant calls by keyword.
-    Returns a list of simplified grant dicts: title, identifier, deadline, programme, url.
+    Returns simplified grant dicts: title, identifier, deadline, programme, url,
+    and a cleaned call-text `summary` used for grant-tailored drafting.
     """
     # URL query params (same as the portal uses).
     params = {
@@ -44,7 +49,8 @@ def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
         }
     }
 
-    # Which fields we want back for each grant.
+    # Which fields we want back for each grant. descriptionByte carries the
+    # call text (objectives/scope) used for grant-tailored drafting.
     display_fields = [
         "type",
         "identifier",
@@ -55,6 +61,7 @@ def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
         "deadlineDate",
         "frameworkProgramme",
         "typesOfAction",
+        "descriptionByte",
     ]
 
     # Each part is sent as a "file" blob in a multipart form (that's how the portal does it).
@@ -84,9 +91,22 @@ def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
                 "deadline": _clean_date(_first(meta.get("deadlineDate"))),
                 "programme": _programme_from_identifier(identifier),
                 "url": url,
+                "summary": _clean_summary(_first(meta.get("descriptionByte")) or item.get("summary")),
             }
         )
     return grants
+
+
+def _clean_summary(value: Any) -> str | None:
+    """Strip HTML/entities from the call description and cap its length for prompting."""
+    if not value:
+        return None
+    text = html.unescape(str(value))
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > SUMMARY_MAX_CHARS:
+        text = text[:SUMMARY_MAX_CHARS].rsplit(" ", 1)[0] + "…"
+    return text or None
 
 
 def _build_portal_url(identifier: str | None, raw_url: str | None) -> str:
@@ -139,4 +159,5 @@ if __name__ == "__main__":
         print("-", g["title"])
         print("  Deadline:", g["deadline"], "| Programme:", g["programme"])
         print("  URL:", g["url"])
+        print("  Summary:", (g.get("summary") or "MISSING")[:200])
         print()

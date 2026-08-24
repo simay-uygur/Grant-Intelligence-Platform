@@ -177,13 +177,15 @@ def start_application_stream(grant, profile):
 
     org_name = profile.get("organisationName", "Applicant Organisation")
     grant_title = grant.get("title", "Grant Opportunity")
+    has_call_text = bool((grant.get("summary") or "").strip())
+    focus_line = "Extracting call objectives, scope, and funder priorities from the official call text..." if has_call_text else "Extracting eligibility rules and funder priorities from the grant programme context..."
 
     yield {
         "event": "thinking",
         "stage": "draft",
         "message": f"Analyzing Grant Requirements & Priorities for '{grant_title}' ({total} sections)...",
         "data": {
-            "thought": f"Extracting eligibility rules and funder priorities for {org_name}...",
+            "thought": focus_line,
             "section_index": 0,
             "total_sections": total,
             "progress_percent": 0,
