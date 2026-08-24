@@ -174,12 +174,48 @@ The frontend development server starts on `http://localhost:8080`.
 
 ### Docker (Optional)
 
-Docker Compose is only needed to mirror the production Lightsail setup locally.
-Note that nginx serves everything on **port 80** — open `http://localhost` directly
-(not `:3000` or `:8080`):
+Docker Compose is only needed to mirror the production Lightsail setup locally
+(nginx reverse proxy in front of both services).
+
+**Prerequisite — AWS profile:** the backend container needs Amazon Bedrock access.
+It mounts your local `~/.aws` directory read-only and uses the `grant-platform`
+profile (override with `AWS_PROFILE=<name>`). Create it once if you don't have it:
+
+```bash
+# Option A: long-lived access keys
+aws configure --profile grant-platform
+# Enter your AWS Access Key ID, Secret Access Key, and region (us-east-1)
+
+# Option B: SSO (if your organisation uses AWS IAM Identity Center)
+aws configure sso --profile grant-platform
+aws sso login --profile grant-platform   # refresh before each dev session
+
+# Verify it works:
+aws sts get-caller-identity --profile grant-platform
+```
+
+Then run:
 
 ```bash
 docker compose -f deploy/lightsail/docker-compose.local.yml up --build
+```
+
+Once all containers are up, open:
+
+> **http://localhost:8080**
+
+That is the only public address — nginx (host port `8080`) proxies `/` to the
+frontend container and `/api/*` to the backend container. The individual
+frontend (`3000`) and backend (`8000`) ports are internal to Docker's network
+and are **not** reachable from your browser by design.
+
+Useful commands while it runs:
+
+```bash
+docker ps                                            # verify the 8080->80 port mapping
+docker compose -f deploy/lightsail/docker-compose.local.yml logs -f   # follow logs
+# Ctrl+C to stop, then:
+docker compose -f deploy/lightsail/docker-compose.local.yml down      # remove containers
 ```
 
 ---

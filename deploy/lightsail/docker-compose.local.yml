@@ -40,3 +40,8 @@ services:
       SQLITE_DB_PATH: /app/storage/backend.db
       FRONTEND_CORS_ORIGINS: '["http://localhost:8080"]'
       DEBUG: "false"
+      # Use the host's AWS credentials inside the container (Bedrock access).
+      AWS_PROFILE: ${AWS_PROFILE:-grant-platform}
+    volumes:
+      # Read-only mount of your local AWS profiles (SSO tokens, keys).
+      - ${HOME}/.aws:/root/.aws:ro
