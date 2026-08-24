@@ -78,3 +78,6 @@ docs/integration-and-backend-dev-changes.md
 docs/lightsail-deployment-architecture.svg
 docs/lightsail-deployment-guide.md
 .env
+
+# Local-only developer tooling
+.pre-commit-config.yaml
