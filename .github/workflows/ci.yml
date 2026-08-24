@@ -25,6 +25,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Run backend lint
+        run: python -m ruff check backend tests
+
+      - name: Check backend formatting
+        run: python -m ruff format --check backend tests
+
+      - name: Typecheck backend
+        run: python -m mypy backend tests
+
       - name: Run backend tests
         run: python -m pytest tests -q
 

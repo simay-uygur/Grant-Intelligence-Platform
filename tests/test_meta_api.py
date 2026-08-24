@@ -20,10 +20,7 @@ def test_frontend_config_advertises_live_frontend_endpoints() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["api_prefix"] == "/api/v1"
-    endpoints = {
-        (endpoint["name"], endpoint["method"], endpoint["path"])
-        for endpoint in payload["endpoints"]
-    }
+    endpoints = {(endpoint["name"], endpoint["method"], endpoint["path"]) for endpoint in payload["endpoints"]}
     assert ("health", "GET", "/api/v1/health") in endpoints
     assert (
         "chat_create_conversation",

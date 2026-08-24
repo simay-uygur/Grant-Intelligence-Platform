@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { KeyRound, LogOut, ShieldCheck, User } from "lucide-react";
+import { LogOut, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

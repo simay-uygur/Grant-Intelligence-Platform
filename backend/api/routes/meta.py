@@ -10,10 +10,7 @@ router = APIRouter()
     "/frontend-config",
     response_model=FrontendConfigResponse,
     summary="Get frontend bootstrap config",
-    description=(
-        "Return the frontend-facing configuration values and endpoint metadata "
-        "needed to connect a local UI to this backend."
-    ),
+    description=("Return the frontend-facing configuration values and endpoint metadata needed to connect a local UI to this backend."),
     response_description="Frontend bootstrap configuration and endpoint list.",
 )
 def frontend_config() -> FrontendConfigResponse:
@@ -62,10 +59,7 @@ def frontend_config() -> FrontendConfigResponse:
             FrontendEndpointInfo(
                 name="latest_grant_application",
                 method="GET",
-                path=(
-                    f"{settings.api_prefix}/grants/{{grant_id}}"
-                    "/applications/latest"
-                ),
+                path=(f"{settings.api_prefix}/grants/{{grant_id}}/applications/latest"),
                 purpose="Reopen the latest non-archived saved application for a grant.",
             ),
             FrontendEndpointInfo(
@@ -89,10 +83,7 @@ def frontend_config() -> FrontendConfigResponse:
             FrontendEndpointInfo(
                 name="save_application_section",
                 method="PUT",
-                path=(
-                    f"{settings.api_prefix}/applications/{{application_id}}"
-                    "/sections/{section_id}"
-                ),
+                path=(f"{settings.api_prefix}/applications/{{application_id}}/sections/{{section_id}}"),
                 purpose="Persist manual edits to one application section.",
             ),
             FrontendEndpointInfo(
@@ -121,10 +112,7 @@ def frontend_config() -> FrontendConfigResponse:
     "/tools-list",
     response_model=ToolsListResponse,
     summary="List backend tools",
-    description=(
-        "Return the currently exposed backend tools together with their handlers "
-        "and input/output schema contracts."
-    ),
+    description=("Return the currently exposed backend tools together with their handlers and input/output schema contracts."),
     response_description="List of backend tools and their contracts.",
 )
 def tools_list() -> ToolsListResponse:
@@ -246,6 +234,6 @@ def tools_list() -> ToolsListResponse:
                     "grant_id": "HORIZON-CL4-2025-04-DATA-03",
                 },
                 notes="Planned follow-up tool for retrieving one grant in more detail after search.",
-            )
+            ),
         ]
     )

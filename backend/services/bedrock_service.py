@@ -35,17 +35,11 @@ class BedrockService:
                 titles = ", ".join(grant["title"] for grant in grants[:2])
                 return MockBedrockResponse(
                     stop_reason="end_turn",
-                    assistant_text=(
-                        f"I found {len(grants)} Horizon results. "
-                        f"Top matches include {titles}."
-                    ),
+                    assistant_text=(f"I found {len(grants)} Horizon results. Top matches include {titles}."),
                 )
             return MockBedrockResponse(
                 stop_reason="end_turn",
-                assistant_text=(
-                    "I searched the Horizon source but did not find matching normalized results. "
-                    "Try a broader query like 'AI' or 'HORIZON-EIC'."
-                ),
+                assistant_text=("I searched the Horizon source but did not find matching normalized results. Try a broader query like 'AI' or 'HORIZON-EIC'."),
             )
 
         user_message = last_message["content"].lower()
@@ -65,9 +59,7 @@ class BedrockService:
 
         return MockBedrockResponse(
             stop_reason="end_turn",
-            assistant_text=(
-                "I can collect your grant requirements first, then use grant-search tools once needed."
-            ),
+            assistant_text=("I can collect your grant requirements first, then use grant-search tools once needed."),
         )
 
     def _extract_query(self, user_message: str) -> str:

@@ -46,6 +46,7 @@ def pdf_fill(input_pdf, output_pdf, field_values):
 if __name__ == "__main__":
     # Quick self-test: list fields of a sample form if one exists.
     import sys
+
     if len(sys.argv) > 1:
         path = sys.argv[1]
         print("Fields found:", list_fields(path))

@@ -7,7 +7,6 @@ from backend.api.routes import documents as document_routes
 from backend.main import create_app
 from backend.services.document_service import DocumentService
 
-
 PROFILE = {
     "organisationName": "Northlight Robotics",
     "organisationType": "SME",
@@ -39,11 +38,7 @@ def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
         ],
         "updatedAt": "2026-08-06T08:00:00Z",
     }
-    service.agent_service.rewrite_section = (
-        lambda section_title, current_content, profile, grant=None, instruction=None: (
-            f"AI rewrite for {profile['organisationName']}."
-        )
-    )
+    service.agent_service.rewrite_section = lambda section_title, current_content, profile, grant=None, instruction=None: f"AI rewrite for {profile['organisationName']}."
     monkeypatch.setattr(document_routes, "document_service", service)
     return TestClient(create_app())
 
@@ -97,9 +92,7 @@ def test_started_application_is_persisted_for_dashboard(
     assert stored["profile"] == PROFILE
     assert stored["status"] == "drafting"
 
-    grant_application_response = client.get(
-        "/api/v1/grants/HORIZON-APP-001/applications/latest"
-    )
+    grant_application_response = client.get("/api/v1/grants/HORIZON-APP-001/applications/latest")
     assert grant_application_response.status_code == 200
     assert grant_application_response.json()["id"] == document["id"]
     assert grant_application_response.json()["grantId"] == GRANT["id"]
@@ -109,9 +102,7 @@ def test_started_application_is_persisted_for_dashboard(
         "document_service",
         DocumentService(database_path=str(database_path)),
     )
-    reloaded_response = TestClient(create_app()).get(
-        f"/api/v1/applications/{document['id']}"
-    )
+    reloaded_response = TestClient(create_app()).get(f"/api/v1/applications/{document['id']}")
     assert reloaded_response.status_code == 200
     assert reloaded_response.json()["sections"] == document["sections"]
 
@@ -174,13 +165,14 @@ def test_missing_application_and_section_return_not_found(
     client = _build_client(tmp_path / "application_missing.db", monkeypatch)
 
     assert client.get("/api/v1/applications/missing").status_code == 404
-    assert client.get(
-        "/api/v1/grants/missing/applications/latest"
-    ).status_code == 404
-    assert client.patch(
-        "/api/v1/applications/missing",
-        json={"status": "submitted"},
-    ).status_code == 404
+    assert client.get("/api/v1/grants/missing/applications/latest").status_code == 404
+    assert (
+        client.patch(
+            "/api/v1/applications/missing",
+            json={"status": "submitted"},
+        ).status_code
+        == 404
+    )
 
     document = _start_application(client)
     response = client.put(
@@ -194,9 +186,7 @@ def test_missing_application_and_section_return_not_found(
         json={"status": "archived"},
     )
     assert archive_response.status_code == 200
-    assert client.get(
-        "/api/v1/grants/HORIZON-APP-001/applications/latest"
-    ).status_code == 404
+    assert client.get("/api/v1/grants/HORIZON-APP-001/applications/latest").status_code == 404
 
 
 def test_application_list_query_validation(
@@ -223,3 +213,44 @@ def test_start_application_rejects_a_mismatched_grant_id(
 
     assert response.status_code == 400
     assert client.get("/api/v1/applications").json()["total"] == 0
+
+
+def test_saved_grants_api_crud_and_validation(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    client = _build_client(tmp_path / "saved_grants_api.db", monkeypatch)
+
+    # 1. Invalid payload missing required fields returns 422 Unprocessable Entity
+    invalid_response = client.post("/api/v1/grants/saved", json={"title": "No ID"})
+    assert invalid_response.status_code == 422
+
+    # 2. Valid save returns 200 with typed response
+    valid_payload = {
+        "id": "HORIZON-TEST-001",
+        "title": "Digital Green Horizon",
+        "programme": "Horizon Europe",
+        "fundingAmount": "EUR 1 000 000",
+        "deadline": "2026-11-30",
+        "matchPercentage": 95,
+        "whyItMatches": "High relevance to sustainability targets.",
+    }
+    save_response = client.post("/api/v1/grants/saved", json=valid_payload)
+    assert save_response.status_code == 200
+    saved_data = save_response.json()
+    assert saved_data["id"] == "HORIZON-TEST-001"
+    assert saved_data["matchPercentage"] == 95
+
+    # 3. List returns typed array
+    list_response = client.get("/api/v1/grants/saved")
+    assert list_response.status_code == 200
+    assert len(list_response.json()["savedGrants"]) == 1
+    assert list_response.json()["savedGrants"][0]["id"] == "HORIZON-TEST-001"
+
+    # 4. Delete saved grant
+    delete_response = client.delete("/api/v1/grants/saved/HORIZON-TEST-001")
+    assert delete_response.status_code == 204
+
+    # 5. Verify empty list after delete
+    empty_list_response = client.get("/api/v1/grants/saved")
+    assert len(empty_list_response.json()["savedGrants"]) == 0

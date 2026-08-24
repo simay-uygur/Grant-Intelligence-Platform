@@ -1,14 +1,15 @@
 import asyncio
 import json
-from datetime import datetime, timezone
-from typing import Any, Callable, Generator
+from collections.abc import AsyncIterator, Callable, Iterator
+from datetime import UTC, datetime
+from typing import Any
 
 
 def format_sse_event(data: dict[str, Any] | str) -> str:
     """Format a dict or string into a standard Server-Sent Event string."""
     if isinstance(data, dict):
         if "timestamp" not in data:
-            data["timestamp"] = datetime.now(timezone.utc).isoformat()
+            data["timestamp"] = datetime.now(UTC).isoformat()
         payload = json.dumps(data)
     else:
         payload = str(data)
@@ -16,10 +17,10 @@ def format_sse_event(data: dict[str, Any] | str) -> str:
 
 
 async def sse_generator_bridge(
-    sync_generator_func: Callable[..., Generator[dict[str, Any], None, None]],
+    sync_generator_func: Callable[..., Iterator[dict[str, Any]]],
     *args: Any,
     **kwargs: Any,
-):
+) -> AsyncIterator[str]:
     """Run a synchronous generator function in a background thread and yield SSE formatted events asynchronously."""
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict[str, Any] | None | Exception] = asyncio.Queue()
@@ -45,7 +46,7 @@ async def sse_generator_bridge(
                 "event": "error",
                 "stage": "pipeline",
                 "message": f"Pipeline execution failed: {item}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             yield format_sse_event(error_event)
             break

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { App } from "@/components/App";
 import { AuthScreen } from "@/components/AuthScreen";
-import { AUTH_UNAUTHORIZED_EVENT } from "@/services/apiClient";
+import { AUTH_TOKEN_KEY, AUTH_UNAUTHORIZED_EVENT } from "@/services/apiClient";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -36,12 +36,12 @@ function ProtectedApp() {
   useEffect(() => {
     setMounted(true);
     setHasToken(
-      typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token")),
+      typeof window !== "undefined" && Boolean(window.localStorage.getItem(AUTH_TOKEN_KEY)),
     );
 
     const handleAuthChange = () => {
       const tokenExists =
-        typeof window !== "undefined" && Boolean(window.localStorage.getItem("gi.auth.token"));
+        typeof window !== "undefined" && Boolean(window.localStorage.getItem(AUTH_TOKEN_KEY));
       setHasToken(tokenExists);
     };
 

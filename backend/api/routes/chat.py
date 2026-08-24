@@ -29,10 +29,7 @@ def create_conversation(current_user: dict[str, str] | None = Depends(get_curren
     "/message",
     response_model=ChatMessageResponse,
     summary="Send a chat message",
-    description=(
-        "Accept a user message from the frontend, preserve optional structured "
-        "context, and return the next assistant step plus any tool results."
-    ),
+    description=("Accept a user message from the frontend, preserve optional structured context, and return the next assistant step plus any tool results."),
     response_description="Assistant response with next-step guidance and tool output.",
 )
 def send_message(payload: ChatMessageRequest, current_user: dict[str, str] | None = Depends(get_current_user)) -> ChatMessageResponse:
@@ -60,10 +57,7 @@ def get_conversation_messages(conversation_id: str, current_user: dict[str, str]
     "/loop-preview",
     response_model=ChatLoopPreviewResponse,
     summary="Preview the future Bedrock tool loop",
-    description=(
-        "Return a lightweight description of the planned model-decides-tool-call "
-        "architecture for the chat flow."
-    ),
+    description=("Return a lightweight description of the planned model-decides-tool-call architecture for the chat flow."),
     response_description="Preview of the planned Bedrock tool-calling loop.",
 )
 def get_loop_preview() -> ChatLoopPreviewResponse:

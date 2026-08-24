@@ -72,15 +72,9 @@ class ToolsListResponse(BaseModel):
                         "output_model": "GrantSearchResponse",
                         "input_schema": {
                             "type": "object",
-                            "properties": {
-                                "query": {"type": "string"},
-                                "limit": {"type": "integer"}
-                            }
+                            "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}},
                         },
-                        "example_input": {
-                            "query": "AI",
-                            "limit": 3
-                        },
+                        "example_input": {"query": "AI", "limit": 3},
                         "notes": "Uses the live EU Horizon search endpoint and backend-side normalization.",
                     }
                 ]

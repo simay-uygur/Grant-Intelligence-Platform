@@ -17,10 +17,7 @@ grant = {
     "programme": "Horizon Europe",
 }
 
-current = (
-    "Our project is innovative because it uses AI. This is new technology that "
-    "will help factories work better and improve things."
-)
+current = "Our project is innovative because it uses AI. This is new technology that will help factories work better and improve things."
 
 print("----- BEFORE -----")
 print(current)

@@ -1,15 +1,15 @@
+from backend.core.config import settings
+from backend.core.logging import get_logger
 from backend.schemas.chat import (
     ChatContext,
     ChatLoopPreviewResponse,
-    ConversationMessagesResponse,
-    ConversationResponse,
     ChatMessageRequest,
     ChatMessageResponse,
+    ConversationMessagesResponse,
+    ConversationResponse,
     StoredChatMessage,
     ToolDefinitionPreview,
 )
-from backend.core.config import settings
-from backend.core.logging import get_logger
 from backend.services.conversation_store import ConversationStore
 from backend.services.grant_tools import GrantTools
 
@@ -19,9 +19,7 @@ logger = get_logger("services.chat")
 class ChatService:
     def __init__(self, database_path: str | None = None) -> None:
         self.grant_tools = GrantTools()
-        self.conversation_store = ConversationStore(
-            database_path=database_path or settings.sqlite_db_path
-        )
+        self.conversation_store = ConversationStore(database_path=database_path or settings.sqlite_db_path)
 
     def handle_message(self, payload: ChatMessageRequest, user_id: str | None = None) -> ChatMessageResponse:
         conversation = self._resolve_conversation(payload.conversation_id, user_id)
@@ -35,16 +33,14 @@ class ChatService:
 
         if self._has_search_context(payload.context):
             tool_input = self._context_to_search_input(payload.context, payload.user_message)
-            logger.info("Search context detected for conversation '%s', invoking searchGrants tool", conversation["conversation_id"])
+            logger.info(
+                "Search context detected for conversation '%s', invoking searchGrants tool",
+                conversation["conversation_id"],
+            )
             search_response = self.grant_tools.search_grants(tool_input)
             result_count = len(search_response.grants)
             logger.info("Found %d grant results for conversation '%s'", result_count, conversation["conversation_id"])
-            assistant_message = (
-                f"I searched live grant opportunities using your profile context and found {result_count} "
-                f"{'match' if result_count == 1 else 'matches'}."
-                if result_count
-                else "I searched live grant opportunities using your profile context but did not find strong matches yet."
-            )
+            assistant_message = f"I searched live grant opportunities using your profile context and found {result_count} {'match' if result_count == 1 else 'matches'}." if result_count else "I searched live grant opportunities using your profile context but did not find strong matches yet."
             self.conversation_store.append_message(
                 conversation["conversation_id"],
                 "assistant",
@@ -91,10 +87,7 @@ class ChatService:
             entrypoint="/api/v1/chat/message",
             orchestration_owner="backend",
             model_role="Not used by this guide-aligned chat endpoint.",
-            backend_role=(
-                "Collects structured context, calls the backend grant-search service when enough "
-                "context exists, and keeps conversation state."
-            ),
+            backend_role=("Collects structured context, calls the backend grant-search service when enough context exists, and keeps conversation state."),
             loop_steps=[
                 "Frontend sends a message to the backend.",
                 "Backend asks for structured profile context if it is missing.",
@@ -124,7 +117,7 @@ class ChatService:
         messages = self.conversation_store.list_messages(conversation_id, user_id)
         return ConversationMessagesResponse(
             conversation_id=conversation_id,
-            messages=[StoredChatMessage(**message) for message in messages],
+            messages=[StoredChatMessage.model_validate(message) for message in messages],
         )
 
     def _resolve_conversation(self, conversation_id: str | None, user_id: str | None = None) -> dict[str, str]:
@@ -137,15 +130,7 @@ class ChatService:
         return conversation
 
     def _has_search_context(self, context: ChatContext | None) -> bool:
-        return bool(
-            context
-            and (
-                context.project_goal
-                or context.organization_type
-                or context.country
-                or context.budget_range
-            )
-        )
+        return bool(context and (context.project_goal or context.organization_type or context.country or context.budget_range))
 
     def _context_to_search_input(self, context: ChatContext | None, user_message: str) -> dict:
         if context is None:

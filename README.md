@@ -91,7 +91,29 @@ python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
 
-### 2. Configure Environment Mode (Local vs. Deployed)
+### 2. Configure Environment Variables
+
+Copy the example files and adjust as needed:
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `VITE_API_MODE` | `api` (live backend) or `mock` (frontend-only demo) | `api` |
+| `VITE_API_URL` | Backend origin for the frontend client | `http://127.0.0.1:8000` |
+| `DEBUG` | FastAPI debug mode (keep `false` outside development) | `false` |
+| `SESSION_STORAGE_TYPE` | `local` (SQLite) or `hosted` (RDS) | `local` |
+| `AUTH_REQUIRED` | Enable JWT authentication (`true` in production) | `false` |
+| `AUTH_SECRET_KEY` | JWT signing secret — **required when auth is enabled** (min 32 chars) | dev placeholder |
+| `USE_MOCK_BEDROCK` | Bypass Bedrock calls for offline testing | `false` |
+
+AWS credentials are resolved through your AWS profile / environment (`AWS_PROFILE`, `AWS_REGION`) or the Lightsail container role in production.
+
+### 3. Configure Environment Mode (Local vs. Deployed)
 
 Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`) and Backend (`SESSION_STORAGE_TYPE`):
 
@@ -109,6 +131,9 @@ Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`)
 ---
 
 ## Running Locally
+
+> **Recommended:** run the backend and frontend directly with the commands below.
+> No Docker is needed for day-to-day development.
 
 ### Method 1: Single Command (Recommended)
 
@@ -130,11 +155,13 @@ export AWS_PROFILE=grant-platform
 export AWS_REGION=us-east-1
 export CLAUDE_CODE_USE_BEDROCK=1
 
-# Start FastAPI server on port 8000
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+# Start FastAPI server on port 8000 (--host 127.0.0.1 = local access only)
+uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-The backend server starts on `http://localhost:8000`.
+The backend server starts on `http://127.0.0.1:8000` — open `http://127.0.0.1:8000/docs`
+for the interactive API docs. (Note: always browse to `127.0.0.1` or `localhost`;
+`0.0.0.0` is a server bind address, not a clickable URL.)
 
 **Terminal 2 — Frontend:**
 
@@ -145,16 +172,81 @@ bun run dev
 
 The frontend development server starts on `http://localhost:8080`.
 
+### Docker (Optional)
+
+Docker Compose is only needed to mirror the production Lightsail setup locally
+(nginx reverse proxy in front of both services).
+
+**Prerequisite — AWS profile:** the backend container needs Amazon Bedrock access.
+It mounts your local `~/.aws` directory read-only and uses the `grant-platform`
+profile (override with `AWS_PROFILE=<name>`). Create it once if you don't have it:
+
+```bash
+# Option A: long-lived access keys
+aws configure --profile grant-platform
+# Enter your AWS Access Key ID, Secret Access Key, and region (us-east-1)
+
+# Option B: SSO (if your organisation uses AWS IAM Identity Center)
+aws configure sso --profile grant-platform
+aws sso login --profile grant-platform   # refresh before each dev session
+
+# Verify it works:
+aws sts get-caller-identity --profile grant-platform
+```
+
+> **Troubleshooting:**
+> - **No `~/.aws` directory?** The container still starts, but Bedrock calls run in
+>   degraded mode (fallback keywords/scores) until a profile is created.
+> - **`Unable to locate credentials` after a break?** Your SSO token likely expired —
+>   run `aws sso login --profile grant-platform`, then restart the backend container
+>   (`docker compose -f deploy/lightsail/docker-compose.local.yml restart backend`).
+
+Then run:
+
+```bash
+docker compose -f deploy/lightsail/docker-compose.local.yml up --build
+```
+
+Once all containers are up, open:
+
+> **http://localhost:8080**
+
+That is the only public address — nginx (host port `8080`) proxies `/` to the
+frontend container and `/api/*` to the backend container. The individual
+frontend (`3000`) and backend (`8000`) ports are internal to Docker's network
+and are **not** reachable from your browser by design.
+
+Useful commands while it runs:
+
+```bash
+docker ps                                            # verify the 8080->80 port mapping
+docker compose -f deploy/lightsail/docker-compose.local.yml logs -f   # follow logs
+# Ctrl+C to stop, then:
+docker compose -f deploy/lightsail/docker-compose.local.yml down      # remove containers
+```
+
 ---
 
 ## Testing & Quality Assurance
+
+### Backend Lint, Formatting, and Type Checks
+
+```bash
+source .venv/bin/activate
+python -m ruff check backend tests
+python -m ruff format --check backend tests
+python -m mypy backend
+```
+
+Formatting can be applied automatically with `ruff format backend tests`.
 
 ### Run Frontend Lint and Unit Tests
 
 ```bash
 cd frontend
-bun run lint
-bun run test
+bun run lint        # ESLint (also auto-fixes)
+bun run typecheck   # tsc --noEmit
+bun run test        # Vitest unit/integration suite
 ```
 
 ### Run Backend Test Suite
@@ -163,6 +255,8 @@ bun run test
 source .venv/bin/activate
 pytest tests -q
 ```
+
+The same checks run automatically in CI on every push and pull request (`.github/workflows/ci.yml`).
 
 ### Run End-to-End Browser Tests
 

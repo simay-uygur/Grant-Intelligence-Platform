@@ -184,15 +184,15 @@ class ChatLoopPreviewResponse(BaseModel):
                     "Bedrock decides whether a tool should be called.",
                     "Backend executes the selected tool.",
                     "Backend sends the tool result back to Bedrock.",
-                    "Bedrock returns the final answer."
+                    "Bedrock returns the final answer.",
                 ],
                 "sample_tools": [
                     {
                         "name": "searchGrants",
                         "description": "Search EU Horizon grant opportunities with normalized filters.",
-                        "input_fields": ["query", "keywords", "country", "limit"]
+                        "input_fields": ["query", "keywords", "country", "limit"],
                     }
-                ]
+                ],
             }
         }
     }

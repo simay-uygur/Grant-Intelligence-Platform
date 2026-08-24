@@ -1,6 +1,7 @@
 """Direct unit tests for ChatService."""
 
 from pathlib import Path
+
 import pytest
 
 from backend.schemas.chat import ChatContext, ChatMessageRequest

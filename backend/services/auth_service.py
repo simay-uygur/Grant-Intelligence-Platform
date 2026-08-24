@@ -3,16 +3,15 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-import sqlite3
-from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from typing import Iterator
 from uuid import uuid4
 
 import jwt
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from backend.core.config import settings
+from backend.core.database import build_engine, metadata, revoked_tokens_table, users_table
 from backend.core.logging import get_logger
 
 logger = get_logger("services.auth")
@@ -24,40 +23,11 @@ class AuthError(ValueError):
 
 class AuthService:
     def __init__(self, database_path: str | None = None) -> None:
-        self.database_path = Path(database_path or settings.sqlite_db_path)
-        self.database_path.parent.mkdir(parents=True, exist_ok=True)
+        self.engine = build_engine(database_path)
         self._initialize_schema()
 
-    @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self.database_path, timeout=5)
-        connection.row_factory = sqlite3.Row
-        try:
-            yield connection
-            connection.commit()
-        finally:
-            connection.close()
-
     def _initialize_schema(self) -> None:
-        with self._connect() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    id TEXT PRIMARY KEY,
-                    email TEXT NOT NULL UNIQUE,
-                    password_hash TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS revoked_tokens (
-                    token TEXT PRIMARY KEY,
-                    revoked_at TEXT NOT NULL
-                )
-                """
-            )
+        metadata.create_all(self.engine)
 
     def register(self, email: str, password: str) -> dict[str, str]:
         normalized_email = self._normalize_email(email)
@@ -66,12 +36,16 @@ class AuthService:
             raise AuthError("Password must be at least 8 characters.")
         user_id = str(uuid4())
         try:
-            with self._connect() as connection:
+            with self.engine.begin() as connection:
                 connection.execute(
-                    "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-                    (user_id, normalized_email, self._hash_password(password), self._timestamp()),
+                    users_table.insert().values(
+                        id=user_id,
+                        email=normalized_email,
+                        password_hash=self._hash_password(password),
+                        created_at=self._timestamp(),
+                    )
                 )
-        except sqlite3.IntegrityError as exc:
+        except IntegrityError as exc:
             logger.warning("Registration failed: email already exists %s", normalized_email)
             raise AuthError("An account with that email already exists.") from exc
         logger.info("Successfully registered user %s (%s)", user_id, normalized_email)
@@ -79,11 +53,9 @@ class AuthService:
 
     def login(self, email: str, password: str) -> tuple[str, dict[str, str]]:
         normalized_email = self._normalize_email(email)
-        with self._connect() as connection:
-            row = connection.execute(
-                "SELECT id, email, password_hash FROM users WHERE email = ?",
-                (normalized_email,),
-            ).fetchone()
+        stmt = select(users_table.c.id, users_table.c.email, users_table.c.password_hash).where(users_table.c.email == normalized_email)
+        with self.engine.begin() as connection:
+            row = connection.execute(stmt).mappings().first()
         if row is None or not self._verify_password(password, row["password_hash"]):
             logger.warning("Login failed for email %s", normalized_email)
             raise AuthError("Invalid email or password.")
@@ -107,18 +79,16 @@ class AuthService:
     def revoke_token(self, token: str) -> None:
         if not token:
             return
-        with self._connect() as connection:
-            connection.execute(
-                "INSERT OR IGNORE INTO revoked_tokens (token, revoked_at) VALUES (?, ?)",
-                (token, self._timestamp()),
-            )
+        # Portable INSERT-if-absent (SQLite's "INSERT OR IGNORE" has no
+        # PostgreSQL equivalent in plain SQL).
+        with self.engine.begin() as connection:
+            exists = connection.execute(select(revoked_tokens_table.c.token).where(revoked_tokens_table.c.token == token)).first()
+            if exists is None:
+                connection.execute(revoked_tokens_table.insert().values(token=token, revoked_at=self._timestamp()))
 
     def _is_token_revoked(self, token: str) -> bool:
-        with self._connect() as connection:
-            row = connection.execute(
-                "SELECT 1 FROM revoked_tokens WHERE token = ?",
-                (token,),
-            ).fetchone()
+        with self.engine.begin() as connection:
+            row = connection.execute(select(revoked_tokens_table.c.token).where(revoked_tokens_table.c.token == token)).first()
             return row is not None
 
     def user_from_token(self, token: str) -> dict[str, str]:
@@ -146,7 +116,7 @@ class AuthService:
     def _hash_password(password: str) -> str:
         salt = secrets.token_bytes(16)
         digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
-        return "scrypt$16384$8$1$%s$%s" % (salt.hex(), digest.hex())
+        return f"scrypt$16384$8$1${salt.hex()}${digest.hex()}"
 
     @staticmethod
     def _verify_password(password: str, encoded: str) -> bool:

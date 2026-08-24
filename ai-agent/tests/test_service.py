@@ -2,6 +2,7 @@
 # Tests the service layer end to end: search -> draft -> rewrite.
 
 import json
+
 from agent import service
 
 profile = {

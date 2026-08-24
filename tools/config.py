@@ -2,6 +2,7 @@
 # Centralized configuration and Bedrock client factory linking to backend.core.config.settings.
 
 from typing import Any
+
 from backend.core.config import settings
 
 AWS_REGION = settings.aws_region
@@ -15,6 +16,7 @@ def get_bedrock_client():
     global _bedrock_client
     if _bedrock_client is None:
         import boto3
+
         _bedrock_client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
     return _bedrock_client
 

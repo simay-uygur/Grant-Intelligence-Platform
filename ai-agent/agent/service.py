@@ -3,15 +3,21 @@
 # request to the Claude Agent SDK agent (run_agent), which decides everything.
 
 import asyncio
+import logging
 import os
 import traceback
+from typing import Any
 
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
-from agent.sdk_agent import run_agent, run_agent_stream
-from tools.start_application import start_application as _start_application
 from tools.rewrite_section import rewrite_section as _rewrite_section
+from tools.start_application import start_application as _start_application
+
+from agent.sdk_agent import run_agent
+from agent.stream_agent import run_agent_stream
+
+logger = logging.getLogger(__name__)
 
 
 def _run(coro):
@@ -22,6 +28,7 @@ def _run(coro):
         # If an event loop is already running (e.g. inside async FastAPI),
         # create a new loop in a fresh thread.
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
             return ex.submit(lambda: asyncio.run(coro)).result()
 
@@ -44,11 +51,13 @@ def search_grants(profile, user_request=None, conversation_history=None, max_gra
     message = user_request or f"Find the best matching EU grants (up to {max_grants})."
 
     try:
-        result = _run(run_agent(
-            profile=profile,
-            user_message=message,
-            conversation_history=conversation_history,
-        ))
+        result = _run(
+            run_agent(
+                profile=profile,
+                user_message=message,
+                conversation_history=conversation_history,
+            )
+        )
     except Exception as e:
         print(f"[service] agent run failed: {e}")
         traceback.print_exc()
@@ -83,14 +92,17 @@ def continue_conversation(session_id, user_message, profile=None):
     if not session_id:
         return {"final_grants": [], "reply": "Missing session_id.", "session_id": None}
     try:
-        return _run(run_agent(
-            profile=profile or {},
-            user_message=user_message,
-            session_id=session_id,
-        ))
+        return _run(
+            run_agent(
+                profile=profile or {},
+                user_message=user_message,
+                session_id=session_id,
+            )
+        )
     except Exception as e:
         print(f"[service] continue_conversation failed: {e}")
         return {"final_grants": [], "reply": f"Error: {e}", "session_id": session_id}
+
 
 def process_agent_message(profile, user_message, conversation_history=None):
     """
@@ -101,11 +113,13 @@ def process_agent_message(profile, user_message, conversation_history=None):
     if not isinstance(profile, dict):
         return {"final_grants": [], "reply": "Invalid profile."}
     try:
-        return _run(run_agent(
-            profile=profile,
-            user_message=user_message,
-            conversation_history=conversation_history,
-        ))
+        return _run(
+            run_agent(
+                profile=profile,
+                user_message=user_message,
+                conversation_history=conversation_history,
+            )
+        )
     except Exception as e:
         print(f"[service] agent run failed: {e}")
         return {"final_grants": [], "reply": f"Error: {e}"}
@@ -126,9 +140,11 @@ def start_application(grant, profile):
     except Exception as e:
         print(f"[service] start_application failed: {e}")
         return {
-            "id": "error", "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
+            "id": "error",
+            "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
             "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
-            "sections": [], "updatedAt": "",
+            "sections": [],
+            "updatedAt": "",
             "error": "Could not draft the application. Please try again.",
         }
 
@@ -151,8 +167,9 @@ SECTIONS_LIST = [
 
 def start_application_stream(grant, profile):
     """Generator streaming real-time events & token chunks for drafting a full application document."""
-    from tools.start_application import SECTIONS, draft_single_section_stream
     import time
+
+    from tools.start_application import SECTIONS, draft_single_section_stream
 
     total = len(SECTIONS)
     doc_id = f"doc-{grant.get('id', 'unknown')}-{int(time.time())}"
@@ -160,13 +177,15 @@ def start_application_stream(grant, profile):
 
     org_name = profile.get("organisationName", "Applicant Organisation")
     grant_title = grant.get("title", "Grant Opportunity")
+    has_call_text = bool((grant.get("summary") or "").strip())
+    focus_line = "Extracting call objectives, scope, and funder priorities from the official call text..." if has_call_text else "Extracting eligibility rules and funder priorities from the grant programme context..."
 
     yield {
         "event": "thinking",
         "stage": "draft",
         "message": f"Analyzing Grant Requirements & Priorities for '{grant_title}' ({total} sections)...",
         "data": {
-            "thought": f"Extracting eligibility rules and funder priorities for {org_name}...",
+            "thought": focus_line,
             "section_index": 0,
             "total_sections": total,
             "progress_percent": 0,
@@ -176,7 +195,7 @@ def start_application_stream(grant, profile):
     try:
         for i, (section_id, section_title) in enumerate(SECTIONS, 1):
             percent = int(((i - 1) / total) * 100)
-            
+
             # Emit a rich sub-phase thought before drafting the section
             yield {
                 "event": "thinking",
@@ -246,15 +265,37 @@ def start_application_stream(grant, profile):
             "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
 
+        # Surface silent degradation: sections drafted as placeholder text
+        # because the Bedrock call failed for them.
+        placeholder_prefix = "Draft content for"
+        failed = [s["title"] for s in sections if s.get("content", "").startswith(placeholder_prefix)]
+        if failed:
+            logger.error(
+                "DEGRADED MODE [draft] — %d/%d sections contain placeholder text (Bedrock unavailable): %s",
+                len(failed),
+                len(sections),
+                ", ".join(failed),
+            )
+        if failed:
+            yield {
+                "event": "warning",
+                "stage": "draft",
+                "message": f"⚠️ {len(failed)}/{len(sections)} sections contain placeholder text — AI drafting was unavailable (check AWS credentials).",
+                "data": {"failed_sections": failed},
+            }
+            result_message = f"Draft completed with {len(failed)}/{len(sections)} placeholder sections (AI unavailable)"
+        else:
+            result_message = f"Successfully drafted all {len(sections)} application sections"
+
         yield {
             "event": "result",
             "stage": "draft",
-            "message": f"Successfully drafted all {len(sections)} application sections",
-            "data": {"document": doc},
+            "message": result_message,
+            "data": {"document": doc, "degraded": bool(failed)},
         }
     except Exception as e:
-        print(f"[service] start_application_stream failed: {e}")
-        error_doc = {
+        logger.error("start_application_stream failed: %s", e)
+        error_doc: dict[str, Any] = {
             "id": "error",
             "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
             "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
@@ -274,8 +315,11 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
     """rewriteSection(...) -> string"""
     try:
         return _rewrite_section(
-            section_title=section_title, current_content=current_content,
-            profile=profile, grant=grant, instruction=instruction,
+            section_title=section_title,
+            current_content=current_content,
+            profile=profile,
+            grant=grant,
+            instruction=instruction,
         )
     except Exception as e:
         print(f"[service] rewrite_section failed: {e}")
@@ -283,29 +327,56 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
 
 
 def rewrite_section_stream(section_title, current_content, profile, grant=None, instruction=None):
-    """Generator streaming events for rewriting a single application section."""
+    """
+    Generator streaming events for rewriting a single application section.
+
+    Emits real token-by-token section_chunk events as Bedrock streams the
+    rewrite, followed by a single result event with the fully accumulated
+    content — the same event schema used by start_application_stream.
+    """
+    from tools.rewrite_section import rewrite_section_stream as _tool_stream
+
     yield {
         "event": "thinking",
         "stage": "rewrite",
-        "message": f"Analyzing section '{section_title}' and user instructions...",
+        "message": f"Analyzing section '{section_title}' and preparing rewrite instructions...",
     }
     yield {
         "event": "tool_call",
         "stage": "rewrite",
-        "message": f"Rewriting section '{section_title}' with Bedrock agent...",
+        "message": f"Streaming rewrite of '{section_title}' via Bedrock converse_stream...",
     }
 
-    content = rewrite_section(
-        section_title=section_title,
-        current_content=current_content,
-        profile=profile,
-        grant=grant,
-        instruction=instruction,
-    )
+    accumulated = ""
+    try:
+        for chunk in _tool_stream(
+            section_title=section_title,
+            current_content=current_content,
+            profile=profile,
+            grant=grant,
+            instruction=instruction,
+        ):
+            accumulated += chunk
+            words = len(accumulated.split())
+            yield {
+                "event": "section_chunk",
+                "stage": "rewrite",
+                "message": f"Rewriting '{section_title}'...",
+                "data": {
+                    "section_title": section_title,
+                    "chunk": chunk,
+                    "accumulated_content": accumulated,
+                    "word_count": words,
+                },
+            }
+    except Exception as e:
+        print(f"[service] rewrite_section_stream failed: {e}")
+        # Fall back: emit the current_content so the frontend always gets a result
+        accumulated = current_content
 
     yield {
         "event": "result",
         "stage": "rewrite",
         "message": f"Rewrote section '{section_title}' successfully",
-        "data": {"content": content},
+        "data": {"content": accumulated},
     }
