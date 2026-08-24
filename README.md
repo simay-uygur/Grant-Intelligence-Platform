@@ -132,6 +132,9 @@ Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`)
 
 ## Running Locally
 
+> **Recommended:** run the backend and frontend directly with the commands below.
+> No Docker is needed for day-to-day development.
+
 ### Method 1: Single Command (Recommended)
 
 Run both backend and frontend dev servers together:
@@ -166,6 +169,16 @@ bun run dev
 ```
 
 The frontend development server starts on `http://localhost:8080`.
+
+### Docker (Optional)
+
+Docker Compose is only needed to mirror the production Lightsail setup locally.
+Note that nginx serves everything on **port 80** — open `http://localhost` directly
+(not `:3000` or `:8080`):
+
+```bash
+docker compose -f deploy/lightsail/docker-compose.local.yml up --build
+```
 
 ---
 
