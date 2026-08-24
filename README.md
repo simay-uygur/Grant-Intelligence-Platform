@@ -194,6 +194,13 @@ aws sso login --profile grant-platform   # refresh before each dev session
 aws sts get-caller-identity --profile grant-platform
 ```
 
+> **Troubleshooting:**
+> - **No `~/.aws` directory?** The container still starts, but Bedrock calls run in
+>   degraded mode (fallback keywords/scores) until a profile is created.
+> - **`Unable to locate credentials` after a break?** Your SSO token likely expired —
+>   run `aws sso login --profile grant-platform`, then restart the backend container
+>   (`docker compose -f deploy/lightsail/docker-compose.local.yml restart backend`).
+
 Then run:
 
 ```bash

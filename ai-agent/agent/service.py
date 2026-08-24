@@ -3,6 +3,7 @@
 # request to the Claude Agent SDK agent (run_agent), which decides everything.
 
 import asyncio
+import logging
 import os
 import traceback
 from typing import Any
@@ -15,6 +16,8 @@ from tools.start_application import start_application as _start_application
 
 from agent.sdk_agent import run_agent
 from agent.stream_agent import run_agent_stream
+
+logger = logging.getLogger(__name__)
 
 
 def _run(coro):
@@ -260,14 +263,36 @@ def start_application_stream(grant, profile):
             "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
 
+        # Surface silent degradation: sections drafted as placeholder text
+        # because the Bedrock call failed for them.
+        placeholder_prefix = "Draft content for"
+        failed = [s["title"] for s in sections if s.get("content", "").startswith(placeholder_prefix)]
+        if failed:
+            logger.error(
+                "DEGRADED MODE [draft] — %d/%d sections contain placeholder text (Bedrock unavailable): %s",
+                len(failed),
+                len(sections),
+                ", ".join(failed),
+            )
+        if failed:
+            yield {
+                "event": "warning",
+                "stage": "draft",
+                "message": f"⚠️ {len(failed)}/{len(sections)} sections contain placeholder text — AI drafting was unavailable (check AWS credentials).",
+                "data": {"failed_sections": failed},
+            }
+            result_message = f"Draft completed with {len(failed)}/{len(sections)} placeholder sections (AI unavailable)"
+        else:
+            result_message = f"Successfully drafted all {len(sections)} application sections"
+
         yield {
             "event": "result",
             "stage": "draft",
-            "message": f"Successfully drafted all {len(sections)} application sections",
-            "data": {"document": doc},
+            "message": result_message,
+            "data": {"document": doc, "degraded": bool(failed)},
         }
     except Exception as e:
-        print(f"[service] start_application_stream failed: {e}")
+        logger.error("start_application_stream failed: %s", e)
         error_doc: dict[str, Any] = {
             "id": "error",
             "grantId": grant.get("id", "") if isinstance(grant, dict) else "",

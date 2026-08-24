@@ -97,6 +97,7 @@ def run_agent_stream(
     """
     org_name = profile.get("organisationName") or "your organisation"
     sector = profile.get("sector") or "innovation"
+    degraded: dict[str, bool] = {"keywords": False, "selection": False}
 
     yield {
         "event": "thinking",
@@ -148,9 +149,16 @@ def run_agent_stream(
         if not isinstance(keywords, list):
             keywords = [str(sector).split()[0].lower()]
     except Exception as e:
-        logger.warning("Bedrock keyword generation fallback: %s", e)
+        logger.error("DEGRADED MODE [keywords] — Bedrock unavailable (%s); falling back to basic sector term", e)
         fallback = str(sector).split()[0].lower()
         keywords = [fallback]
+        degraded["keywords"] = True
+        yield {
+            "event": "warning",
+            "stage": "keywords",
+            "message": "⚠️ AI keyword generation unavailable — using a basic sector term instead. Check AWS credentials.",
+            "data": {"reason": str(e)[:200]},
+        }
 
     keywords = [str(k).strip().lower() for k in keywords if str(k).strip()][:5] or [str(sector).split()[0].lower()]
 
@@ -322,7 +330,18 @@ def run_agent_stream(
         parsed = json.loads(cleaned_select)
         selected_grants = parsed if isinstance(parsed, list) else []
     except Exception as e:
-        logger.warning("Bedrock grant selection fallback: %s", e)
+        logger.error(
+            "DEGRADED MODE [selection] — Bedrock unavailable (%s); returning %d unranked sample grants with estimated scores",
+            e,
+            min(len(open_candidates), max_grants),
+        )
+        degraded["selection"] = True
+        yield {
+            "event": "warning",
+            "stage": "select",
+            "message": "⚠️ AI ranking unavailable — showing unranked sample grants with an estimated 75% score. Check AWS credentials.",
+            "data": {"reason": str(e)[:200]},
+        }
         for g in open_candidates[:max_grants]:
             selected_grants.append(
                 {
@@ -348,6 +367,8 @@ def run_agent_stream(
         # Fallback path produced fewer/different results; keep whatever parsed cleanly.
         logger.info("Selection parse recovered %d grants vs %d progressively revealed", len(selected_grants), len(revealed))
 
+    is_degraded = degraded["keywords"] or degraded["selection"]
+
     yield {
         "event": "progress",
         "stage": "select",
@@ -358,9 +379,14 @@ def run_agent_stream(
     yield {
         "event": "result",
         "stage": "select",
-        "message": f"Selected {len(selected_grants)} top grant recommendations",
+        "message": (f"Selected {len(selected_grants)} sample grant recommendations (AI ranking unavailable)" if is_degraded else f"Selected {len(selected_grants)} top grant recommendations"),
         "data": {
             "grants": selected_grants,
-            "reply": f"Found {len(selected_grants)} live grant opportunities for {profile.get('organisationName') or 'your organisation'}.",
+            "reply": (
+                f"Found {len(selected_grants)} live grant opportunities for {profile.get('organisationName') or 'your organisation'}. Note: AI ranking was unavailable, so results are unranked samples."
+                if is_degraded
+                else f"Found {len(selected_grants)} live grant opportunities for {profile.get('organisationName') or 'your organisation'}."
+            ),
+            "degraded": is_degraded,
         },
     }
