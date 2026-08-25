@@ -126,9 +126,18 @@ jobs:
 
           env = {}
           for line in os.environ.get("BACKEND_ENV", "").splitlines():
-              if line.strip() and not line.lstrip().startswith("#"):
-                  key, value = line.split("=", 1)
-                  env[key.strip()] = value.strip()
+              line = line.strip()
+              if not line or line.startswith("#"):
+                  continue
+              if "=" not in line:
+                  print(f"Warning: Skipping malformed env line (missing '='): {line[:20]}...")
+                  continue
+              key, value = line.split("=", 1)
+              key = key.strip()
+              value = value.strip()
+              if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                  value = value[1:-1]
+              env[key] = value
           env["AUTH_REQUIRED"] = "true"
           if len(env.get("AUTH_SECRET_KEY", "")) < 32:
               raise SystemExit("LIGHTSAIL_BACKEND_ENV must contain AUTH_SECRET_KEY with at least 32 characters")
