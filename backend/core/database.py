@@ -145,6 +145,13 @@ def _is_sqlite_url(url: str) -> bool:
     return url.startswith("sqlite")
 
 
+def normalize_database_url(url: str) -> str:
+    url = url.strip()
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://") :]
+    return url
+
+
 def resolve_database_url(database_path: str | None = None) -> tuple[str, bool]:
     """Resolve the effective database URL.
 
@@ -154,8 +161,8 @@ def resolve_database_url(database_path: str | None = None) -> tuple[str, bool]:
     """
     if database_path:
         return f"sqlite:///{database_path}", True
-    if settings.database_url:
-        return settings.database_url, False
+    if settings.database_url and settings.database_url.strip():
+        return normalize_database_url(settings.database_url), False
     return f"sqlite:///{settings.sqlite_db_path}", True
 
 

@@ -17,7 +17,7 @@ import backend.services.application_store  # noqa: F401
 import backend.services.auth_service  # noqa: F401
 import backend.services.conversation_store  # noqa: F401
 from backend.core.config import settings
-from backend.core.database import metadata  # noqa: F401
+from backend.core.database import metadata, normalize_database_url  # noqa: F401
 
 config = context.config
 
@@ -25,7 +25,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Inject the effective URL from application settings.
-database_url = settings.database_url or f"sqlite:///{settings.sqlite_db_path}"
+raw_url = (settings.database_url or "").strip()
+database_url = normalize_database_url(raw_url) if raw_url else f"sqlite:///{settings.sqlite_db_path}"
 config.set_main_option("sqlalchemy.url", database_url)
 
 target_metadata = metadata
