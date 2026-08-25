@@ -4,21 +4,24 @@
 
 Build a working grant-assistant backend locally first, connect it to the frontend, optimize application document workflows with informative streaming, and prepare for production deployment.
 
-## Active Tasks
-
+- [x] **Interactive Q&A for Specific Grant-Tailored Application Document (Backend)**:
+  - Implement `POST /api/v1/documents/{document_id}/qa` and `/stream` backend endpoints.
+  - Enable targeted Q&A in the chat composer specifically for the active grant-tailored application draft.
+  - Allow users to ask questions, request section revisions, or query grant compliance directly against the document and grant call context.
+- [x] **"Didn't Like the Grants / Search Again" with Exclusion Filter (Full-Stack)**:
+  - Add `excluded_grant_ids: list[str]` to `GrantSearchRequest` and backend agent search tools.
+  - Filter out previously viewed/rejected grants to return fresh alternative European grant calls.
+  - Connected the frontend "Find alternative grants / Search again" action with history-derived grant exclusion.
+- [ ] **Grant-Specific Application Draft Customization & Tailored Templates**:
+  - Extend `StartApplicationRequest` with `custom_instructions` and tailored template parameters.
+  - Support tailored application draft structures customized specifically to the guidelines, work packages, budget rules, and evaluation criteria of individual grant calls.
 - [ ] **Google Docs-Style Rich Application Document Editor**:
   - Enhance document canvas into a Google Docs-style paper layout with rich text formatting (styled headings, lists, table callouts, formatting toolbar).
   - Maintain a seamless side-by-side workspace with the Google Docs-style main document canvas on the right and interactive AI side-chat assistant on the left.
-- [ ] **Interactive Q&A for Specific Grant-Tailored Application Document**:
-  - Enable targeted Q&A in the chat composer specifically for the active grant-tailored application draft.
-  - Allow users to ask questions, request section revisions, or query grant compliance directly against the document context.
-- [ ] **Grant-Specific Application Draft Customization & Tailored Templates**:
-  - Support tailored application draft structures customized specifically to the guidelines, work packages, budget rules, and evaluation criteria of individual grant calls.
-  - Enable users to prompt the agent with specific grant call instructions or custom application document requirements.
 - [ ] **Document Attachment & Upload Support**:
   - Enable uploading supporting documents (PDFs, Word docs, organization charts, budget sheets) in the composer.
   - Integrate uploaded document context into Bedrock grant evaluation and proposal drafting prompts.
-- [ ] **Start / Open Application Button State Handling**:
+- [x] **Start / Open Application Button State Handling**:
   - Update "Start Application" button state when an application has been initiated for a grant (e.g. disable button or toggle to "Open Application / Application In Progress").
   - Keep button state synchronized with application status to prevent duplicate application creations.
 
@@ -71,3 +74,7 @@ Build a working grant-assistant backend locally first, connect it to the fronten
   - Render underlying search parameters, executed queries, active filter tags, and AI search thoughts on the UI.
 - [x] **Configurable Local vs. Hosted Session Flag & Container Strategy**:
   - Implement a toggle flag (`SESSION_STORAGE_TYPE=local|hosted`) in `.env` and evaluate session handling for container deployments.
+- [x] **PostgreSQL Database Engine & Lightsail Migration**:
+  - Integrate SQLAlchemy Core database layer with Alembic schema migrations on backend boot.
+  - Fix `DocumentService` and `ChatService` database engine resolution to properly bind to hosted PostgreSQL (`DATABASE_URL`).
+  - Add `psycopg2-binary` dependency and URL normalization for production Lightsail deployment.

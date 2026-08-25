@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from backend.schemas.grants import AgentProfile, GrantResult
 
@@ -82,3 +82,30 @@ class RewriteSectionResponse(BaseModel):
     sectionId: str = Field(description="Path section identifier.")
     title: str = Field(description="Section title used for the rewrite.")
     content: str = Field(description="Rewritten section content.")
+
+
+class DocumentQARequest(BaseModel):
+    question: str = Field(description="User question, critique request, or compliance query regarding the document.")
+    sectionId: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("sectionId", "section_id"),
+        description="Optional target section identifier if asking about a specific section.",
+    )
+    document: ApplicationDocument | dict | None = Field(default=None, description="Optional document payload if not loaded from store.")
+    grant: GrantResult | dict | None = Field(default=None, description="Optional grant context.")
+    profile: AgentProfile | dict | None = Field(default=None, description="Optional applicant organization profile.")
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class DocumentQAResponse(BaseModel):
+    answer: str = Field(description="AI consultant answer, critique, or guidance.")
+    sectionId: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("sectionId", "section_id"),
+        serialization_alias="sectionId",
+        description="Associated section ID if specific.",
+    )
+    suggestions: list[str] = Field(default_factory=list, description="Actionable recommendations or suggested improvements.")
+
+    model_config = ConfigDict(populate_by_name=True)

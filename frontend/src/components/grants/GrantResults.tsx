@@ -181,6 +181,25 @@ export function GrantResults({
         ))}
       </div>
 
+      {onRetryResearch && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-3">
+          <div className="text-xs text-muted-foreground">
+            Looking for alternative options or different European programmes?
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onRetryResearch}
+            disabled={startDisabled}
+            className="h-8 gap-1.5 rounded-full text-xs font-medium hover:bg-background"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Find alternative grants
+          </Button>
+        </div>
+      )}
+
       {compareIds.size >= 1 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
           <p role="status" aria-live="polite" className="text-xs text-muted-foreground">

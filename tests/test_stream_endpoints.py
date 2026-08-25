@@ -11,7 +11,7 @@ def _install_fake_streaming_agent():
     agent_package = types.ModuleType("agent")
     service_module = types.ModuleType("agent.service")
 
-    def search_grants(profile: dict, max_grants: int = 3) -> list[dict]:
+    def search_grants(profile: dict, max_grants: int = 3, excluded_grant_ids: list[str] | None = None) -> list[dict]:
         return [
             {
                 "id": "HORIZON-FAKE-001",
@@ -20,7 +20,7 @@ def _install_fake_streaming_agent():
             }
         ]
 
-    def search_grants_stream(profile: dict, max_grants: int = 3):
+    def search_grants_stream(profile: dict, max_grants: int = 3, excluded_grant_ids: list[str] | None = None):
         yield {
             "event": "thinking",
             "stage": "keywords",
@@ -36,7 +36,7 @@ def _install_fake_streaming_agent():
             "event": "result",
             "stage": "select",
             "message": "Selected 1 grant",
-            "data": {"grants": search_grants(profile, max_grants)},
+            "data": {"grants": search_grants(profile, max_grants, excluded_grant_ids)},
         }
 
     def start_application(grant: dict, profile: dict) -> dict:
@@ -89,12 +89,38 @@ def _install_fake_streaming_agent():
             "data": {"content": rewrite_section(section_title, current_content, profile, grant, instruction)},
         }
 
+    def document_qa(question: str, document: dict, grant: dict | None = None, profile: dict | None = None, section_id: str | None = None) -> dict:
+        return {
+            "answer": f"Advice for question: {question}",
+            "section_id": section_id,
+            "suggestions": ["Improve consortium balance", "Clarify TRL readiness"],
+        }
+
+    def document_qa_stream(question: str, document: dict, grant: dict | None = None, profile: dict | None = None, section_id: str | None = None):
+        yield {
+            "event": "thinking",
+            "stage": "qa",
+            "message": "Consulting evaluator agent...",
+        }
+        yield {
+            "event": "token_delta",
+            "stage": "qa",
+            "data": {"delta": "Advice chunk", "accumulated": f"Advice for question: {question}"},
+        }
+        yield {
+            "event": "result",
+            "stage": "qa",
+            "data": document_qa(question, document, grant, profile, section_id),
+        }
+
     service_module.search_grants = search_grants
     service_module.search_grants_stream = search_grants_stream
     service_module.start_application = start_application
     service_module.start_application_stream = start_application_stream
     service_module.rewrite_section = rewrite_section
     service_module.rewrite_section_stream = rewrite_section_stream
+    service_module.document_qa = document_qa
+    service_module.document_qa_stream = document_qa_stream
 
     agent_package.service = service_module
     return agent_package
@@ -178,3 +204,43 @@ def test_rewrite_section_stream(monkeypatch: MonkeyPatch):
     event1 = json.loads(lines[1].replace("data: ", ""))
     assert event1["event"] == "result"
     assert event1["data"]["content"] == "Rewritten: Original content"
+
+
+def test_document_qa_stream(monkeypatch: MonkeyPatch):
+    fake_agent = _install_fake_streaming_agent()
+    monkeypatch.setitem(__import__("sys").modules, "agent", fake_agent)
+    monkeypatch.setitem(__import__("sys").modules, "agent.service", fake_agent.service)
+
+    client = TestClient(create_app())
+    payload = {
+        "question": "Is this proposal strong enough?",
+        "sectionId": "sec-1",
+        "document": {
+            "id": "doc-fake-001",
+            "grantId": "HORIZON-FAKE-001",
+            "grantTitle": "Fake Grant",
+            "sections": [{"id": "sec-1", "title": "Overview", "content": "Sample content"}],
+            "updatedAt": "2026-08-16T12:00:00Z",
+        },
+        "grant": {"id": "HORIZON-FAKE-001", "title": "Fake Grant"},
+        "profile": {"sector": "robotics"},
+    }
+    response = client.post(
+        "/api/v1/documents/doc-fake-001/qa/stream",
+        json=payload,
+    )
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+
+    lines = [line.strip() for line in response.text.split("\n") if line.startswith("data:")]
+    assert len(lines) == 3
+
+    event0 = json.loads(lines[0].replace("data: ", ""))
+    assert event0["event"] == "thinking"
+    assert event0["stage"] == "qa"
+
+    event2 = json.loads(lines[2].replace("data: ", ""))
+    assert event2["event"] == "result"
+    assert "answer" in event2["data"]
+    assert "suggestions" in event2["data"]
+    assert event2["data"]["suggestions"] == ["Improve consortium balance", "Clarify TRL readiness"]

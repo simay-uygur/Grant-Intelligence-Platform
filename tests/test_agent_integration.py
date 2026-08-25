@@ -17,10 +17,11 @@ def _install_fake_agent() -> dict:
     agent_package = types.ModuleType("agent")
     service_module = types.ModuleType("agent.service")
 
-    def search_grants(profile: dict, max_grants: int = 3) -> list[dict]:
+    def search_grants(profile: dict, max_grants: int = 3, excluded_grant_ids: list[str] | None = None) -> list[dict]:
         calls["search_grants"] = {
             "profile": profile,
             "max_grants": max_grants,
+            "excluded_grant_ids": excluded_grant_ids,
         }
         return [
             {

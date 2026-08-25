@@ -1,13 +1,14 @@
 from collections.abc import Iterator
 from typing import Any
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.schemas.documents import (
     ApplicationDocument,
     ApplicationListResponse,
     ApplicationStatus,
     ApplicationSummary,
+    DocumentQARequest,
+    DocumentQAResponse,
     RewriteSectionRequest,
     RewriteSectionResponse,
     StartApplicationRequest,
@@ -40,10 +41,25 @@ def _grant_to_dict(grant: GrantResult | dict[str, Any] | None) -> dict[str, Any]
     return grant
 
 
+def _profile_to_dict(profile: Any) -> dict[str, Any] | None:
+    """Normalize the profile payload (AgentProfile, raw dict, or absent) to a plain dict."""
+    if profile is None:
+        return None
+    if hasattr(profile, "to_agent_profile"):
+        res: dict[str, Any] = profile.to_agent_profile()
+        return res
+    if hasattr(profile, "model_dump"):
+        res_dump: dict[str, Any] = profile.model_dump(exclude_none=True)
+        return res_dump
+    if isinstance(profile, dict):
+        return profile
+    return None
+
+
 class DocumentService:
     def __init__(self, database_path: str | None = None) -> None:
         self.agent_service = AgentService()
-        self.application_store = ApplicationStore(database_path=database_path or settings.sqlite_db_path)
+        self.application_store = ApplicationStore(database_path=database_path)
 
     def start_application(self, payload: StartApplicationRequest, user_id: str | None = None) -> ApplicationDocument:
         logger.info("Starting application drafting (user_id=%s)", user_id)
@@ -206,5 +222,72 @@ class DocumentService:
                 event = {
                     **event,
                     "data": response.model_dump(exclude_none=True),
+                }
+            yield event
+
+    def _resolve_qa_context(
+        self,
+        document_id: str,
+        payload: DocumentQARequest,
+        user_id: str | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any] | None]:
+        """Extract or resolve document, grant, and profile context for Q&A."""
+        stored_app: dict[str, Any] | None = None
+        if document_id and document_id != "active-document":
+            stored_app = self.application_store.get_application(document_id, user_id)
+
+        document: dict[str, Any]
+        if payload.document is not None:
+            document = payload.document.model_dump(exclude_none=True) if hasattr(payload.document, "model_dump") else payload.document
+        elif stored_app is not None:
+            document = {
+                "id": stored_app.get("id", document_id),
+                "grantId": stored_app.get("grantId", ""),
+                "grantTitle": stored_app.get("grantTitle", ""),
+                "sections": stored_app.get("sections", []),
+            }
+        else:
+            raise ApplicationNotFoundError(f"Application document '{document_id}' could not be resolved.")
+
+        grant = _grant_to_dict(payload.grant) or (stored_app.get("grant") if stored_app else None)
+        profile = _profile_to_dict(payload.profile) or (stored_app.get("profile") if stored_app else None)
+
+        return document, grant, profile
+
+    def document_qa(
+        self,
+        document_id: str,
+        payload: DocumentQARequest,
+        user_id: str | None = None,
+    ) -> DocumentQAResponse:
+        document, grant, profile = self._resolve_qa_context(document_id, payload, user_id)
+        result = self.agent_service.document_qa(
+            question=payload.question,
+            document=document,
+            grant=grant,
+            profile=profile,
+            section_id=payload.sectionId,
+        )
+        return DocumentQAResponse.model_validate(result)
+
+    def document_qa_stream(
+        self,
+        document_id: str,
+        payload: DocumentQARequest,
+        user_id: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        document, grant, profile = self._resolve_qa_context(document_id, payload, user_id)
+        for event in self.agent_service.document_qa_stream(
+            question=payload.question,
+            document=document,
+            grant=grant,
+            profile=profile,
+            section_id=payload.sectionId,
+        ):
+            if event.get("event") == "result" and "answer" in event.get("data", {}):
+                validated = DocumentQAResponse.model_validate(event["data"])
+                event = {
+                    **event,
+                    "data": validated.model_dump(exclude_none=True),
                 }
             yield event

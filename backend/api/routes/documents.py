@@ -9,6 +9,8 @@ from backend.schemas.documents import (
     ApplicationDocument,
     ApplicationListResponse,
     ApplicationStatus,
+    DocumentQARequest,
+    DocumentQAResponse,
     RewriteSectionRequest,
     RewriteSectionResponse,
     StartApplicationRequest,
@@ -229,6 +231,58 @@ async def rewrite_section_stream(
             document_service.rewrite_section_stream,
             document_id,
             section_id,
+            payload,
+            current_user["id"] if current_user else None,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post(
+    "/documents/{document_id}/qa",
+    response_model=DocumentQAResponse,
+    summary="Consult AI on application document",
+    description="Ask questions, request section critiques, or evaluate compliance against EU Horizon call criteria for an application document.",
+    response_description="AI evaluation, critique, and actionable recommendations.",
+)
+async def document_qa(
+    document_id: str,
+    payload: DocumentQARequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> DocumentQAResponse:
+    try:
+        return await asyncio.to_thread(
+            document_service.document_qa,
+            document_id,
+            payload,
+            current_user["id"] if current_user else None,
+        )
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AgentUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post(
+    "/documents/{document_id}/qa/stream",
+    summary="Stream AI consultation on application document",
+    description="Stream real-time thinking events, token deltas, and actionable recommendations for an application document as Server-Sent Events (SSE).",
+    response_class=StreamingResponse,
+)
+async def document_qa_stream(
+    document_id: str,
+    payload: DocumentQARequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> StreamingResponse:
+    return StreamingResponse(
+        sse_generator_bridge(
+            document_service.document_qa_stream,
+            document_id,
             payload,
             current_user["id"] if current_user else None,
         ),

@@ -68,6 +68,7 @@ test("calls the versioned grant stream endpoint and returns mapped live results"
     organization_type: "SME",
     only_open: true,
     limit: 3,
+    excluded_grant_ids: [],
   });
   expect(result).toEqual({
     grants: [

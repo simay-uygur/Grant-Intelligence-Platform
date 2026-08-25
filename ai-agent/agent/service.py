@@ -11,6 +11,8 @@ from typing import Any
 os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 os.environ["AWS_REGION"] = "us-east-1"
 
+from tools.document_qa import document_qa as _document_qa
+from tools.document_qa import document_qa_stream as _document_qa_stream
 from tools.rewrite_section import rewrite_section as _rewrite_section
 from tools.start_application import start_application as _start_application
 
@@ -33,7 +35,7 @@ def _run(coro):
             return ex.submit(lambda: asyncio.run(coro)).result()
 
 
-def search_grants(profile, user_request=None, conversation_history=None, max_grants=3):
+def search_grants(profile, user_request=None, conversation_history=None, max_grants=3, excluded_grant_ids=None):
     """
     searchGrants(profile) -> Grant[]
 
@@ -46,6 +48,15 @@ def search_grants(profile, user_request=None, conversation_history=None, max_gra
     """
     if not isinstance(profile, dict):
         return []
+
+    # If stream runner exists, use it to get excluded_grant_ids support synchronously
+    try:
+        events = list(run_agent_stream(profile, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids))
+        for event in reversed(events):
+            if event.get("event") == "result" and "grants" in event.get("data", {}):
+                return event["data"]["grants"]
+    except Exception as e:
+        logger.warning("Stream agent run failed in search_grants (%s), attempting sdk_agent fallback", e)
 
     # Default instruction if the user gave none.
     message = user_request or f"Find the best matching EU grants (up to {max_grants})."
@@ -125,12 +136,12 @@ def process_agent_message(profile, user_message, conversation_history=None):
         return {"final_grants": [], "reply": f"Error: {e}"}
 
 
-def search_grants_stream(profile, max_grants=3):
+def search_grants_stream(profile, max_grants=3, excluded_grant_ids=None):
     """
     Generator streaming events through the multi-agent system:
     keywords -> live search -> evaluation & selection -> result
     """
-    yield from run_agent_stream(profile, max_grants=max_grants)
+    yield from run_agent_stream(profile, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids)
 
 
 def start_application(grant, profile):
@@ -380,3 +391,51 @@ def rewrite_section_stream(section_title, current_content, profile, grant=None, 
         "message": f"Rewrote section '{section_title}' successfully",
         "data": {"content": accumulated},
     }
+
+
+def document_qa(question, document, grant=None, profile=None, section_id=None):
+    """
+    document_qa(question, document, grant, profile, section_id) -> dict
+    Returns: {"answer": str, "section_id": str | None, "suggestions": list[str]}
+    """
+    try:
+        return _document_qa(
+            question=question,
+            document=document,
+            grant=grant,
+            profile=profile,
+            section_id=section_id,
+        )
+    except Exception as e:
+        logger.error("document_qa failed: %s", e)
+        return {
+            "answer": f"Unable to consult on this document right now ({e}). Please try again.",
+            "section_id": section_id,
+            "suggestions": [],
+        }
+
+
+def document_qa_stream(question, document, grant=None, profile=None, section_id=None):
+    """
+    document_qa_stream(question, document, grant, profile, section_id) -> Iterator[dict]
+    Yields thinking, token_delta, and result events.
+    """
+    try:
+        yield from _document_qa_stream(
+            question=question,
+            document=document,
+            grant=grant,
+            profile=profile,
+            section_id=section_id,
+        )
+    except Exception as e:
+        logger.error("document_qa_stream failed: %s", e)
+        yield {
+            "event": "result",
+            "stage": "qa",
+            "data": {
+                "answer": f"Unable to consult on this document right now ({e}). Please try again.",
+                "section_id": section_id,
+                "suggestions": [],
+            },
+        }

@@ -10,6 +10,7 @@ export class MockGrantService implements GrantService {
   async searchGrants(
     _profile: OrganisationProfile,
     onProgress?: (event: SseEvent) => void,
+    excludedGrantIds?: string[],
   ): Promise<GrantSearchResult> {
     onProgress?.({
       event: "thinking",
@@ -54,15 +55,18 @@ export class MockGrantService implements GrantService {
     });
     await wait(100);
 
+    const excludedSet = new Set(excludedGrantIds ?? []);
+    const filteredGrants = MOCK_GRANTS.filter((g) => !excludedSet.has(g.id));
+
     onProgress?.({
       event: "result",
       stage: "select",
-      message: `Selected ${MOCK_GRANTS.length} grant recommendations`,
-      data: { grants: MOCK_GRANTS },
+      message: `Selected ${filteredGrants.length} grant recommendations`,
+      data: { grants: filteredGrants },
     });
 
     return {
-      grants: MOCK_GRANTS,
+      grants: filteredGrants,
       sourceSummary: "Demo grants from the local mock catalogue.",
     };
   }

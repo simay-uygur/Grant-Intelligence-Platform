@@ -75,8 +75,13 @@ class GrantSearchRequest(AgentProfile):
         default=3,
         ge=1,
         le=25,
-        description=("Maximum number of grants requested from the agent."),
+        description=("Maximum number of requested grants from the agent."),
         examples=[10],
+    )
+    excluded_grant_ids: list[str] = Field(
+        default_factory=list,
+        description=("List of grant identifiers or titles to exclude from search results (e.g. for search-again / alternative discovery)."),
+        examples=[["HORIZON-CL4-2025-DATA-01"]],
     )
 
     model_config = ConfigDict(

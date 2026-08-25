@@ -84,21 +84,14 @@ def _next_json_object(text: str, pos: int) -> tuple[dict[str, Any] | None, int]:
     return None, i
 
 
-def run_agent_stream(
+def _generate_keywords_step(
+    client: Any,
+    model_id: str,
     profile: dict[str, Any],
-    user_message: str | None = None,
-    conversation_history: Any = None,
-    session_id: str | None = None,
-    max_grants: int = 3,
-) -> Generator[dict[str, Any]]:
-    """
-    Stream real-time events while running the grant search pipeline with real Bedrock LLM calls.
-    Yields standard SSE events: thinking, progress, grant_partial, result.
-    """
-    org_name = profile.get("organisationName") or "your organisation"
-    sector = profile.get("sector") or "innovation"
-    degraded: dict[str, bool] = {"keywords": False, "selection": False}
-
+    sector: str,
+    org_name: str,
+    degraded: dict[str, bool],
+) -> Generator[dict[str, Any], None, list[str]]:
     yield {
         "event": "thinking",
         "stage": "keywords",
@@ -108,11 +101,7 @@ def run_agent_stream(
         },
     }
 
-    client = get_bedrock_client()
-    model_id = get_model_id()
-
-    # Step 1: Real Bedrock LLM Keyword Generation via converse_stream
-    keywords = []
+    keywords: list[str] = []
     try:
         kw_prompt = (
             "You are helping search the EU grants database, which works best with SIMPLE single-word keywords. "
@@ -134,7 +123,6 @@ def run_agent_stream(
                     delta = event["contentBlockDelta"].get("delta", {})
                     if "text" in delta:
                         raw_text += delta["text"]
-                        # Show clean term labels instead of raw JSON brackets/quotes.
                         preview = _keyword_preview(raw_text)
                         if preview and preview != last_preview:
                             last_preview = preview
@@ -145,8 +133,10 @@ def run_agent_stream(
                                 "data": {"thought": f"Suggested terms: {preview}"},
                             }
         cleaned_kw = raw_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        keywords = json.loads(cleaned_kw)
-        if not isinstance(keywords, list):
+        parsed_kw = json.loads(cleaned_kw)
+        if isinstance(parsed_kw, list):
+            keywords = parsed_kw
+        else:
             keywords = [str(sector).split()[0].lower()]
     except Exception as e:
         logger.error("DEGRADED MODE [keywords] — Bedrock unavailable (%s); falling back to basic sector term", e)
@@ -169,8 +159,13 @@ def run_agent_stream(
         "message": f"Generated search keywords: {keywords_str}",
         "data": {"keywords": keywords},
     }
+    return keywords
 
-    # Step 2: Live EU Portal API Search — all keywords queried in parallel.
+
+def _search_candidates_step(
+    keywords: list[str],
+) -> Generator[dict[str, Any], None, list[dict[str, Any]]]:
+    keywords_str = ", ".join(f"'{k}'" for k in keywords)
     pool: dict[str, dict[str, Any]] = {}
     yield {
         "event": "thinking",
@@ -214,27 +209,25 @@ def run_agent_stream(
                 "data": {"keyword": kw, "added": added_count, "candidate_count": len(pool)},
             }
 
-    candidates = list(pool.values())
+    return list(pool.values())
 
-    if not candidates:
-        yield {
-            "event": "progress",
-            "stage": "search",
-            "message": "No candidate grants found matching criteria.",
-            "data": {"candidate_count": 0},
-        }
-        yield {
-            "event": "result",
-            "stage": "select",
-            "message": "No matching grants found",
-            "data": {"grants": [], "reply": "No matching grants found for this profile."},
-        }
-        return
 
-    # Step 3: Real Bedrock LLM Evaluation & Ranking via converse_stream,
-    # with live reasoning tokens and progressive grant reveal.
+def _evaluate_and_select_step(
+    client: Any,
+    model_id: str,
+    profile: dict[str, Any],
+    org_name: str,
+    candidates: list[dict[str, Any]],
+    excluded_grant_ids: list[str] | None,
+    max_grants: int,
+    degraded: dict[str, bool],
+) -> Generator[dict[str, Any], None, tuple[list[dict[str, Any]], list[dict[str, Any]]]]:
     today = date.today().isoformat()
     open_candidates = [g for g in candidates if not g.get("deadline") or str(g.get("deadline"))[:10] >= today]
+
+    if excluded_grant_ids:
+        excluded_set = {str(eid).strip().lower() for eid in excluded_grant_ids if str(eid).strip()}
+        open_candidates = [g for g in open_candidates if str(g.get("identifier") or g.get("id") or "").strip().lower() not in excluded_set and str(g.get("title") or "").strip().lower() not in excluded_set]
 
     yield {
         "event": "thinking",
@@ -286,7 +279,6 @@ def run_agent_stream(
                 raw_select += delta["text"]
                 delta_count += 1
 
-                # Live reasoning tokens: surface the model's actual output as it thinks.
                 if delta_count % 5 == 0 and raw_select.strip():
                     yield {
                         "event": "thinking",
@@ -295,7 +287,6 @@ def run_agent_stream(
                         "data": {"thought": _reasoning_preview(raw_select) or "Analysing eligibility criteria..."},
                     }
 
-                # Progressive reveal: emit each grant card as soon as its JSON object completes.
                 while True:
                     obj, scan_pos = _next_json_object(raw_select, scan_pos)
                     if obj is None:
@@ -363,8 +354,53 @@ def run_agent_stream(
                 }
             )
 
+    return selected_grants, revealed
+
+
+def run_agent_stream(
+    profile: dict[str, Any],
+    user_message: str | None = None,
+    conversation_history: Any = None,
+    session_id: str | None = None,
+    max_grants: int = 3,
+    excluded_grant_ids: list[str] | None = None,
+) -> Generator[dict[str, Any]]:
+    """
+    Stream real-time events while running the grant search pipeline with real Bedrock LLM calls.
+    Yields standard SSE events: thinking, progress, grant_partial, result.
+    """
+    org_name = profile.get("organisationName") or "your organisation"
+    sector = profile.get("sector") or "innovation"
+    degraded: dict[str, bool] = {"keywords": False, "selection": False}
+
+    client = get_bedrock_client()
+    model_id = get_model_id()
+
+    # Step 1: LLM Keyword Generation
+    keywords = yield from _generate_keywords_step(client, model_id, profile, sector, org_name, degraded)
+
+    # Step 2: Live EU Portal API Search
+    candidates = yield from _search_candidates_step(keywords)
+
+    if not candidates:
+        yield {
+            "event": "progress",
+            "stage": "search",
+            "message": "No candidate grants found matching criteria.",
+            "data": {"candidate_count": 0},
+        }
+        yield {
+            "event": "result",
+            "stage": "select",
+            "message": "No matching grants found",
+            "data": {"grants": [], "reply": "No matching grants found for this profile."},
+        }
+        return
+
+    # Step 3: LLM Evaluation & Ranking
+    selected_grants, revealed = yield from _evaluate_and_select_step(client, model_id, profile, org_name, candidates, excluded_grant_ids, max_grants, degraded)
+
     if len(selected_grants) < len(revealed):
-        # Fallback path produced fewer/different results; keep whatever parsed cleanly.
         logger.info("Selection parse recovered %d grants vs %d progressively revealed", len(selected_grants), len(revealed))
 
     is_degraded = degraded["keywords"] or degraded["selection"]

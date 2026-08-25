@@ -1,4 +1,3 @@
-from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.schemas.chat import (
     ChatContext,
@@ -19,7 +18,7 @@ logger = get_logger("services.chat")
 class ChatService:
     def __init__(self, database_path: str | None = None) -> None:
         self.grant_tools = GrantTools()
-        self.conversation_store = ConversationStore(database_path=database_path or settings.sqlite_db_path)
+        self.conversation_store = ConversationStore(database_path=database_path)
 
     def handle_message(self, payload: ChatMessageRequest, user_id: str | None = None) -> ChatMessageResponse:
         conversation = self._resolve_conversation(payload.conversation_id, user_id)

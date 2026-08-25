@@ -293,15 +293,30 @@ export function App() {
     synchronizeBackendHistory,
   ]);
 
+  const getExcludedGrantIds = useCallback(() => {
+    const msgs = c.activeConversation?.messages ?? [];
+    return Array.from(
+      new Set(
+        msgs
+          .flatMap((m) => m.blocks)
+          .filter(
+            (b): b is Extract<ChatBlock, { type: "grant_results" }> => b.type === "grant_results",
+          )
+          .flatMap((b) => b.grants.map((g) => g.id)),
+      ),
+    );
+  }, [c.activeConversation?.messages]);
+
   // ---------------------------------------------------------------------------
   // Grant search — delegated to useGrantSearch.
   // App supplies the UI callbacks; the hook owns the research state machine,
   // in-flight guard, and progress event fan-out.
   // ---------------------------------------------------------------------------
-  const { runResearch, handleRetryResearch } = useGrantSearch({
+  const { runResearch, handleRetryResearch: internalRetryResearch } = useGrantSearch({
     setBusy,
     setStage: c.setStage,
     setGrants: c.setGrants,
+    getExcludedGrantIds,
     onResearchStart: (initialState) =>
       askAssistant([{ type: "research_status", state: initialState }]),
     onResearchProgress: (messageId, updater) => setBlocks(messageId, updater),
@@ -311,10 +326,10 @@ export function App() {
           type: "text",
           text:
             grants.length === 0
-              ? `I couldn't find any ${isMockMode ? "demo matches" : "live opportunities"} for ${profile.organisationName}. Here's what usually helps:`
+              ? `I couldn't find any additional ${isMockMode ? "demo matches" : "live opportunities"} for ${profile.organisationName}. Try widening the funding amount or sector scope.`
               : isMockMode
-                ? `I found ${grants.length} demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
-                : `I found ${grants.length} live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results were ranked by the backend grant agent.`,
+                ? `I found ${grants.length} alternative demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
+                : `I found ${grants.length} alternative live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName} (excluding previously shown calls).`,
         },
         { type: "grant_results", grants, sourceSummary },
       ]);
@@ -329,6 +344,19 @@ export function App() {
       );
     },
   });
+
+  const handleRetryResearch = useCallback(() => {
+    const profile = c.activeConversation?.profile;
+    if (!profile) return;
+    askUser([{ type: "text", text: "Find alternative matching EU grants." }]);
+    askAssistant([
+      {
+        type: "text",
+        text: "Searching for alternative grant opportunities and excluding previously displayed results...",
+      },
+    ]);
+    internalRetryResearch();
+  }, [askAssistant, askUser, c.activeConversation?.profile, internalRetryResearch]);
 
   const handleSubmitProfile = useCallback(
     (profile: OrganisationProfile) => {

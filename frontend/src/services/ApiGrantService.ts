@@ -15,8 +15,9 @@ export class ApiGrantService implements GrantService {
   async searchGrants(
     profile: OrganisationProfile,
     onProgress?: (event: SseEvent) => void,
+    excludedGrantIds?: string[],
   ): Promise<GrantSearchResult> {
-    const request = buildGrantSearchRequest(profile);
+    const request = buildGrantSearchRequest(profile, excludedGrantIds);
     const payload = await this.client.requestSse<unknown>(
       GRANT_SEARCH_STREAM_PATH,
       {

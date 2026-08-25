@@ -18,14 +18,32 @@ class AgentService:
         os.environ.setdefault("AWS_REGION", "us-east-1")
         self._cached_functions: dict[str, Callable[..., Any]] = {}
 
-    def search_grants(self, profile: dict[str, Any], max_grants: int = 3) -> list[dict[str, Any]]:
+    def search_grants(
+        self,
+        profile: dict[str, Any],
+        max_grants: int = 3,
+        excluded_grant_ids: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         search_grants = self._load_function("search_grants")
-        result: list[dict[str, Any]] = search_grants(profile, max_grants=max_grants)
+        result: list[dict[str, Any]] = search_grants(
+            profile,
+            max_grants=max_grants,
+            excluded_grant_ids=excluded_grant_ids,
+        )
         return result
 
-    def search_grants_stream(self, profile: dict[str, Any], max_grants: int = 3) -> Iterator[dict[str, Any]]:
+    def search_grants_stream(
+        self,
+        profile: dict[str, Any],
+        max_grants: int = 3,
+        excluded_grant_ids: list[str] | None = None,
+    ) -> Iterator[dict[str, Any]]:
         search_grants_stream = self._load_function("search_grants_stream")
-        yield from search_grants_stream(profile, max_grants=max_grants)
+        yield from search_grants_stream(
+            profile,
+            max_grants=max_grants,
+            excluded_grant_ids=excluded_grant_ids,
+        )
 
     def start_application(
         self,
@@ -77,6 +95,41 @@ class AgentService:
             profile,
             grant=grant,
             instruction=instruction,
+        )
+
+    def document_qa(
+        self,
+        question: str,
+        document: dict[str, Any],
+        grant: dict[str, Any] | None = None,
+        profile: dict[str, Any] | None = None,
+        section_id: str | None = None,
+    ) -> dict[str, Any]:
+        document_qa = self._load_function("document_qa")
+        result: dict[str, Any] = document_qa(
+            question,
+            document,
+            grant=grant,
+            profile=profile,
+            section_id=section_id,
+        )
+        return result
+
+    def document_qa_stream(
+        self,
+        question: str,
+        document: dict[str, Any],
+        grant: dict[str, Any] | None = None,
+        profile: dict[str, Any] | None = None,
+        section_id: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        document_qa_stream = self._load_function("document_qa_stream")
+        yield from document_qa_stream(
+            question,
+            document,
+            grant=grant,
+            profile=profile,
+            section_id=section_id,
         )
 
     def _load_function(self, name: str) -> Callable[..., Any]:

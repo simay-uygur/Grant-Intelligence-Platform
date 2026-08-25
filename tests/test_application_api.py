@@ -39,6 +39,11 @@ def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
         "updatedAt": "2026-08-06T08:00:00Z",
     }
     service.agent_service.rewrite_section = lambda section_title, current_content, profile, grant=None, instruction=None: f"AI rewrite for {profile['organisationName']}."
+    service.agent_service.document_qa = lambda question, document, grant=None, profile=None, section_id=None: {
+        "answer": f"Evaluator advice for '{question}'.",
+        "section_id": section_id,
+        "suggestions": ["Stronger methodology details", "Include cross-border pilot metrics"],
+    }
     monkeypatch.setattr(document_routes, "document_service", service)
     return TestClient(create_app())
 
@@ -254,3 +259,55 @@ def test_saved_grants_api_crud_and_validation(
     # 5. Verify empty list after delete
     empty_list_response = client.get("/api/v1/grants/saved")
     assert len(empty_list_response.json()["savedGrants"]) == 0
+
+
+def test_document_qa_with_stored_application(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    database_path = tmp_path / "applications.db"
+    client = _build_client(database_path, monkeypatch)
+    document = _start_application(client)
+
+    response = client.post(
+        f"/api/v1/documents/{document['id']}/qa",
+        json={"question": "Does this meet excellence criteria?", "sectionId": "executive-summary"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"] == "Evaluator advice for 'Does this meet excellence criteria?'."
+    assert payload["sectionId"] == "executive-summary"
+    assert payload["suggestions"] == ["Stronger methodology details", "Include cross-border pilot metrics"]
+
+
+def test_document_qa_with_payload_context(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    database_path = tmp_path / "applications.db"
+    client = _build_client(database_path, monkeypatch)
+
+    response = client.post(
+        "/api/v1/documents/active-document/qa",
+        json={
+            "question": "Check compliance",
+            "document": {
+                "id": "temp-doc-001",
+                "grantId": "HORIZON-001",
+                "grantTitle": "Robotics Call",
+                "sections": [{"id": "sec-1", "title": "Overview", "content": "Test text"}],
+                "updatedAt": "2026-08-01T00:00:00Z",
+            },
+            "grant": GRANT,
+            "profile": PROFILE,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"] == "Evaluator advice for 'Check compliance'."
+    assert len(payload["suggestions"]) == 2
+
+
+def test_document_qa_not_found(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    database_path = tmp_path / "applications.db"
+    client = _build_client(database_path, monkeypatch)
+
+    response = client.post(
+        "/api/v1/documents/non-existent-doc/qa",
+        json={"question": "Check compliance"},
+    )
+    assert response.status_code == 404
