@@ -1,7 +1,6 @@
 from collections.abc import Iterator
 from typing import Any
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.schemas.documents import (
     ApplicationDocument,
@@ -43,7 +42,7 @@ def _grant_to_dict(grant: GrantResult | dict[str, Any] | None) -> dict[str, Any]
 class DocumentService:
     def __init__(self, database_path: str | None = None) -> None:
         self.agent_service = AgentService()
-        self.application_store = ApplicationStore(database_path=database_path or settings.sqlite_db_path)
+        self.application_store = ApplicationStore(database_path=database_path)
 
     def start_application(self, payload: StartApplicationRequest, user_id: str | None = None) -> ApplicationDocument:
         logger.info("Starting application drafting (user_id=%s)", user_id)
