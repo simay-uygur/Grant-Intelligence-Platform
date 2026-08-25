@@ -144,10 +144,16 @@ def search_grants_stream(profile, max_grants=3, excluded_grant_ids=None):
     yield from run_agent_stream(profile, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids)
 
 
-def start_application(grant, profile):
+def start_application(grant, profile, custom_instructions=None, template_type=None, attachments=""):
     """startApplication(grant, profile) -> ApplicationDocument"""
     try:
-        return _start_application(grant, profile)
+        return _start_application(
+            grant,
+            profile,
+            custom_instructions=custom_instructions,
+            template_type=template_type,
+            attachments=attachments,
+        )
     except Exception as e:
         print(f"[service] start_application failed: {e}")
         return {
@@ -176,7 +182,7 @@ SECTIONS_LIST = [
 ]
 
 
-def start_application_stream(grant, profile):
+def start_application_stream(grant, profile, custom_instructions=None, template_type=None, attachments=""):
     """Generator streaming real-time events & token chunks for drafting a full application document."""
     import time
 
@@ -223,7 +229,14 @@ def start_application_stream(grant, profile):
             }
 
             accumulated = ""
-            for chunk in draft_single_section_stream(grant, profile, section_title):
+            for chunk in draft_single_section_stream(
+                grant,
+                profile,
+                section_title,
+                custom_instructions=custom_instructions,
+                template_type=template_type,
+                attachments=attachments,
+            ):
                 accumulated += chunk
                 words = len(accumulated.split())
                 yield {
@@ -393,7 +406,7 @@ def rewrite_section_stream(section_title, current_content, profile, grant=None, 
     }
 
 
-def document_qa(question, document, grant=None, profile=None, section_id=None):
+def document_qa(question, document, grant=None, profile=None, section_id=None, attachments=""):
     """
     document_qa(question, document, grant, profile, section_id) -> dict
     Returns: {"answer": str, "section_id": str | None, "suggestions": list[str]}
@@ -405,6 +418,7 @@ def document_qa(question, document, grant=None, profile=None, section_id=None):
             grant=grant,
             profile=profile,
             section_id=section_id,
+            attachments=attachments,
         )
     except Exception as e:
         logger.error("document_qa failed: %s", e)
@@ -415,7 +429,7 @@ def document_qa(question, document, grant=None, profile=None, section_id=None):
         }
 
 
-def document_qa_stream(question, document, grant=None, profile=None, section_id=None):
+def document_qa_stream(question, document, grant=None, profile=None, section_id=None, attachments=""):
     """
     document_qa_stream(question, document, grant, profile, section_id) -> Iterator[dict]
     Yields thinking, token_delta, and result events.
@@ -427,6 +441,7 @@ def document_qa_stream(question, document, grant=None, profile=None, section_id=
             grant=grant,
             profile=profile,
             section_id=section_id,
+            attachments=attachments,
         )
     except Exception as e:
         logger.error("document_qa_stream failed: %s", e)

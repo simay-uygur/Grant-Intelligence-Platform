@@ -49,18 +49,36 @@ class AgentService:
         self,
         grant: dict[str, Any],
         profile: dict[str, Any],
+        custom_instructions: str | None = None,
+        template_type: str | None = None,
+        attachments: str = "",
     ) -> dict[str, Any]:
         start_application = self._load_function("start_application")
-        result: dict[str, Any] = start_application(grant, profile)
+        result: dict[str, Any] = start_application(
+            grant,
+            profile,
+            custom_instructions=custom_instructions,
+            template_type=template_type,
+            attachments=attachments,
+        )
         return result
 
     def start_application_stream(
         self,
         grant: dict[str, Any],
         profile: dict[str, Any],
+        custom_instructions: str | None = None,
+        template_type: str | None = None,
+        attachments: str = "",
     ) -> Iterator[dict[str, Any]]:
         start_application_stream = self._load_function("start_application_stream")
-        yield from start_application_stream(grant, profile)
+        yield from start_application_stream(
+            grant,
+            profile,
+            custom_instructions=custom_instructions,
+            template_type=template_type,
+            attachments=attachments,
+        )
 
     def rewrite_section(
         self,
@@ -104,6 +122,7 @@ class AgentService:
         grant: dict[str, Any] | None = None,
         profile: dict[str, Any] | None = None,
         section_id: str | None = None,
+        attachments: str = "",
     ) -> dict[str, Any]:
         document_qa = self._load_function("document_qa")
         result: dict[str, Any] = document_qa(
@@ -112,6 +131,7 @@ class AgentService:
             grant=grant,
             profile=profile,
             section_id=section_id,
+            attachments=attachments,
         )
         return result
 
@@ -122,6 +142,7 @@ class AgentService:
         grant: dict[str, Any] | None = None,
         profile: dict[str, Any] | None = None,
         section_id: str | None = None,
+        attachments: str = "",
     ) -> Iterator[dict[str, Any]]:
         document_qa_stream = self._load_function("document_qa_stream")
         yield from document_qa_stream(
@@ -130,6 +151,7 @@ class AgentService:
             grant=grant,
             profile=profile,
             section_id=section_id,
+            attachments=attachments,
         )
 
     def _load_function(self, name: str) -> Callable[..., Any]:

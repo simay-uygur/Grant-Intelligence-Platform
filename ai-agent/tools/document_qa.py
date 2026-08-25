@@ -39,6 +39,7 @@ def _build_qa_prompt(
     grant: dict[str, Any] | None = None,
     profile: dict[str, Any] | None = None,
     section_id: str | None = None,
+    attachments: str = "",
 ) -> str:
     doc_context = _format_document_context(document, target_section_id=section_id)
     grant_summary = (grant.get("summary") or grant.get("description") or "") if isinstance(grant, dict) else ""
@@ -46,6 +47,9 @@ def _build_qa_prompt(
     profile_context = json.dumps(profile, indent=2) if profile else "No profile provided."
 
     target_note = f"\nTARGET FOCUS: The user is specifically asking about section '{section_id}'." if section_id else ""
+    attachment_block = ""
+    if attachments and attachments.strip():
+        attachment_block = f"\nAPPLICANT BACKGROUND MATERIAL (extracted from documents the applicant uploaded — ground your advice in these real facts):\n{attachments.strip()[:12000]}\n"
 
     return (
         "You are an expert European Commission Grant Consultant and Proposal Evaluator.\n"
@@ -53,7 +57,7 @@ def _build_qa_prompt(
         "with EU Horizon call criteria, and suggest specific, high-impact improvements.\n\n"
         f"OFFICIAL GRANT CALL DETAILS:\n{grant_context}\n\n"
         f"CALL OBJECTIVES & PRIORITIES:\n{grant_summary or '(Refer to grant details)'}\n\n"
-        f"APPLICANT PROFILE:\n{profile_context}\n\n"
+        f"APPLICANT PROFILE:\n{profile_context}\n{attachment_block}\n"
         f"DRAFTED APPLICATION DOCUMENT:\n{doc_context}\n{target_note}\n\n"
         f"USER QUESTION / CONSULTATION REQUEST:\n{question}\n\n"
         "Provide a clear, authoritative, and actionable response. Specifically:\n"
@@ -82,12 +86,13 @@ def document_qa(
     grant: dict[str, Any] | None = None,
     profile: dict[str, Any] | None = None,
     section_id: str | None = None,
+    attachments: str = "",
 ) -> dict[str, Any]:
     """
     Synchronous document Q&A consultation.
     Returns: {"answer": str, "section_id": str | None, "suggestions": list[str]}
     """
-    prompt = _build_qa_prompt(question, document, grant, profile, section_id=section_id)
+    prompt = _build_qa_prompt(question, document, grant, profile, section_id=section_id, attachments=attachments)
     client = get_bedrock_client()
     response = client.converse(
         modelId=get_model_id(),
@@ -113,6 +118,7 @@ def document_qa_stream(
     grant: dict[str, Any] | None = None,
     profile: dict[str, Any] | None = None,
     section_id: str | None = None,
+    attachments: str = "",
 ) -> Generator[dict[str, Any]]:
     """
     Streaming document Q&A consultation via Bedrock converse_stream.
@@ -129,7 +135,7 @@ def document_qa_stream(
         },
     }
 
-    prompt = _build_qa_prompt(question, document, grant, profile, section_id=section_id)
+    prompt = _build_qa_prompt(question, document, grant, profile, section_id=section_id, attachments=attachments)
     client = get_bedrock_client()
     model_id = get_model_id()
 

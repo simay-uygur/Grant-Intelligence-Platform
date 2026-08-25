@@ -43,10 +43,12 @@ def _install_fake_agent() -> dict:
             }
         ]
 
-    def start_application(grant: dict, profile: dict) -> dict:
+    def start_application(grant: dict, profile: dict, custom_instructions=None, template_type=None, attachments="") -> dict:
         calls["start_application"] = {
             "grant": grant,
             "profile": profile,
+            "custom_instructions": custom_instructions,
+            "template_type": template_type,
         }
         return {
             "id": "doc-001",

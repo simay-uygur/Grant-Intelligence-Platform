@@ -1,4 +1,4 @@
-import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
+import type { ApplicationDocument, Attachment, Grant, OrganisationProfile } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import type { SseEvent } from "./apiClient";
 
@@ -6,6 +6,16 @@ export interface OpenedApplication {
   document: ApplicationDocument;
   grant?: Grant;
   profile?: OrganisationProfile;
+}
+
+export interface StartApplicationOptions {
+  /** Backend chat conversation whose uploaded documents should inform the draft. */
+  conversationId?: string;
+}
+
+export interface UploadDocumentOptions {
+  conversationId?: string;
+  applicationId?: string;
 }
 
 export interface ApplicationService {
@@ -19,10 +29,12 @@ export interface ApplicationService {
   deleteApplication?(applicationId: string): Promise<void>;
   saveSection(applicationId: string, sectionId: string, content: string): Promise<void>;
   findSavedApplication(grantId: string): Promise<ApplicationDocument | undefined>;
+  uploadDocument?(file: File, options?: UploadDocumentOptions): Promise<Attachment>;
   startApplication(
     grant: Grant,
     profile: OrganisationProfile,
     onProgress?: (event: SseEvent) => void,
+    options?: StartApplicationOptions,
   ): Promise<ApplicationDocument>;
   rewriteSection(
     sectionTitle: string,

@@ -504,7 +504,9 @@ export function App() {
               });
             }
           };
-          doc = await applicationService.startApplication(grant, profile, handleDraftProgress);
+          doc = await applicationService.startApplication(grant, profile, handleDraftProgress, {
+            conversationId: c.activeConversation?.backendConversationId,
+          });
           if (statusMessageId) {
             setBlocks(statusMessageId, () => [
               {
@@ -657,6 +659,26 @@ export function App() {
       }
     },
     [askAssistant, c, synchronizeBackendHistory],
+  );
+
+  const ensureBackendConversation = useCallback(async (): Promise<string | null> => {
+    if (!chatService) return null;
+    const existing = c.activeConversation?.backendConversationId;
+    if (existing) return existing;
+    const backendConversation = await chatService.createConversation();
+    c.setBackendConversationId(backendConversation.conversationId);
+    return backendConversation.conversationId;
+  }, [c]);
+
+  const handleUploadDocument = useCallback(
+    async (file: File, conversationId: string | null) => {
+      if (!applicationService.uploadDocument) return;
+      const resolvedConversationId = conversationId ?? (await ensureBackendConversation());
+      await applicationService.uploadDocument(file, {
+        conversationId: resolvedConversationId ?? undefined,
+      });
+    },
+    [ensureBackendConversation],
   );
 
   const handleUserSend = useCallback(
@@ -1087,6 +1109,10 @@ export function App() {
             placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
             grantContext={askingAboutGrant}
             onClearGrantContext={() => setAskingAboutGrant(null)}
+            conversationId={c.activeConversation?.backendConversationId ?? null}
+            uploadDocument={
+              applicationService.uploadDocument && chatService ? handleUploadDocument : undefined
+            }
           />
         </div>
       </main>

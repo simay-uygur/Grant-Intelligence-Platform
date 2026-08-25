@@ -9,6 +9,8 @@ from backend.schemas.chat import (
     StoredChatMessage,
     ToolDefinitionPreview,
 )
+from backend.services.application_store import ApplicationStore
+from backend.services.chat_llm_service import build_attachments_block, generate_chat_reply
 from backend.services.conversation_store import ConversationStore
 from backend.services.grant_tools import GrantTools
 
@@ -19,6 +21,7 @@ class ChatService:
     def __init__(self, database_path: str | None = None) -> None:
         self.grant_tools = GrantTools()
         self.conversation_store = ConversationStore(database_path=database_path)
+        self.application_store = ApplicationStore(database_path=database_path)
 
     def handle_message(self, payload: ChatMessageRequest, user_id: str | None = None) -> ChatMessageResponse:
         conversation = self._resolve_conversation(payload.conversation_id, user_id)
@@ -60,9 +63,12 @@ class ChatService:
                 ],
             )
 
-        logger.info("No search context found for conversation '%s', asking for profile info", conversation["conversation_id"])
-
-        assistant_message = "Great — to match you to the strongest calls, please complete the profile form."
+        logger.info("No search context found for conversation '%s'", conversation["conversation_id"])
+        assistant_message = self._generate_freeform_reply(
+            conversation_id=conversation["conversation_id"],
+            user_message=payload.user_message,
+            user_id=user_id,
+        )
         self.conversation_store.append_message(
             conversation["conversation_id"],
             "assistant",
@@ -80,6 +86,21 @@ class ChatService:
             ],
             tool_results=[],
         )
+
+    def _generate_freeform_reply(self, *, conversation_id: str, user_message: str, user_id: str | None) -> str:
+        """Answer free-form turns with Bedrock using history + uploaded documents.
+
+        Falls back to the scripted profile-collection message when the model is
+        unavailable so the chat pipeline never hard-fails.
+        """
+        try:
+            history = self.conversation_store.get_recent_model_messages(conversation_id, limit=10, user_id=user_id)
+            uploads = self.application_store.list_uploads_for_conversation(conversation_id, user_id)
+            attachments_block = build_attachments_block(uploads)
+            return generate_chat_reply(user_message, history, attachments_block)
+        except Exception as exc:
+            logger.warning("LLM chat reply failed for conversation '%s': %s", conversation_id, exc)
+            return "Great — to match you to the strongest calls, please complete the profile form."
 
     def get_loop_preview(self) -> ChatLoopPreviewResponse:
         return ChatLoopPreviewResponse(

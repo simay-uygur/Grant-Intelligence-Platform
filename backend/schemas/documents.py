@@ -47,6 +47,8 @@ class StoredApplication(ApplicationDocument):
     status: ApplicationStatus = Field(description="Current application lifecycle status.")
     grant: dict = Field(description="Grant input used to generate the application.")
     profile: dict = Field(description="Organisation profile used for generation.")
+    customInstructions: str | None = Field(default=None, description="User prompt guidelines applied while drafting.")
+    templateType: str | None = Field(default=None, description="Call-tailored template used for drafting guidance.")
     createdAt: str = Field(description="Application creation timestamp in ISO-8601 format.")
 
 
@@ -65,9 +67,32 @@ class UpdateApplicationSectionRequest(BaseModel):
     content: str = Field(description="Complete replacement content for the stored section.")
 
 
+TemplateType = Literal["DEFAULT_COMPREHENSIVE", "HORIZON_STANDARD", "EIC_ACCELERATOR"]
+
+
 class StartApplicationRequest(BaseModel):
     grant: GrantResult | dict = Field(description="Grant selected by the frontend.")
     profile: AgentProfile = Field(description="Organization profile collected by the frontend.")
+    customInstructions: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("customInstructions", "custom_instructions"),
+        serialization_alias="customInstructions",
+        description="Free-form guidelines injected into every drafting prompt (tone, emphasis, must-include facts).",
+    )
+    templateType: TemplateType | None = Field(
+        default=None,
+        validation_alias=AliasChoices("templateType", "template_type"),
+        serialization_alias="templateType",
+        description="Call-tailored guidance template applied on top of the 12 canonical sections.",
+    )
+    conversationId: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("conversationId", "conversation_id"),
+        serialization_alias="conversationId",
+        description="Chat conversation whose uploaded attachments should inform the draft.",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RewriteSectionRequest(BaseModel):

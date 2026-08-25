@@ -1,0 +1,8 @@
+category,item,year_2025_eur,year_2024_eur,notes
+Personnel,Engineering salaries,780000,520000,"14 engineers, avg EUR 55k + social costs"
+Personnel,Research salaries,330000,240000,"6 robotics/CV researchers"
+Equipment,Drone fleet (8 units),160000,90000,"CorrosionScan Mk3 airframes + spare parts"
+Equipment,Laboratory rigs,45000,30000,"Propulsion and battery test benches"
+Subcontracting,Certification body fees,60000,35000,"TÜV conformity assessments"
+Travel,Port pilot deployments,52000,48000,"Rotterdam Hamburg Antwerp Valencia"
+Other,Insurance and facilities,95000,80000,"Liability insurance Munich lease"

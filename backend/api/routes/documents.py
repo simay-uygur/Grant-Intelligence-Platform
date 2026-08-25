@@ -1,7 +1,8 @@
 import asyncio
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response, StreamingResponse
 
 from backend.api.dependencies import get_current_user
 from backend.core.sse import sse_generator_bridge
@@ -18,6 +19,7 @@ from backend.schemas.documents import (
     UpdateApplicationSectionRequest,
     UpdateApplicationStatusRequest,
 )
+from backend.schemas.sheets import GenerateSheetsRequest, SheetsBundle, SheetTabName, UpdateSheetTabRequest
 from backend.services.agent_service import AgentUnavailableError
 from backend.services.document_service import (
     ApplicationNotFoundError,
@@ -293,3 +295,85 @@ async def document_qa_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get(
+    "/documents/{document_id}/sheets",
+    response_model=SheetsBundle,
+    summary="Get structured spreadsheet tabs",
+    description="Return the work packages, budget, risks, and consortium tabs for an application (empty defaults if never generated).",
+)
+def get_sheets(document_id: str, current_user: dict[str, str] | None = Depends(get_current_user)) -> SheetsBundle:
+    try:
+        return document_service.get_sheets(document_id, current_user["id"] if current_user else None)
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put(
+    "/documents/{document_id}/sheets/{tab_name}",
+    response_model=SheetsBundle,
+    summary="Save one spreadsheet tab",
+    description="Replace the rows of one tab; derived values (25% overhead, totals) are recomputed server-side.",
+)
+def update_sheet_tab(
+    document_id: str,
+    tab_name: SheetTabName,
+    payload: UpdateSheetTabRequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> SheetsBundle:
+    try:
+        return document_service.update_sheet_tab(document_id, tab_name, payload, current_user["id"] if current_user else None)
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post(
+    "/documents/{document_id}/sheets/generate",
+    response_model=SheetsBundle,
+    summary="Generate all spreadsheet tabs with AI",
+    description="AI generates work packages, budget, risks, and consortium tables from the grant call and applicant profile.",
+)
+async def generate_sheets(
+    document_id: str,
+    payload: GenerateSheetsRequest | None = None,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> SheetsBundle:
+    grant_limit = payload.grantLimit if payload else None
+    try:
+        return await asyncio.to_thread(
+            document_service.generate_sheets,
+            document_id,
+            grant_limit,
+            current_user["id"] if current_user else None,
+        )
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"AI sheet generation returned an invalid response: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Sheet generation is unavailable: {exc}") from exc
+
+
+@router.get(
+    "/documents/{document_id}/export",
+    summary="Export the full proposal as a continuous document",
+    description="Format all 12 sections plus the structured sheets as a continuous HTML, Markdown, or plain-text paper ready to paste into Google Docs or Word.",
+)
+def export_document(
+    document_id: str,
+    format: Literal["html", "markdown", "text"] = Query(default="markdown"),
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> Response:
+    try:
+        content, filename = document_service.export_document(document_id, format, current_user["id"] if current_user else None)
+    except ApplicationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    media_types = {"html": "text/html", "markdown": "text/markdown", "text": "text/plain"}
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    if format == "html":
+        return HTMLResponse(content=content, headers=headers)
+    return PlainTextResponse(content=content, media_type=media_types[format], headers=headers)

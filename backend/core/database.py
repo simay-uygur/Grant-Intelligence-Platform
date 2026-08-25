@@ -93,8 +93,26 @@ applications_table = Table(
     Column("sections_json", Text, nullable=False),
     Column("grant_json", Text, nullable=False),
     Column("profile_json", Text, nullable=False),
+    Column("custom_instructions", Text),
+    Column("template_type", String(32)),
+    Column("sheets_json", Text),
     Column("created_at", String(40), nullable=False),
     Column("updated_at", String(40), nullable=False),
+)
+
+# --- Document uploads -------------------------------------------------------
+document_uploads_table = Table(
+    "document_uploads",
+    metadata,
+    Column("id", String(64), primary_key=True),
+    Column("user_id", String(64), nullable=True),
+    Column("application_id", String(64), nullable=True),
+    Column("conversation_id", String(64), nullable=True),
+    Column("filename", Text, nullable=False),
+    Column("content_type", Text, nullable=False),
+    Column("extracted_text", Text, nullable=False),
+    Column("character_count", Integer, nullable=False),
+    Column("created_at", String(40), nullable=False),
 )
 
 Index("idx_applications_updated_at", applications_table.c.updated_at.desc())

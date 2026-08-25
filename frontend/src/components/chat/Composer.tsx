@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, MessageCircleQuestion, Mic, Paperclip, Send, X } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  MessageCircleQuestion,
+  Mic,
+  Paperclip,
+  Send,
+  X,
+} from "lucide-react";
 import type { Grant } from "@/types";
 import { cn } from "@/lib/utils";
 import { useSpeechRecognition, type SpeechRecognitionState } from "@/hooks/useSpeechRecognition";
@@ -16,6 +24,10 @@ interface Props {
   /** The grant the user is currently asking about, if any — shown as a removable context chip. */
   grantContext?: Grant | null;
   onClearGrantContext?: () => void;
+  /** Backend chat conversation uploads should be linked to. */
+  conversationId?: string | null;
+  /** Uploads the file's text to the backend so AI drafting and Q&A can use it. Absent in demo mode. */
+  uploadDocument?: (file: File, conversationId: string | null) => Promise<void>;
 }
 
 const ACCEPTED_FILE_TYPES =
@@ -28,6 +40,15 @@ const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt", ".md", ".png", ".j
 
 // Matches the textarea's max-h-40 (10rem) Tailwind class below.
 const MAX_TEXTAREA_HEIGHT = 160;
+
+// Extensions the backend can extract text from (POST /api/v1/documents/upload).
+const BACKEND_SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv", ".json"];
+
+interface PendingAttachment {
+  file: File;
+  status: "uploading" | "uploaded" | "failed" | "local";
+  error?: string;
+}
 
 // Only questions groundable in fields that always exist on a Grant.
 const SUGGESTED_QUESTIONS = [
@@ -77,8 +98,10 @@ export function Composer({
   placeholder,
   grantContext,
   onClearGrantContext,
+  conversationId,
+  uploadDocument,
 }: Props) {
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -115,15 +138,10 @@ export function Composer({
     if (!text || disabled) return;
     onSend(text);
     onValueChange("");
-    setAttachedFile(null);
+    setAttachment(null);
     setAttachmentError(null);
   };
 
-  // TODO(api): the selected File stays local only — see docs/api-contract.md
-  // ("File upload") for the proposed POST /conversations/{id}/attachments
-  // endpoint. Once that exists, a successful selection here would call it
-  // through grantService (or a sibling service) and store the resulting
-  // Attachment (src/types) rather than the raw File.
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -131,14 +149,35 @@ export function Composer({
 
     const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
     if (!ACCEPTED_EXTENSIONS.includes(extension)) {
-      setAttachedFile(null);
+      setAttachment(null);
       setAttachmentError(
         `"${file.name}" isn't a supported file type. Choose a PDF, Word, text, or image file instead.`,
       );
       return;
     }
     setAttachmentError(null);
-    setAttachedFile(file);
+
+    if (!uploadDocument || !BACKEND_SUPPORTED_EXTENSIONS.includes(extension)) {
+      setAttachment({ file, status: "local" });
+      return;
+    }
+
+    setAttachment({ file, status: "uploading" });
+    uploadDocument(file, conversationId ?? null)
+      .then(() => {
+        setAttachment((current) =>
+          current?.file === file ? { file, status: "uploaded" } : current,
+        );
+      })
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : `Uploading "${file.name}" failed. Please try again.`;
+        setAttachment((current) =>
+          current?.file === file ? { file, status: "failed", error: message } : current,
+        );
+      });
   };
 
   const askSuggested = (question: string) => {
@@ -250,16 +289,35 @@ export function Composer({
             </InlineNotice>
           )}
 
-          {attachedFile && (
-            <div className="mb-2 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-              <Paperclip className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {attachment && (
+            <div
+              className={cn(
+                "mb-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs",
+                attachment.status === "uploaded" && "border-success/30 bg-success/10 text-success",
+                attachment.status === "uploading" && "border-border bg-muted/50 text-foreground",
+                (attachment.status === "failed" || attachment.status === "local") &&
+                  "border-warning/30 bg-warning/10 text-warning",
+              )}
+            >
+              {attachment.status === "uploaded" ? (
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              ) : attachment.status === "uploading" ? (
+                <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+              ) : (
+                <Paperclip className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              )}
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium" title={attachedFile.name}>
-                  {attachedFile.name}
+                <p className="truncate font-medium" title={attachment.file.name}>
+                  {attachment.file.name}
                 </p>
-                <p className="mt-0.5 text-warning/90">
-                  Selected locally only — not uploaded or analysed. Document processing requires
-                  backend integration.
+                <p className="mt-0.5 opacity-90">
+                  {attachment.status === "uploading" && "Uploading and extracting text…"}
+                  {attachment.status === "uploaded" &&
+                    "Uploaded — the AI will use this document when drafting and answering questions."}
+                  {attachment.status === "local" &&
+                    "Preview only — this file type can't be analysed automatically."}
+                  {attachment.status === "failed" &&
+                    (attachment.error ?? "Upload failed. Please try again.")}
                 </p>
               </div>
               <Tooltip>
@@ -267,9 +325,9 @@ export function Composer({
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setAttachedFile(null)}
+                    onClick={() => setAttachment(null)}
                     aria-label="Remove attached file"
-                    className="h-auto w-auto shrink-0 rounded-md p-1.5 text-warning hover:bg-warning/15"
+                    className="h-auto w-auto shrink-0 rounded-md p-1.5 hover:bg-muted"
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>
@@ -297,7 +355,7 @@ export function Composer({
                   variant="ghost"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
-                  aria-label="Attach a file (PDF, DOC, DOCX, TXT, MD, PNG, JPG, JPEG). Selected locally only, not uploaded."
+                  aria-label="Attach a document (PDF, DOCX, TXT, MD, CSV, JSON). Text is extracted so the AI can use it."
                   className="shrink-0 rounded-lg text-muted-foreground hover:bg-muted"
                   disabled={disabled}
                 >

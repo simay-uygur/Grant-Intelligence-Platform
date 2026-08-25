@@ -39,7 +39,7 @@ def _install_fake_streaming_agent():
             "data": {"grants": search_grants(profile, max_grants, excluded_grant_ids)},
         }
 
-    def start_application(grant: dict, profile: dict) -> dict:
+    def start_application(grant: dict, profile: dict, custom_instructions=None, template_type=None, attachments="") -> dict:
         return {
             "id": "doc-fake-001",
             "grantId": grant.get("id", ""),
@@ -48,7 +48,7 @@ def _install_fake_streaming_agent():
             "updatedAt": "2026-08-16T12:00:00Z",
         }
 
-    def start_application_stream(grant: dict, profile: dict):
+    def start_application_stream(grant: dict, profile: dict, custom_instructions=None, template_type=None, attachments=""):
         yield {
             "event": "thinking",
             "stage": "draft",
@@ -89,14 +89,14 @@ def _install_fake_streaming_agent():
             "data": {"content": rewrite_section(section_title, current_content, profile, grant, instruction)},
         }
 
-    def document_qa(question: str, document: dict, grant: dict | None = None, profile: dict | None = None, section_id: str | None = None) -> dict:
+    def document_qa(question: str, document: dict, grant: dict | None = None, profile: dict | None = None, section_id: str | None = None, attachments="") -> dict:
         return {
             "answer": f"Advice for question: {question}",
             "section_id": section_id,
             "suggestions": ["Improve consortium balance", "Clarify TRL readiness"],
         }
 
-    def document_qa_stream(question: str, document: dict, grant: dict | None = None, profile: dict | None = None, section_id: str | None = None):
+    def document_qa_stream(question: str, document: dict, grant: dict | None = None, profile: dict | None = None, section_id: str | None = None, attachments=""):
         yield {
             "event": "thinking",
             "stage": "qa",
