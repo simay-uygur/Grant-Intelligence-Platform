@@ -77,7 +77,7 @@ export function WelcomeScreen({ onQuickStart, onFillComposer, isMockMode }: Prop
       <p className="mt-6 max-w-md text-[11px] text-muted-foreground">
         {isMockMode
           ? "Mock mode — this demo uses local sample data only. No real grant databases or AI models are connected."
-          : "Live grant search is connected. Application drafts and grant Q&A remain local in this version."}
+          : "Connected to live European grant opportunities and AI-powered drafting."}
       </p>
     </div>
   );
