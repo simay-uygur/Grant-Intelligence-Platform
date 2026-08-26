@@ -1,0 +1,34 @@
+NORTHLIGHT ROBOTICS GMBH - COMPANY PROFILE
+===========================================
+
+Organisation Overview
+---------------------
+Northlight Robotics GmbH is a German SME founded in 2015 and headquartered in
+Munich, Bavaria. The company designs, builds, and operates autonomous inspection
+robotics for industrial infrastructure, with a current team of 25 employees
+(14 engineers, 6 robotics researchers, 5 operations and sales staff).
+
+Track Record
+------------
+- 2024: Delivered 40 autonomous drone inspection pilots across 12 EU ports,
+  including Rotterdam, Hamburg, Antwerp, and Valencia.
+- 2023: Certified under ISO 9001:2015; achieved TRL 7 on the core
+  CorrosionScan visual-inspection platform.
+- 2022: Winner of the Bavarian Innovation Award for applied robotics.
+
+Financials
+----------
+- 2025 revenue: EUR 2.1 million (60% B2B contracts, 40% pilot projects)
+- 2024 revenue: EUR 1.4 million
+- Profitable since 2024; reinvesting 30% of profit into R&D.
+
+Key Capabilities
+----------------
+1. Autonomous navigation in GPS-denied environments (proprietary SLAM stack).
+2. AI-based corrosion and crack detection (94% precision on validated datasets).
+3. Edge deployment on embedded hardware; no cloud dependency for inspection runs.
+4. In-house certification workflow aligned with EU machinery regulations.
+
+Contact
+-------
+Dr. Elena Fischer, CTO - elena.fischer@northlight-robotics.example

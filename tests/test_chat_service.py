@@ -73,6 +73,44 @@ def test_handle_message_raises_on_missing_conversation(chat_service: ChatService
         chat_service.handle_message(req)
 
 
+def test_freeform_reply_uses_llm_and_uploaded_documents(chat_service: ChatService, monkeypatch: pytest.MonkeyPatch) -> None:
+
+    captured: dict = {}
+
+    def fake_generate(user_message: str, history: list[dict[str, str]], attachments_block: str = "") -> str:
+        captured["user_message"] = user_message
+        captured["history_length"] = len(history)
+        captured["attachments"] = attachments_block
+        return "Based on your drone inspection track record, EIC Accelerator fits well."
+
+    monkeypatch.setattr("backend.services.chat_service.generate_chat_reply", fake_generate)
+
+    conv = chat_service.create_conversation()
+    chat_service.application_store.save_upload(
+        filename="track-record.txt",
+        content_type="text/plain",
+        extracted_text="We delivered 40 drone inspection pilots across EU ports.",
+        conversation_id=conv.conversation_id,
+    )
+
+    response = chat_service.handle_message(ChatMessageRequest(conversation_id=conv.conversation_id, user_message="Which grant fits us?"))
+
+    assert response.assistant_message.startswith("Based on your drone inspection")
+    assert "40 drone inspection pilots" in captured["attachments"]
+    assert captured["user_message"] == "Which grant fits us?"
+
+
+def test_freeform_reply_falls_back_when_llm_fails(chat_service: ChatService, monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken_generate(user_message: str, history: list[dict[str, str]], attachments_block: str = "") -> str:
+        raise RuntimeError("bedrock down")
+
+    monkeypatch.setattr("backend.services.chat_service.generate_chat_reply", broken_generate)
+
+    response = chat_service.handle_message(ChatMessageRequest(user_message="Hello"))
+    assert response.assistant_message == "Great — to match you to the strongest calls, please complete the profile form."
+    assert response.next_step == "collect_information"
+
+
 def test_get_messages_returns_persisted_history(chat_service: ChatService) -> None:
     conv = chat_service.create_conversation()
     cid = conv.conversation_id

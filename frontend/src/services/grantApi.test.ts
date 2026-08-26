@@ -24,7 +24,7 @@ const profile: OrganisationProfile = {
 
 describe("grant API mapping", () => {
   test("builds the backend request without deriving budget filters", () => {
-    expect(buildGrantSearchRequest(profile)).toEqual({
+    expect(buildGrantSearchRequest(profile, ["HORIZON-OLD-01"])).toEqual({
       query: "Explainable AI inspection Digital & AI",
       organisationName: "Northlight Robotics",
       organisationType: "SME",
@@ -41,6 +41,7 @@ describe("grant API mapping", () => {
       eligibilityConstraints: undefined,
       only_open: true,
       limit: 3,
+      excluded_grant_ids: ["HORIZON-OLD-01"],
     });
   });
 
@@ -50,8 +51,22 @@ describe("grant API mapping", () => {
     ) as unknown as OrganisationProfile;
     expect(buildGrantSearchRequest(empty)).toEqual({
       query: "Horizon Europe",
+      organisationName: undefined,
+      organisationType: undefined,
+      organisationDescription: undefined,
+      sector: undefined,
+      country: undefined,
+      region: undefined,
+      projectTitle: undefined,
+      projectDescription: undefined,
+      fundingAmount: undefined,
+      projectStartDate: undefined,
+      projectDuration: undefined,
+      organization_type: undefined,
+      eligibilityConstraints: undefined,
       only_open: true,
       limit: 3,
+      excluded_grant_ids: [],
     });
   });
 

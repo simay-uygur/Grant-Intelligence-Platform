@@ -1,7 +1,12 @@
 import { z } from "zod";
-import type { ApplicationDocument, Grant, OrganisationProfile } from "@/types";
+import type { ApplicationDocument, Attachment, Grant, OrganisationProfile } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
-import type { ApplicationService, OpenedApplication } from "./ApplicationService";
+import type {
+  ApplicationService,
+  OpenedApplication,
+  StartApplicationOptions,
+  UploadDocumentOptions,
+} from "./ApplicationService";
 import { ApiClient, ApiError, type SseEvent } from "./apiClient";
 
 const documentSectionSchema = z.object({
@@ -203,16 +208,39 @@ export class ApiApplicationService implements ApplicationService {
     }
   }
 
+  async uploadDocument(file: File, options: UploadDocumentOptions = {}): Promise<Attachment> {
+    const payload = await this.client.upload<Record<string, unknown>>(
+      "/api/v1/documents/upload",
+      file,
+      {
+        ...(options.conversationId ? { conversation_id: options.conversationId } : {}),
+        ...(options.applicationId ? { application_id: options.applicationId } : {}),
+      },
+    );
+    return {
+      id: String(payload.id ?? ""),
+      filename: String(payload.filename ?? file.name),
+      mimeType: String(payload.contentType ?? file.type),
+      sizeBytes: file.size,
+      status: "uploaded",
+    };
+  }
+
   async startApplication(
     grant: Grant,
     profile: OrganisationProfile,
     onProgress?: (event: SseEvent) => void,
+    options?: StartApplicationOptions,
   ): Promise<ApplicationDocument> {
     const payload = await this.client.requestSse<unknown>(
       `/api/v1/grants/${encodeURIComponent(grant.id)}/start-application/stream`,
       {
         method: "POST",
-        body: JSON.stringify({ grant, profile }),
+        body: JSON.stringify({
+          grant,
+          profile,
+          ...(options?.conversationId ? { conversationId: options.conversationId } : {}),
+        }),
       },
       onProgress,
     );

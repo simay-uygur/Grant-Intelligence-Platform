@@ -4,7 +4,11 @@ import {
   type ApplicationStatus,
   type DemoApplication,
 } from "@/data/mockApplications";
-import type { ApplicationService, OpenedApplication } from "./ApplicationService";
+import type {
+  ApplicationService,
+  OpenedApplication,
+  StartApplicationOptions,
+} from "./ApplicationService";
 import type { SseEvent } from "./apiClient";
 import { isMockScenario } from "./mockScenario";
 
@@ -176,6 +180,7 @@ export class LocalApplicationService implements ApplicationService {
     grant: Grant,
     profile: OrganisationProfile,
     onProgress?: (event: SseEvent) => void,
+    _options?: StartApplicationOptions,
   ): Promise<ApplicationDocument> {
     onProgress?.({
       event: "thinking",

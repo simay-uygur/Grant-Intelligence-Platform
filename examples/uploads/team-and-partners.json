@@ -1,0 +1,27 @@
+{
+  "organisation": {
+    "name": "Northlight Robotics GmbH",
+    "country": "Germany",
+    "type": "SME",
+    "founded": 2015,
+    "employees": 25,
+    "revenue_2025_eur": 2100000
+  },
+  "team": [
+    {"name": "Dr. Elena Fischer", "role": "CTO", "background": "PhD computer vision, TUM; 12 years industrial inspection"},
+    {"name": "Marc Vogel", "role": "Head of Operations", "background": "Ex-Hamburg Port Authority, port logistics"},
+    {"name": "Dr. Yuki Tanaka", "role": "Lead AI Researcher", "background": "Edge ML, 9 publications on defect detection"}
+  ],
+  "existing_partnerships": [
+    {"partner": "Hamburg Port Authority", "type": "Pilot customer since 2023"},
+    {"partner": "TU München", "type": "Research collaboration on SLAM algorithms"},
+    {"partner": "Valencia Port Foundation", "type": "Letter of support for Mediterranean pilots"}
+  ],
+  "project_needs": {
+    "seeking_partners": ["University (edge AI / computer vision)", "Port authority pilot site"],
+    "budget_envelope_eur": [1800000, 2500000],
+    "duration_months": 36,
+    "TRL_current": 7,
+    "TRL_target": 8
+  }
+}

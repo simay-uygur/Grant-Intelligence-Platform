@@ -134,6 +134,43 @@ export class ApiClient {
     }
   }
 
+  async upload<T>(path: string, file: File, fields: Record<string, string> = {}): Promise<T> {
+    const url = joinApiUrl(this.baseUrl, path);
+    const token = getAuthToken();
+    const form = new FormData();
+    form.append("file", file);
+    for (const [key, value] of Object.entries(fields)) {
+      if (value) form.append(key, value);
+    }
+    let res: Response;
+    try {
+      res = await this.fetchImpl.call(globalThis, url, {
+        method: "POST",
+        body: form,
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    } catch {
+      throw new ApiError(
+        "Unable to reach the grant backend. Check that it is running and try again.",
+      );
+    }
+    if (!res.ok) {
+      if (res.status === 401) clearAuthToken();
+      const detail = await errorDetail(res);
+      throw new ApiError(
+        detail ?? `File upload failed (${res.status}). Please try again.`,
+        res.status,
+      );
+    }
+    try {
+      return (await res.json()) as T;
+    } catch {
+      throw new ApiError("The grant backend returned an invalid JSON response.", res.status);
+    }
+  }
+
   async requestSse<T>(
     path: string,
     init?: RequestInit,
