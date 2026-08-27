@@ -20,6 +20,7 @@ const applicationDocumentSchema = z.object({
   grantId: z.string().min(1),
   grantTitle: z.string().min(1),
   sections: z.array(documentSectionSchema),
+  createdAt: z.string().optional(),
   updatedAt: z.string(),
 });
 
@@ -290,6 +291,7 @@ function toApplicationDocument(
     grantId: application.grantId,
     grantTitle: application.grantTitle,
     sections: application.sections,
+    ...(application.createdAt ? { createdAt: application.createdAt } : {}),
     updatedAt: application.updatedAt,
   };
 }

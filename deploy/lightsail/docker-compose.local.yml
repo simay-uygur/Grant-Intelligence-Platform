@@ -43,5 +43,8 @@ services:
       # Use the host's AWS credentials inside the container (Bedrock access).
       AWS_PROFILE: ${AWS_PROFILE:-grant-platform}
     volumes:
+      # Keep SQLite data on the host so deleting or creating an application
+      # survives backend image rebuilds and container recreation.
+      - ../../storage:/app/storage
       # Read-only mount of your local AWS profiles (SSO tokens, keys).
       - ${HOME}/.aws:/root/.aws:ro

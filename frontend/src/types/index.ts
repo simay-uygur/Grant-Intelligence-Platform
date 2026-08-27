@@ -79,6 +79,8 @@ export interface ApplicationDocument {
   grantId: string;
   grantTitle: string;
   sections: DocumentSection[];
+  /** Original persistence time. Present when reopening a stored draft. */
+  createdAt?: string;
   updatedAt: string;
 }
 

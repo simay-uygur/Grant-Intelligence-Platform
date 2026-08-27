@@ -30,6 +30,7 @@ import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { Button } from "@/components/ui/button";
 import type { BlockCallbacks } from "@/components/chat/BlockRenderer";
+import { applicationWrittenLabel } from "@/utils/applicationDates";
 
 const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   welcome: "Describe your organisation and funding needs…",
@@ -528,11 +529,12 @@ export function App() {
           deadline: grant.deadline ?? "",
           updatedAt: doc.updatedAt || new Date().toISOString(),
         });
+        const writtenLabel = reopened ? applicationWrittenLabel(doc) : null;
         askAssistant([
           {
             type: "success",
             message: reopened
-              ? `Saved application reopened for ${grant.title}. Continue editing, try a rewrite, or export it.`
+              ? `Saved application reopened for ${grant.title}. ${writtenLabel ? `${writtenLabel} ` : ""}Continue editing, try a rewrite, or export it.`
               : `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
           },
           { type: "document", documentId: doc.id },

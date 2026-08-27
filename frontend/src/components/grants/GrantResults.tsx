@@ -279,6 +279,7 @@ export function GrantResults({
         onOpenChange={setDetailsOpen}
         onAsk={onAsk}
         onStart={onStart}
+        hasDraft={selectedGrant ? existingGrantIds?.has(selectedGrant.id) : false}
       />
     </div>
   );
