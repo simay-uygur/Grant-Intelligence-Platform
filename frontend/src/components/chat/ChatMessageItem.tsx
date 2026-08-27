@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BlockRenderer, type BlockCallbacks } from "./BlockRenderer";
+import { visibleChatBlocks } from "./chatReplyBlocks";
 
 interface Props {
   message: ChatMessage;
@@ -36,8 +37,9 @@ function formatTime(createdAt: string): string | null {
 export function ChatMessageItem({ message, callbacks }: Props) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
-  const copyText = getCopyableText(message.blocks);
-  const canRetry = hasRetryableError(message.blocks);
+  const visibleBlocks = visibleChatBlocks(message.blocks);
+  const copyText = getCopyableText(visibleBlocks);
+  const canRetry = hasRetryableError(visibleBlocks);
   const time = formatTime(message.createdAt);
 
   const handleCopy = async () => {
@@ -83,16 +85,9 @@ export function ChatMessageItem({ message, callbacks }: Props) {
         )}
       >
         <div className="space-y-3">
-          {message.blocks
-            .filter(
-              (b) =>
-                !(
-                  b.type === "question" && message.blocks.some((x) => x.type === "structured_form")
-                ),
-            )
-            .map((b, i) => (
-              <BlockRenderer key={i} block={b} callbacks={callbacks} isUser={isUser} />
-            ))}
+          {visibleBlocks.map((block, index) => (
+            <BlockRenderer key={index} block={block} callbacks={callbacks} isUser={isUser} />
+          ))}
         </div>
       </div>
 

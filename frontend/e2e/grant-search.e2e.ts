@@ -213,29 +213,27 @@ test("retries a failed grant search through the real Retry button", async ({ pag
   await expect(page.getByText(/No grants matched this profile/i)).toBeVisible();
 });
 
-test("creates a backend chat conversation before showing the profile form", async ({ page }) => {
+test("shows only the profile form for the first onboarding action", async ({ page }) => {
+  let createAttempts = 0;
   let chatBody: Record<string, unknown> | undefined;
   await mockBackendServices(page, {
+    onCreateConversation: () => {
+      createAttempts += 1;
+    },
     onChatMessage: (body) => {
       chatBody = body;
     },
-    chatAssistantMessage: "**Backend chat is connected.** Complete the profile below.",
-    chatFollowUpQuestions: ["This duplicate question should be hidden."],
   });
 
   await page.goto("/");
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
 
-  await expect(page.locator("strong").getByText("Backend chat is connected.")).toBeVisible();
-  await expect(page.getByText("This duplicate question should be hidden.")).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Tell me about your organisation" }),
   ).toBeVisible();
-  expect(chatBody).toMatchObject({
-    conversation_id: "e2e-backend-conversation",
-    user_message: "I'd like to find grants for my organisation.",
-  });
-  expect(chatBody?.session_id).toEqual(expect.any(String));
+  await expect(page.getByText("Backend chat is connected.", { exact: true })).toHaveCount(0);
+  expect(createAttempts).toBe(0);
+  expect(chatBody).toBeUndefined();
 });
 
 test("shows backend-unavailable status when the health check fails", async ({ page }) => {
@@ -250,11 +248,14 @@ test("shows backend-unavailable status when the health check fails", async ({ pa
   });
 });
 
-test("shows a chat API error and keeps the local profile form available", async ({ page }) => {
+test("keeps the profile form available when a later chat request fails", async ({ page }) => {
   await mockBackendServices(page, { conversationStatus: 503 });
 
   await page.goto("/");
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
+
+  await page.locator("textarea").fill("Here is another project detail.");
+  await page.getByRole("button", { name: "Send message" }).click();
 
   await expect(page.getByText("Conversation service unavailable.", { exact: true })).toBeVisible();
   await expect(
@@ -272,13 +273,26 @@ test("reuses one backend conversation for later chat messages", async ({ page })
     onChatMessage: (body) => {
       chatBodies.push(body);
     },
+    chatAssistantMessage: "**Backend chat is connected.**",
+    chatFollowUpQuestions: ["This duplicate collection question should be hidden."],
   });
 
   await page.goto("/");
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
-  await expect(page.getByText("Backend chat is connected.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Tell me about your organisation" }),
+  ).toBeVisible();
 
   await page.locator("textarea").fill("Here is another project detail.");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect(page.locator("strong").getByText("Backend chat is connected.")).toBeVisible();
+  await expect(page.getByText("This duplicate collection question should be hidden.")).toHaveCount(
+    0,
+  );
+  await expect.poll(() => chatBodies.length).toBe(1);
+
+  await page.locator("textarea").fill("Here is one more project detail.");
   await page.getByRole("button", { name: "Send message" }).click();
 
   await expect.poll(() => chatBodies.length).toBe(2);
@@ -287,7 +301,8 @@ test("reuses one backend conversation for later chat messages", async ({ page })
     "e2e-backend-conversation",
     "e2e-backend-conversation",
   ]);
-  expect(chatBodies[1]?.user_message).toBe("Here is another project detail.");
+  expect(chatBodies[0]?.user_message).toBe("Here is another project detail.");
+  expect(chatBodies[1]?.user_message).toBe("Here is one more project detail.");
   expect(chatBodies[1]?.session_id).toBe(chatBodies[0]?.session_id);
 });
 

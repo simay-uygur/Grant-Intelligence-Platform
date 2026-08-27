@@ -611,7 +611,7 @@ export function App() {
   );
 
   const sendBackendChatMessage = useCallback(
-    async (text: string, includeProfileForm = false) => {
+    async (text: string) => {
       const activeConversation = c.activeConversation;
       if (!chatService || !activeConversation) return;
       setBusy(true);
@@ -632,21 +632,11 @@ export function App() {
         if (reply.conversationId !== backendConversationId) {
           c.setBackendConversationId(reply.conversationId);
         }
-        const blocks = chatReplyBlocks(reply, includeProfileForm);
-        if (includeProfileForm) blocks.push({ type: "structured_form" });
-        askAssistant(blocks);
+        askAssistant(chatReplyBlocks(reply));
         void synchronizeBackendHistory(activeConversation.id, reply.conversationId);
       } catch (error) {
         const message = error instanceof Error ? error.message : "The backend chat request failed.";
-        const blocks: ChatBlock[] = [{ type: "error", message }];
-        if (includeProfileForm) {
-          blocks.push({
-            type: "text",
-            text: "You can still complete the local profile form and run grant search directly.",
-          });
-          blocks.push({ type: "structured_form" });
-        }
-        askAssistant(blocks);
+        askAssistant([{ type: "error", message }]);
       } finally {
         setBusy(false);
       }
@@ -682,17 +672,7 @@ export function App() {
         askAssistant(answerAboutGrant(text, askingAboutGrant));
       } else if (stage === "welcome") {
         c.setStage("collecting_information");
-        if (chatService) {
-          void sendBackendChatMessage(text, true);
-        } else {
-          askAssistant([
-            {
-              type: "text",
-              text: "Great — to match you to the strongest calls, please complete this short profile.",
-            },
-            { type: "structured_form" },
-          ]);
-        }
+        askAssistant([{ type: "structured_form" }]);
       } else if (stage === "application") {
         askAssistant([
           {
