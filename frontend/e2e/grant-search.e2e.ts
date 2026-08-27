@@ -56,6 +56,8 @@ async function mockBackendServices(
     healthStatus?: number;
     conversationStatus?: number;
     chatStatus?: number;
+    chatAssistantMessage?: string;
+    chatFollowUpQuestions?: string[];
   } = {},
 ) {
   await page.route("**/api/v1/health", (route) =>
@@ -108,9 +110,9 @@ async function mockBackendServices(
           ? { detail: "Chat response unavailable." }
           : {
               conversation_id: "e2e-backend-conversation",
-              assistant_message: "Backend chat is connected.",
+              assistant_message: options.chatAssistantMessage ?? "Backend chat is connected.",
               next_step: "collect_information",
-              follow_up_questions: [],
+              follow_up_questions: options.chatFollowUpQuestions ?? [],
               tool_results: [],
             },
       ),
@@ -217,12 +219,15 @@ test("creates a backend chat conversation before showing the profile form", asyn
     onChatMessage: (body) => {
       chatBody = body;
     },
+    chatAssistantMessage: "**Backend chat is connected.** Complete the profile below.",
+    chatFollowUpQuestions: ["This duplicate question should be hidden."],
   });
 
   await page.goto("/");
   await page.getByRole("button", { name: "Find grants for my organisation" }).click();
 
-  await expect(page.getByText("Backend chat is connected.", { exact: true })).toBeVisible();
+  await expect(page.locator("strong").getByText("Backend chat is connected.")).toBeVisible();
+  await expect(page.getByText("This duplicate question should be hidden.")).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Tell me about your organisation" }),
   ).toBeVisible();

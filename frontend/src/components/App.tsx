@@ -9,7 +9,6 @@ import { useGrantSearch } from "@/hooks/useGrantSearch";
 import { applicationService, backendService, chatService, isMockMode } from "@/services";
 import { logout } from "@/services/apiClient";
 import type { SseEvent } from "@/services/apiClient";
-import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
@@ -28,6 +27,7 @@ import { SavedGrants } from "@/components/SavedGrants";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
+import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { Button } from "@/components/ui/button";
 import type { BlockCallbacks } from "@/components/chat/BlockRenderer";
 
@@ -50,19 +50,6 @@ type BackendHistorySync =
   | { status: "syncing"; conversationId: string }
   | { status: "synced"; conversationId: string }
   | { status: "error"; conversationId: string; message: string };
-
-function chatReplyBlocks(reply: ChatReply, includeProfileForm = false): ChatBlock[] {
-  const blocks: ChatBlock[] = [{ type: "text", text: reply.assistantMessage }];
-  if (!includeProfileForm && reply.nextStep !== "collect_information") {
-    blocks.push(
-      ...reply.followUpQuestions.map((question): ChatBlock => ({
-        type: "question",
-        text: question,
-      })),
-    );
-  }
-  return blocks;
-}
 
 const missingGrantFact = (grant: Grant, label: string): ChatBlock[] => [
   {

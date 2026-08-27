@@ -6,6 +6,7 @@ import { GrantResults } from "@/components/grants/GrantResults";
 import { ApplicationDocumentView } from "@/components/documents/ApplicationDocument";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { AlertCircle, CheckCircle2, Compass } from "lucide-react";
+import { MarkdownMessage } from "./MarkdownMessage";
 
 import { DraftProgressCard } from "@/components/widgets/DraftProgressCard";
 
@@ -59,9 +60,7 @@ export function BlockRenderer({
               {time && <span className="text-muted-foreground/70">{time}</span>}
             </div>
           )}
-          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
-            {block.text}
-          </p>
+          <MarkdownMessage>{block.text}</MarkdownMessage>
         </div>
       );
     case "question":
