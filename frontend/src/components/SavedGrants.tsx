@@ -144,7 +144,9 @@ function SavedGrantDetailsSheet({
                           {matchReasons.map((reason, i) => (
                             <li key={i} className="flex items-start gap-2 text-sm text-foreground">
                               <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand" />
-                              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{reason}</span>
+                              <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                                {reason}
+                              </span>
                             </li>
                           ))}
                         </ul>
@@ -178,7 +180,11 @@ function SavedGrantDetailsSheet({
 
             <SheetFooter className="shrink-0 flex-col gap-2 border-t border-border px-5 py-4 sm:flex-row sm:flex-wrap sm:justify-start sm:space-x-0">
               {saved.sourceUrl.trim() && (
-                <Button asChild variant="outline" className="w-full rounded-lg hover:bg-muted sm:w-auto">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full rounded-lg hover:bg-muted sm:w-auto"
+                >
                   <a
                     href={saved.sourceUrl}
                     target="_blank"
@@ -234,9 +240,7 @@ function SavedGrantCard({
   return (
     // `relative` anchors the title button's stretched hit area. The card
     // is interactive: clicking anywhere opens the detail sheet.
-    <article
-      className="relative flex h-full flex-col rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-brand/20 sm:p-5"
-    >
+    <article className="relative flex h-full flex-col rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-brand/20 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
