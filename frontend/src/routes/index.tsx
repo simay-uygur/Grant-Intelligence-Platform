@@ -30,6 +30,12 @@ export const Route = createFileRoute("/")({
 });
 
 function ProtectedApp() {
+  const authRequired = import.meta.env.VITE_AUTH_REQUIRED !== "false";
+
+  return authRequired ? <AuthenticatedApp /> : <App />;
+}
+
+function AuthenticatedApp() {
   const [hasToken, setHasToken] = useState(false);
   const [mounted, setMounted] = useState(false);
 

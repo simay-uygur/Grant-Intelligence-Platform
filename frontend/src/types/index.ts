@@ -79,6 +79,8 @@ export interface ApplicationDocument {
   grantId: string;
   grantTitle: string;
   sections: DocumentSection[];
+  /** Original persistence time. Present when reopening a stored draft. */
+  createdAt?: string;
   updatedAt: string;
 }
 
@@ -129,7 +131,7 @@ export type ChatBlock =
   | { type: "research_status"; state: ResearchState }
   | { type: "draft_progress"; state: DraftProgressState }
   | { type: "grant_results"; grants: Grant[]; sourceSummary?: string }
-  | { type: "document"; documentId: string }
+  | { type: "document"; documentId: string; grantTitle?: string; superseded?: boolean }
   | { type: "error"; message: string }
   | { type: "success"; message: string };
 

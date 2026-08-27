@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
 from backend.api.routes import documents as document_routes
+from backend.api.routes import grants as grant_routes
 from backend.main import create_app
 from backend.services.document_service import DocumentService
 
@@ -45,6 +46,7 @@ def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
         "suggestions": ["Stronger methodology details", "Include cross-border pilot metrics"],
     }
     monkeypatch.setattr(document_routes, "document_service", service)
+    monkeypatch.setattr(grant_routes, "document_service", service)
     return TestClient(create_app())
 
 

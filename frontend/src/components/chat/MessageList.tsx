@@ -3,6 +3,7 @@ import type { ChatBlock, ChatMessage } from "@/types";
 import type { BlockCallbacks } from "./BlockRenderer";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { ProcessingIndicator } from "./ProcessingIndicator";
+import { visibleChatBlocks } from "./chatReplyBlocks";
 
 interface Props {
   messages: ChatMessage[];
@@ -45,7 +46,7 @@ export function MessageList({ messages, callbacks, showProcessingIndicator }: Pr
     if (!last || last.role !== "assistant") return;
     if (last.id === lastAnnouncedId.current) return;
     lastAnnouncedId.current = last.id;
-    setAnnouncement(summariseForAnnouncement(last.blocks));
+    setAnnouncement(summariseForAnnouncement(visibleChatBlocks(last.blocks)));
   }, [messages]);
 
   // Announce the start of assistant work once, without repeating on every

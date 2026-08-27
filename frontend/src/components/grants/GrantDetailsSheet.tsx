@@ -24,9 +24,10 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onAsk: (grant: Grant) => void;
   onStart: (grant: Grant) => void;
+  hasDraft?: boolean;
 }
 
-export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }: Props) {
+export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, hasDraft }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -171,7 +172,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                 }}
                 className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 sm:w-auto"
               >
-                Start application
+                {hasDraft ? "Open saved application" : "Start application"}
               </Button>
               <SheetClose asChild>
                 <Button

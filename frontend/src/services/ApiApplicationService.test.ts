@@ -35,6 +35,7 @@ test("finds the latest saved application for a grant", async () => {
         grantId: "MOCK-1",
         grantTitle: "Manufacturing Research and Innovation Action",
         sections: [{ id: "executive-summary", title: "Executive Summary", content: "Saved" }],
+        createdAt: "2026-08-05T12:30:00Z",
         updatedAt: "2026-08-06T00:00:00Z",
         status: "drafting",
       }),
@@ -50,6 +51,7 @@ test("finds the latest saved application for a grant", async () => {
 
   expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/applications/latest");
   expect(document?.id).toBe("doc-saved");
+  expect(document?.createdAt).toBe("2026-08-05T12:30:00Z");
 });
 
 test("lists stored applications for the pipeline dashboard", async () => {
@@ -131,6 +133,7 @@ test("opens a stored application with grant and profile context", async () => {
 
   expect(requestedUrl).toBe("http://localhost:8000/api/v1/applications/doc-1");
   expect(opened.document.id).toBe("doc-1");
+  expect(opened.document.createdAt).toBe("2026-08-06T00:00:00Z");
   expect(opened.grant?.id).toBe("MOCK-1");
   expect(opened.profile?.organisationName).toBe("Northlight");
 });
