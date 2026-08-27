@@ -342,6 +342,7 @@ export function App() {
   const handleRetryResearch = useCallback(() => {
     const profile = c.activeConversation?.profile;
     if (!profile) return;
+    const excludedIds = getExcludedGrantIds?.() ?? [];
     askUser([{ type: "text", text: "Find alternative matching EU grants." }]);
     askAssistant([
       {
@@ -349,7 +350,7 @@ export function App() {
         text: "Searching for alternative grant opportunities and excluding previously displayed results...",
       },
     ]);
-    void runResearch(profile, { excludedGrantIds: getExcludedGrantIds() });
+    void runResearch(profile, { excludedGrantIds: excludedIds });
   }, [askAssistant, askUser, c.activeConversation?.profile, getExcludedGrantIds, runResearch]);
 
   const handleSubmitProfile = useCallback(
@@ -530,6 +531,9 @@ export function App() {
           updatedAt: doc.updatedAt || new Date().toISOString(),
         });
         const writtenLabel = reopened ? applicationWrittenLabel(doc) : null;
+        // Collapse any previous document cards in this conversation before
+        // adding the new one — each card is now scoped to its own generation.
+        c.supersedePreviousDocumentBlocks();
         askAssistant([
           {
             type: "success",
@@ -537,7 +541,7 @@ export function App() {
               ? `Saved application reopened for ${grant.title}. ${writtenLabel ? `${writtenLabel} ` : ""}Continue editing, try a rewrite, or export it.`
               : `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
           },
-          { type: "document", documentId: doc.id },
+          { type: "document", documentId: doc.id, grantTitle: doc.grantTitle },
         ]);
       } catch (err) {
         // Previously uncaught: a rejection here left the UI sitting on the
