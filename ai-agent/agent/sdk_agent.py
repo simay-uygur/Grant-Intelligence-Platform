@@ -185,6 +185,7 @@ ALLOWED_TOOLS = [
     "mcp__grants__finalize_grant_recommendations",
     "mcp__grants__draft_application",
     "mcp__grants__rewrite_application_section",
+    "WebSearch",
 ]
 
 
