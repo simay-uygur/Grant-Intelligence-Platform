@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
+import { ArrowDown, Menu, MessageSquarePlus, Play, RefreshCw } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -9,7 +9,6 @@ import { useGrantSearch } from "@/hooks/useGrantSearch";
 import { applicationService, backendService, chatService, isMockMode } from "@/services";
 import { logout } from "@/services/apiClient";
 import type { SseEvent } from "@/services/apiClient";
-import type { ChatReply } from "@/services/ChatService";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
@@ -28,8 +27,10 @@ import { SavedGrants } from "@/components/SavedGrants";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
+import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { Button } from "@/components/ui/button";
 import type { BlockCallbacks } from "@/components/chat/BlockRenderer";
+import { applicationWrittenLabel } from "@/utils/applicationDates";
 
 const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   welcome: "Describe your organisation and funding needs…",
@@ -50,13 +51,6 @@ type BackendHistorySync =
   | { status: "syncing"; conversationId: string }
   | { status: "synced"; conversationId: string }
   | { status: "error"; conversationId: string; message: string };
-
-function chatReplyBlocks(reply: ChatReply): ChatBlock[] {
-  return [
-    { type: "text", text: reply.assistantMessage },
-    ...reply.followUpQuestions.map((question): ChatBlock => ({ type: "question", text: question })),
-  ];
-}
 
 const missingGrantFact = (grant: Grant, label: string): ChatBlock[] => [
   {
@@ -293,15 +287,30 @@ export function App() {
     synchronizeBackendHistory,
   ]);
 
+  const getExcludedGrantIds = useCallback(() => {
+    const msgs = c.activeConversation?.messages ?? [];
+    return Array.from(
+      new Set(
+        msgs
+          .flatMap((m) => m.blocks)
+          .filter(
+            (b): b is Extract<ChatBlock, { type: "grant_results" }> => b.type === "grant_results",
+          )
+          .flatMap((b) => b.grants.map((g) => g.id)),
+      ),
+    );
+  }, [c.activeConversation?.messages]);
+
   // ---------------------------------------------------------------------------
   // Grant search — delegated to useGrantSearch.
   // App supplies the UI callbacks; the hook owns the research state machine,
   // in-flight guard, and progress event fan-out.
   // ---------------------------------------------------------------------------
-  const { runResearch, handleRetryResearch } = useGrantSearch({
+  const { runResearch } = useGrantSearch({
     setBusy,
     setStage: c.setStage,
     setGrants: c.setGrants,
+    getExcludedGrantIds,
     onResearchStart: (initialState) =>
       askAssistant([{ type: "research_status", state: initialState }]),
     onResearchProgress: (messageId, updater) => setBlocks(messageId, updater),
@@ -311,10 +320,10 @@ export function App() {
           type: "text",
           text:
             grants.length === 0
-              ? `I couldn't find any ${isMockMode ? "demo matches" : "live opportunities"} for ${profile.organisationName}. Here's what usually helps:`
+              ? `I couldn't find any additional ${isMockMode ? "demo matches" : "live opportunities"} for ${profile.organisationName}. Try widening the funding amount or sector scope.`
               : isMockMode
-                ? `I found ${grants.length} demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
-                : `I found ${grants.length} live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName}. These results were ranked by the backend grant agent.`,
+                ? `I found ${grants.length} alternative demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
+                : `I found ${grants.length} alternative live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName} (excluding previously shown calls).`,
         },
         { type: "grant_results", grants, sourceSummary },
       ]);
@@ -329,6 +338,20 @@ export function App() {
       );
     },
   });
+
+  const handleRetryResearch = useCallback(() => {
+    const profile = c.activeConversation?.profile;
+    if (!profile) return;
+    const excludedIds = getExcludedGrantIds?.() ?? [];
+    askUser([{ type: "text", text: "Find alternative matching EU grants." }]);
+    askAssistant([
+      {
+        type: "text",
+        text: "Searching for alternative grant opportunities and excluding previously displayed results...",
+      },
+    ]);
+    void runResearch(profile, { excludedGrantIds: excludedIds });
+  }, [askAssistant, askUser, c.activeConversation?.profile, getExcludedGrantIds, runResearch]);
 
   const handleSubmitProfile = useCallback(
     (profile: OrganisationProfile) => {
@@ -476,7 +499,9 @@ export function App() {
               });
             }
           };
-          doc = await applicationService.startApplication(grant, profile, handleDraftProgress);
+          doc = await applicationService.startApplication(grant, profile, handleDraftProgress, {
+            conversationId: c.activeConversation?.backendConversationId,
+          });
           if (statusMessageId) {
             setBlocks(statusMessageId, () => [
               {
@@ -505,14 +530,18 @@ export function App() {
           deadline: grant.deadline ?? "",
           updatedAt: doc.updatedAt || new Date().toISOString(),
         });
+        const writtenLabel = reopened ? applicationWrittenLabel(doc) : null;
+        // Collapse any previous document cards in this conversation before
+        // adding the new one — each card is now scoped to its own generation.
+        c.supersedePreviousDocumentBlocks();
         askAssistant([
           {
             type: "success",
             message: reopened
-              ? `Saved application reopened for ${grant.title}. Continue editing, try a rewrite, or export it.`
+              ? `Saved application reopened for ${grant.title}. ${writtenLabel ? `${writtenLabel} ` : ""}Continue editing, try a rewrite, or export it.`
               : `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
           },
-          { type: "document", documentId: doc.id },
+          { type: "document", documentId: doc.id, grantTitle: doc.grantTitle },
         ]);
       } catch (err) {
         // Previously uncaught: a rejection here left the UI sitting on the
@@ -552,25 +581,8 @@ export function App() {
       setBusy(true);
       try {
         const opened = await applicationService.getApplication(applicationId);
-        if (opened.profile) c.setProfile(opened.profile);
-        if (opened.grant) {
-          const grants = c.activeConversation?.grants ?? [];
-          c.setGrants(
-            grants.some((grant) => grant.id === opened.grant?.id)
-              ? grants
-              : [opened.grant, ...grants],
-          );
-        }
-        c.setDocument(opened.document, opened.document.grantId);
-        c.setStage("application");
+        c.createConversationForDocument(opened.document, opened.profile, opened.grant);
         setMainView("chat");
-        askAssistant([
-          {
-            type: "success",
-            message: `Saved application opened for ${opened.document.grantTitle}.`,
-          },
-          { type: "document", documentId: opened.document.id },
-        ]);
       } catch (error) {
         setMainView("chat");
         askAssistant([
@@ -588,7 +600,7 @@ export function App() {
   );
 
   const sendBackendChatMessage = useCallback(
-    async (text: string, includeProfileForm = false) => {
+    async (text: string) => {
       const activeConversation = c.activeConversation;
       if (!chatService || !activeConversation) return;
       setBusy(true);
@@ -609,26 +621,36 @@ export function App() {
         if (reply.conversationId !== backendConversationId) {
           c.setBackendConversationId(reply.conversationId);
         }
-        const blocks = chatReplyBlocks(reply);
-        if (includeProfileForm) blocks.push({ type: "structured_form" });
-        askAssistant(blocks);
+        askAssistant(chatReplyBlocks(reply));
         void synchronizeBackendHistory(activeConversation.id, reply.conversationId);
       } catch (error) {
         const message = error instanceof Error ? error.message : "The backend chat request failed.";
-        const blocks: ChatBlock[] = [{ type: "error", message }];
-        if (includeProfileForm) {
-          blocks.push({
-            type: "text",
-            text: "You can still complete the local profile form and run grant search directly.",
-          });
-          blocks.push({ type: "structured_form" });
-        }
-        askAssistant(blocks);
+        askAssistant([{ type: "error", message }]);
       } finally {
         setBusy(false);
       }
     },
     [askAssistant, c, synchronizeBackendHistory],
+  );
+
+  const ensureBackendConversation = useCallback(async (): Promise<string | null> => {
+    if (!chatService) return null;
+    const existing = c.activeConversation?.backendConversationId;
+    if (existing) return existing;
+    const backendConversation = await chatService.createConversation();
+    c.setBackendConversationId(backendConversation.conversationId);
+    return backendConversation.conversationId;
+  }, [c]);
+
+  const handleUploadDocument = useCallback(
+    async (file: File, conversationId: string | null) => {
+      if (!applicationService.uploadDocument) return;
+      const resolvedConversationId = conversationId ?? (await ensureBackendConversation());
+      await applicationService.uploadDocument(file, {
+        conversationId: resolvedConversationId ?? undefined,
+      });
+    },
+    [ensureBackendConversation],
   );
 
   const handleUserSend = useCallback(
@@ -639,17 +661,7 @@ export function App() {
         askAssistant(answerAboutGrant(text, askingAboutGrant));
       } else if (stage === "welcome") {
         c.setStage("collecting_information");
-        if (chatService) {
-          void sendBackendChatMessage(text, true);
-        } else {
-          askAssistant([
-            {
-              type: "text",
-              text: "Great — to match you to the strongest calls, please complete this short profile.",
-            },
-            { type: "structured_form" },
-          ]);
-        }
+        askAssistant([{ type: "structured_form" }]);
       } else if (stage === "application") {
         askAssistant([
           {
@@ -1009,8 +1021,20 @@ export function App() {
             <div ref={scrollBottomRef} className="h-4" />
           </div>
 
-          {showScrollButton && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+          {/* Floating actions container pinned above composer */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2">
+            {Boolean(active?.profile || active?.grants?.length) && !isFreshWelcome && !busy && (
+              <Button
+                type="button"
+                onClick={handleRetryResearch}
+                className="pointer-events-auto flex items-center gap-2 rounded-full border border-brand/30 bg-card/95 px-4 py-2 text-xs font-semibold text-brand shadow-lg shadow-brand/10 backdrop-blur hover:bg-brand hover:text-white hover:shadow-brand/20 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Find alternative grants
+              </Button>
+            )}
+
+            {showScrollButton && (
               <Button
                 type="button"
                 variant="outline"
@@ -1021,8 +1045,8 @@ export function App() {
                 <ArrowDown className="h-3.5 w-3.5" />
                 Scroll to latest
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {mainView === "saved" && (
@@ -1059,6 +1083,10 @@ export function App() {
             placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
             grantContext={askingAboutGrant}
             onClearGrantContext={() => setAskingAboutGrant(null)}
+            conversationId={c.activeConversation?.backendConversationId ?? null}
+            uploadDocument={
+              applicationService.uploadDocument && chatService ? handleUploadDocument : undefined
+            }
           />
         </div>
       </main>

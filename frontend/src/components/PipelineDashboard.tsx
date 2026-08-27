@@ -265,7 +265,6 @@ function ApplicationDetailsSheet({
   onOpenConversation,
   onOpenApplication,
   onDeleteApplication,
-  onGoToChat,
 }: {
   application: DemoApplication | null;
   open: boolean;
@@ -275,7 +274,6 @@ function ApplicationDetailsSheet({
   onOpenConversation: (conversationId: string) => void;
   onOpenApplication?: (applicationId: string) => void;
   onDeleteApplication?: (applicationId: string) => void;
-  onGoToChat: () => void;
 }) {
   const reasonId = "application-actions-reason";
 
@@ -285,11 +283,6 @@ function ApplicationDetailsSheet({
     if (!link.conversationId) return;
     onOpenChange(false);
     onOpenConversation(link.conversationId);
-  };
-
-  const goToChat = () => {
-    onOpenChange(false);
-    onGoToChat();
   };
 
   const openInNewChat = () => {
@@ -411,7 +404,7 @@ function ApplicationDetailsSheet({
                       Open draft in new chat
                     </Button>
                   )}
-                  {link.conversationId ? (
+                  {link.conversationId && (
                     <Button
                       type="button"
                       variant="outline"
@@ -420,16 +413,6 @@ function ApplicationDetailsSheet({
                     >
                       <MessagesSquare className="h-4 w-4" />
                       Open source conversation
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={goToChat}
-                      className="justify-start rounded-lg hover:bg-muted"
-                    >
-                      <MessagesSquare className="h-4 w-4" />
-                      Open in chat
                     </Button>
                   )}
                   {onDeleteApplication && (
@@ -533,7 +516,7 @@ function StatusColumn({
       </header>
 
       {displayList.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
+        <div className="flex min-h-28 flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
           {STATUS_EMPTY[status]}
         </div>
       ) : (
@@ -740,8 +723,8 @@ export function PipelineDashboard({
             aria-live="polite"
             className="mt-2 flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive"
           >
-            Status changes can&apos;t be saved right now — local storage may be full or unavailable
-            (for example, in private browsing). They&apos;ll be lost when you reload.
+            Status changes can&apos;t be saved right now — storage is currently unavailable.
+            They&apos;ll be lost when you reload.
           </p>
         )}
       </header>
@@ -787,7 +770,7 @@ export function PipelineDashboard({
           action={{ label: "Find grants in chat", onClick: onGoToChat, icon: MessagesSquare }}
         />
       ) : (
-        <div className="grid grid-cols-1 items-start gap-3 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3 min-[1200px]:grid-cols-5 min-[1200px]:items-stretch">
+        <div className="grid grid-cols-1 items-start gap-3 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3 min-[1280px]:grid-cols-5">
           {STATUS_ORDER.map((status) => (
             <StatusColumn
               key={status}
@@ -823,7 +806,6 @@ export function PipelineDashboard({
         onOpenConversation={onOpenConversation}
         onOpenApplication={onOpenApplication}
         onDeleteApplication={deleteApplication}
-        onGoToChat={onGoToChat}
       />
     </section>
   );

@@ -23,7 +23,7 @@ An intelligent grant discovery, matchmaking, and application-drafting platform d
 ### Backend
 * **API Framework:** FastAPI, Python 3.11+
 * **Validation & Settings:** Pydantic v2, pydantic-settings
-* **Database & Storage:** SQLite (local dev), PostgreSQL / AWS Managed DB support
+* **Database & Persistence:** SQLAlchemy Core with Alembic migrations (dual SQLite / PostgreSQL support)
 * **Streaming Protocol:** Server-Sent Events (SSE) with `text/event-stream` for real-time AI thinking events
 * **HTTP & Web Server:** Uvicorn, HTTPX
 
@@ -264,6 +264,53 @@ The same checks run automatically in CI on every push and pull request (`.github
 cd frontend
 bun run test:e2e
 ```
+
+---
+
+## Database Architecture & SQLAlchemy
+
+The backend persistence layer uses **SQLAlchemy Core** paired with **Alembic** migrations. It is designed to be completely database-agnostic, supporting zero-config local development and managed cloud deployments with zero code changes.
+
+### Dual-Database Support (SQLite vs. PostgreSQL)
+
+The database engine is resolved dynamically at runtime based on environment configuration:
+
+* **Local Development (Default):** Uses **SQLite** at `storage/backend.db`. Requires zero external database setup.
+* **Hosted / Production (AWS Lightsail / RDS):** Set `DATABASE_URL=postgresql://user:pass@host:5432/dbname` in `.env` to connect to managed PostgreSQL. Connection pooling (`pool_pre_ping=True`, `pool_recycle=1800`) is automatically configured to prevent stale connections.
+
+### Why SQLAlchemy Core?
+
+Instead of using heavy ORM sessions, the platform utilizes **SQLAlchemy Core**:
+1. **No Session Leaks:** Avoids complex session lifecycles or lazy-loading issues in asynchronous FastAPI endpoints.
+2. **Direct Pydantic Integration:** Query rows returned via `.mappings()` convert directly into validated Pydantic schemas (e.g. `StoredApplication`, `ApplicationDocument`).
+3. **Automatic Transactions:** Operations use `with engine.begin() as connection:` to ensure atomic transactions (automatic commit on success, automatic rollback on failure).
+4. **Portable Dialects:** Operations with syntax variations (such as `INSERT ... ON CONFLICT DO UPDATE`) are abstracted via `build_upsert()` in [`backend/core/database.py`](backend/core/database.py), executing the appropriate PostgreSQL or SQLite syntax dynamically.
+
+### Database Migrations (Alembic)
+
+Database schema revisions are version-controlled in `backend/migrations/versions/`.
+
+```bash
+# Run all pending migrations
+source .venv/bin/activate
+alembic upgrade head
+
+# Check current revision
+alembic current
+```
+
+*(Note: Local SQLite databases created during development automatically apply baseline tables and column safety checks on server startup.)*
+
+### Inspecting the Database
+
+* **Command Line (`sqlite3` for local dev):**
+  ```bash
+  sqlite3 storage/backend.db ".tables"
+  sqlite3 storage/backend.db "SELECT count(*) FROM applications;"
+  sqlite3 -header -column storage/backend.db "SELECT id, role, substr(content, 1, 60) FROM messages ORDER BY id DESC LIMIT 5;"
+  ```
+* **Visual Database Tools:** Open `storage/backend.db` using VS Code SQLite Viewer, TablePlus, DB Browser for SQLite, or DBeaver.
+* **Interactive API Docs:** Browse to [`http://localhost:8000/docs`](http://localhost:8000/docs) to inspect and query stored data via Swagger UI.
 
 ---
 

@@ -5,5 +5,6 @@ export interface GrantService {
   searchGrants(
     profile: OrganisationProfile,
     onProgress?: (event: SseEvent) => void,
+    excludedGrantIds?: string[],
   ): Promise<GrantSearchResult>;
 }

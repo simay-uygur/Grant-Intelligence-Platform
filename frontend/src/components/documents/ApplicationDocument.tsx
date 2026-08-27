@@ -61,6 +61,12 @@ interface Props {
   applicationStatus?: ApplicationStatus;
   onApplicationStatusChange?: (status: ApplicationStatus) => void;
   onViewInPipeline?: (applicationId?: string) => void;
+  /**
+   * When true the full editor is hidden and a compact read-only summary is
+   * shown instead. Set by the conversation when a newer draft has been started
+   * for a different grant in the same chat.
+   */
+  superseded?: boolean;
 }
 
 // A rewrite is only treated as "replacing manual edits" once the in-progress
@@ -87,6 +93,7 @@ export function ApplicationDocumentView({
   applicationStatus,
   onApplicationStatusChange,
   onViewInPipeline,
+  superseded,
 }: Props) {
   const sectionSelectId = useId();
   const sections = doc?.sections ?? [];
@@ -162,6 +169,54 @@ export function ApplicationDocumentView({
         <InlineNotice tone="empty">
           This application draft does not have any sections available yet.
         </InlineNotice>
+      </Card>
+    );
+  }
+
+  // Superseded: another draft was started for a different grant in this
+  // conversation. Render a compact collapsed card instead of the full editor
+  // so the older draft is clearly finished and doesn't confuse users.
+  if (superseded) {
+    return (
+      <Card className="rounded-2xl border bg-muted/30 p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Grant application draft · archived
+              </span>
+            </div>
+            <h3 className="mt-0.5 break-words text-sm font-semibold text-foreground">
+              {doc.grantTitle}
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {sections.length} section{sections.length === 1 ? "" : "s"} · last saved{" "}
+              {formatDistanceToNow(new Date(doc.updatedAt), { addSuffix: true })}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => exportAsPdf(doc)}
+              className="rounded-lg text-xs hover:bg-muted"
+            >
+              <FileDown className="h-3 w-3" />
+              PDF
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void exportAsWord(doc)}
+              className="rounded-lg text-xs hover:bg-muted"
+            >
+              <FileDown className="h-3 w-3" />
+              Word
+            </Button>
+          </div>
+        </div>
       </Card>
     );
   }

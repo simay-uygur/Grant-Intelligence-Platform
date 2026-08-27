@@ -17,10 +17,11 @@ def _install_fake_agent() -> dict:
     agent_package = types.ModuleType("agent")
     service_module = types.ModuleType("agent.service")
 
-    def search_grants(profile: dict, max_grants: int = 3) -> list[dict]:
+    def search_grants(profile: dict, max_grants: int = 3, excluded_grant_ids: list[str] | None = None) -> list[dict]:
         calls["search_grants"] = {
             "profile": profile,
             "max_grants": max_grants,
+            "excluded_grant_ids": excluded_grant_ids,
         }
         return [
             {
@@ -42,10 +43,12 @@ def _install_fake_agent() -> dict:
             }
         ]
 
-    def start_application(grant: dict, profile: dict) -> dict:
+    def start_application(grant: dict, profile: dict, custom_instructions=None, template_type=None, attachments="") -> dict:
         calls["start_application"] = {
             "grant": grant,
             "profile": profile,
+            "custom_instructions": custom_instructions,
+            "template_type": template_type,
         }
         return {
             "id": "doc-001",

@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
 from backend.api.routes import documents as document_routes
+from backend.api.routes import grants as grant_routes
 from backend.main import create_app
 from backend.services.document_service import DocumentService
 
@@ -25,7 +26,7 @@ GRANT = {
 
 def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
     service = DocumentService(database_path=str(database_path))
-    service.agent_service.start_application = lambda grant, profile: {
+    service.agent_service.start_application = lambda grant, profile, custom_instructions=None, template_type=None, attachments="": {
         "id": "doc-application-001",
         "grantId": grant["id"],
         "grantTitle": grant["title"],
@@ -39,7 +40,13 @@ def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
         "updatedAt": "2026-08-06T08:00:00Z",
     }
     service.agent_service.rewrite_section = lambda section_title, current_content, profile, grant=None, instruction=None: f"AI rewrite for {profile['organisationName']}."
+    service.agent_service.document_qa = lambda question, document, grant=None, profile=None, section_id=None, attachments="": {
+        "answer": f"Evaluator advice for '{question}'.",
+        "section_id": section_id,
+        "suggestions": ["Stronger methodology details", "Include cross-border pilot metrics"],
+    }
     monkeypatch.setattr(document_routes, "document_service", service)
+    monkeypatch.setattr(grant_routes, "document_service", service)
     return TestClient(create_app())
 
 
@@ -254,3 +261,255 @@ def test_saved_grants_api_crud_and_validation(
     # 5. Verify empty list after delete
     empty_list_response = client.get("/api/v1/grants/saved")
     assert len(empty_list_response.json()["savedGrants"]) == 0
+
+
+def test_document_qa_with_stored_application(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    database_path = tmp_path / "applications.db"
+    client = _build_client(database_path, monkeypatch)
+    document = _start_application(client)
+
+    response = client.post(
+        f"/api/v1/documents/{document['id']}/qa",
+        json={"question": "Does this meet excellence criteria?", "sectionId": "executive-summary"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"] == "Evaluator advice for 'Does this meet excellence criteria?'."
+    assert payload["sectionId"] == "executive-summary"
+    assert payload["suggestions"] == ["Stronger methodology details", "Include cross-border pilot metrics"]
+
+
+def test_document_qa_with_payload_context(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    database_path = tmp_path / "applications.db"
+    client = _build_client(database_path, monkeypatch)
+
+    response = client.post(
+        "/api/v1/documents/active-document/qa",
+        json={
+            "question": "Check compliance",
+            "document": {
+                "id": "temp-doc-001",
+                "grantId": "HORIZON-001",
+                "grantTitle": "Robotics Call",
+                "sections": [{"id": "sec-1", "title": "Overview", "content": "Test text"}],
+                "updatedAt": "2026-08-01T00:00:00Z",
+            },
+            "grant": GRANT,
+            "profile": PROFILE,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"] == "Evaluator advice for 'Check compliance'."
+    assert len(payload["suggestions"]) == 2
+
+
+def test_document_qa_not_found(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    database_path = tmp_path / "applications.db"
+    client = _build_client(database_path, monkeypatch)
+
+    response = client.post(
+        "/api/v1/documents/non-existent-doc/qa",
+        json={"question": "Check compliance"},
+    )
+    assert response.status_code == 404
+
+
+def test_conversation_uploads_are_injected_into_drafting(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_start(grant, profile, custom_instructions=None, template_type=None, attachments=""):
+        captured["attachments"] = attachments
+        return {
+            "id": "doc-upload-draft-001",
+            "grantId": grant["id"],
+            "grantTitle": grant["title"],
+            "sections": [{"id": "project-summary", "title": "Project Summary", "content": "Draft."}],
+            "updatedAt": "2026-08-25T11:00:00Z",
+        }
+
+    database_path = tmp_path / "upload_draft.db"
+    service = DocumentService(database_path=str(database_path))
+    service.agent_service.start_application = fake_start
+    monkeypatch.setattr(document_routes, "document_service", service)
+    client = TestClient(create_app())
+
+    upload = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("track-record.txt", b"We delivered 40 drone inspection pilots across EU ports in 2024.", "text/plain")},
+        data={"conversation_id": "conv-123"},
+    )
+    assert upload.status_code == 200
+    assert upload.json()["conversationId"] == "conv-123"
+
+    response = client.post(
+        "/api/v1/grants/HORIZON-APP-001/start-application",
+        json={"grant": GRANT, "profile": PROFILE, "conversationId": "conv-123"},
+    )
+    assert response.status_code == 200
+    assert "40 drone inspection pilots" in captured["attachments"]
+
+    # A draft without conversation id gets no attachment context.
+    client.post("/api/v1/grants/HORIZON-APP-001/start-application", json={"grant": GRANT, "profile": PROFILE})
+    assert captured["attachments"] == ""
+
+
+def test_application_uploads_are_injected_into_side_chat_qa(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    captured: dict = {}
+
+    database_path = tmp_path / "upload_qa.db"
+    service = DocumentService(database_path=str(database_path))
+    service.agent_service.start_application = lambda grant, profile, custom_instructions=None, template_type=None, attachments="": {
+        "id": "doc-upload-qa-001",
+        "grantId": grant["id"],
+        "grantTitle": grant["title"],
+        "sections": [{"id": "project-summary", "title": "Project Summary", "content": "Draft."}],
+        "updatedAt": "2026-08-25T11:30:00Z",
+    }
+
+    def fake_qa(question, document, grant=None, profile=None, section_id=None, attachments=""):
+        captured["attachments"] = attachments
+        return {"answer": f"Advice for '{question}'.", "section_id": section_id, "suggestions": []}
+
+    service.agent_service.document_qa = fake_qa
+    monkeypatch.setattr(document_routes, "document_service", service)
+    client = TestClient(create_app())
+
+    started = client.post("/api/v1/grants/HORIZON-APP-001/start-application", json={"grant": GRANT, "profile": PROFILE})
+    document_id = started.json()["id"]
+
+    linked_upload = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("annual-report.txt", b"Our 2025 annual report shows EUR 2.1M revenue and 25 staff.", "text/plain")},
+        data={"application_id": document_id},
+    )
+    assert linked_upload.status_code == 200
+
+    qa_response = client.post(
+        f"/api/v1/documents/{document_id}/qa",
+        json={"question": "Is our budget credible?"},
+    )
+    assert qa_response.status_code == 200
+    assert "EUR 2.1M revenue" in captured["attachments"]
+
+
+def test_custom_instructions_and_template_are_persisted(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def fake_start(grant, profile, custom_instructions=None, template_type=None, attachments=""):
+        captured["custom_instructions"] = custom_instructions
+        captured["template_type"] = template_type
+        return {
+            "id": "doc-custom-001",
+            "grantId": grant["id"],
+            "grantTitle": grant["title"],
+            "sections": [{"id": "project-summary", "title": "Project Summary", "content": f"Draft ({template_type})."}],
+            "updatedAt": "2026-08-25T09:00:00Z",
+        }
+
+    database_path = tmp_path / "customization.db"
+    service = DocumentService(database_path=str(database_path))
+    service.agent_service.start_application = fake_start
+    monkeypatch.setattr(document_routes, "document_service", service)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/v1/grants/HORIZON-APP-001/start-application",
+        json={
+            "grant": GRANT,
+            "profile": PROFILE,
+            "customInstructions": "Emphasise our 15 years of port logistics experience and avoid buzzwords.",
+            "templateType": "HORIZON_STANDARD",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["custom_instructions"].startswith("Emphasise our 15 years")
+    assert captured["template_type"] == "HORIZON_STANDARD"
+
+    stored = client.get("/api/v1/applications/doc-custom-001").json()
+    assert stored["customInstructions"].startswith("Emphasise our 15 years")
+    assert stored["templateType"] == "HORIZON_STANDARD"
+
+
+def test_invalid_template_type_is_rejected(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "bad_template.db", monkeypatch)
+
+    response = client.post(
+        "/api/v1/grants/HORIZON-APP-001/start-application",
+        json={"grant": GRANT, "profile": PROFILE, "templateType": "NOT_A_TEMPLATE"},
+    )
+    assert response.status_code == 422
+
+
+def _export_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
+
+    service = DocumentService(database_path=str(database_path))
+    service.agent_service.start_application = lambda grant, profile, custom_instructions=None, template_type=None, attachments="": {
+        "id": "doc-export-001",
+        "grantId": GRANT["id"],
+        "grantTitle": GRANT["title"],
+        "sections": [
+            {"id": "project-summary", "title": "Project Summary", "content": "AI-powered inspection."},
+            {"id": "objectives", "title": "Objectives", "content": "Cut defect rates by 40%.\n\nSecond paragraph."},
+        ],
+        "updatedAt": "2026-08-25T10:00:00Z",
+    }
+    monkeypatch.setattr(document_routes, "document_service", service)
+    return TestClient(create_app())
+
+
+def _seed_sheets(client: TestClient) -> None:
+    response = client.put(
+        "/api/v1/documents/doc-export-001/sheets/budget",
+        json={"items": [{"category": "Personnel", "description": "Engineers", "personMonths": 12, "directCost": 100000}]},
+    )
+    assert response.status_code == 200
+
+
+def test_export_markdown_includes_sections_and_budget(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _export_client(tmp_path / "export_md.db", monkeypatch)
+    started = client.post("/api/v1/grants/HORIZON-APP-001/start-application", json={"grant": GRANT, "profile": PROFILE})
+    assert started.status_code == 200
+    _seed_sheets(client)
+
+    response = client.get("/api/v1/documents/doc-export-001/export?format=markdown")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    body = response.text
+    assert "# Robotics Quality Inspection" in body
+    assert "## Project Summary" in body
+    assert "Cut defect rates by 40%." in body
+    assert "Total requested grant:** EUR 125,000.00" in body
+
+
+def test_export_html_is_continuous_styled_paper(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _export_client(tmp_path / "export_html.db", monkeypatch)
+    client.post("/api/v1/grants/HORIZON-APP-001/start-application", json={"grant": GRANT, "profile": PROFILE})
+    _seed_sheets(client)
+
+    response = client.get("/api/v1/documents/doc-export-001/export?format=html")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    body = response.text
+    assert body.startswith("<!DOCTYPE html>")
+    assert "<h1>Robotics Quality Inspection</h1>" in body
+    assert "<h2>Project Summary</h2>" in body
+    assert "<table>" in body
+
+
+def test_export_text_and_missing_document(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _export_client(tmp_path / "export_txt.db", monkeypatch)
+    client.post("/api/v1/grants/HORIZON-APP-001/start-application", json={"grant": GRANT, "profile": PROFILE})
+
+    text_response = client.get("/api/v1/documents/doc-export-001/export?format=text")
+    assert text_response.status_code == 200
+    assert "PROJECT SUMMARY" in text_response.text
+
+    invalid_format = client.get("/api/v1/documents/doc-export-001/export?format=pdf")
+    assert invalid_format.status_code == 422
+
+    missing = client.get("/api/v1/documents/missing-doc/export?format=markdown")
+    assert missing.status_code == 404

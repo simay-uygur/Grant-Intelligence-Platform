@@ -66,6 +66,7 @@ storage/generated/*
 /.postman/
 /postman/
 /storage/*.db
+/storage/*.db-*
 /.lovable/
 /.lovable/
 downside.txt

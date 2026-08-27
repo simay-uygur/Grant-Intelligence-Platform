@@ -13,6 +13,7 @@ class GrantSearchService:
         grants = self.agent_service.search_grants(
             payload.to_agent_profile(),
             max_grants=payload.limit,
+            excluded_grant_ids=payload.excluded_grant_ids,
         )
         return GrantSearchResponse(
             grants=[GrantResult.model_validate(grant) for grant in grants],
@@ -24,6 +25,7 @@ class GrantSearchService:
         for event in self.agent_service.search_grants_stream(
             payload.to_agent_profile(),
             max_grants=payload.limit,
+            excluded_grant_ids=payload.excluded_grant_ids,
         ):
             if event.get("event") == "result" and "grants" in event.get("data", {}):
                 response = GrantSearchResponse(

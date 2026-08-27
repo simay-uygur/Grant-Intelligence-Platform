@@ -260,6 +260,7 @@ export function GrantResults({
         onOpenChange={setDetailsOpen}
         onAsk={onAsk}
         onStart={onStart}
+        hasDraft={selectedGrant ? existingGrantIds?.has(selectedGrant.id) : false}
       />
     </div>
   );
@@ -398,9 +399,11 @@ function GrantCard({
               <Sparkles className="h-3.5 w-3.5" />
               Why it was returned
             </div>
-            <p className="mt-1 line-clamp-3 break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
-              {grant.whyItMatches}
-            </p>
+            <div className="mt-1 max-h-24 overflow-y-auto pr-1">
+              <p className="whitespace-pre-wrap break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
+                {grant.whyItMatches}
+              </p>
+            </div>
           </div>
         )}
       </CardContent>

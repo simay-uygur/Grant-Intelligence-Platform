@@ -28,6 +28,43 @@ SECTIONS = [
 ]
 
 
+# Call-tailored guidance templates. All templates keep the same 12 canonical
+# sections — only the writing emphasis changes.
+TEMPLATE_GUIDANCE = {
+    "HORIZON_STANDARD": (
+        "TEMPLATE: Horizon Europe RIA/IA standard.\n"
+        "Structure the argumentation around the three official evaluation criteria:\n"
+        "- Excellence: soundness, credibility, interdisciplinarity, and how the approach goes beyond the state of the art.\n"
+        "- Impact: pathways toward the expected outcomes, dissemination, exploitation, and communication plans.\n"
+        "- Quality and efficiency of implementation: work package logic, risk management, and consortium complementarity.\n"
+        "Use evaluator-friendly language that maps explicitly onto these criteria."
+    ),
+    "EIC_ACCELERATOR": (
+        "TEMPLATE: EIC Accelerator.\n"
+        "Emphasise deep-tech breakthrough innovation, quantified market opportunity (TAM/SAM/SOM), "
+        "the uniqueness and defensibility of the innovation (IP, know-how), and a credible scale-up plan. "
+        "Highlight why EU support is needed to reach market and how the company's team can execute "
+        "high-risk, high-impact development."
+    ),
+}
+
+DEFAULT_TEMPLATE = "DEFAULT_COMPREHENSIVE"
+
+
+def _guidance_block(template_type=None, custom_instructions=None, attachments=None):
+    """Build extra prompt guidance from the selected template, user instructions, and attachments."""
+    blocks = []
+    if template_type and template_type in TEMPLATE_GUIDANCE:
+        blocks.append(TEMPLATE_GUIDANCE[template_type])
+    if custom_instructions and custom_instructions.strip():
+        blocks.append(f"USER CUSTOM INSTRUCTIONS (follow these strictly):\n{custom_instructions.strip()}\n")
+    if attachments and attachments.strip():
+        blocks.append(f"APPLICANT BACKGROUND MATERIAL (extracted text from documents the applicant uploaded — use these real facts, figures, and track-record details throughout every section):\n{attachments.strip()[:12000]}\n")
+    if not blocks:
+        return ""
+    return "\n" + "\n".join(blocks) + "\n"
+
+
 def _grant_context_block(grant: dict) -> str:
     """Build the grant context for prompts, highlighting call-text priorities when available."""
     summary = (grant.get("summary") or "").strip()
@@ -36,12 +73,13 @@ def _grant_context_block(grant: dict) -> str:
     return f"GRANT:\n{json.dumps(grant, indent=2)}\n\n(No detailed call text available — align with the grant programme and title.)\n"
 
 
-def draft_single_section(grant, profile, section_title):
+def draft_single_section(grant, profile, section_title, custom_instructions=None, template_type=None, attachments=None):
     """Draft one application section via Bedrock."""
     prompt = (
         f"You are writing a real EU grant application section: '{section_title}'.\n\n"
         f"{_grant_context_block(grant)}\n"
-        f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
+        f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n"
+        f"{_guidance_block(template_type, custom_instructions, attachments)}\n"
         "Write substantive, specific, professional prose for the "
         f"'{section_title}' section (roughly 100-150 words). "
         "Use the organisation's real details, not placeholders. Explicitly connect the "
@@ -65,12 +103,13 @@ def draft_single_section(grant, profile, section_title):
         return f"Draft content for {section_title} based on {grant.get('title', 'grant')} priorities."
 
 
-def draft_single_section_stream(grant, profile, section_title):
+def draft_single_section_stream(grant, profile, section_title, custom_instructions=None, template_type=None, attachments=None):
     """Draft one section via Bedrock converse_stream, yielding partial text chunks."""
     prompt = (
         f"You are writing a real EU grant application section: '{section_title}'.\n\n"
         f"{_grant_context_block(grant)}\n"
-        f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
+        f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n"
+        f"{_guidance_block(template_type, custom_instructions, attachments)}\n"
         "Write substantive, specific, professional prose for the "
         f"'{section_title}' section (roughly 100-150 words). "
         "Use the organisation's real details, not placeholders. Explicitly connect the "
@@ -96,12 +135,15 @@ def draft_single_section_stream(grant, profile, section_title):
         yield f"Draft content for {section_title} based on {grant.get('title', 'grant')} priorities."
 
 
-def start_application(grant, profile):
+def start_application(grant, profile, custom_instructions=None, template_type=None, attachments=None):
     """
     Draft a grant application document.
 
     grant:   dict of the selected grant (the Grant shape from final_grants)
     profile: dict of the user's OrganisationProfile
+    custom_instructions: optional free-form user guidelines for the prompts
+    template_type: optional call-tailored template (HORIZON_STANDARD, EIC_ACCELERATOR)
+    attachments: optional extracted text from the applicant's uploaded documents
 
     Returns an ApplicationDocument dict:
       { id, grantId, grantTitle, sections: [{id, title, content}], updatedAt }
@@ -113,7 +155,8 @@ def start_application(grant, profile):
         "You are writing a real EU grant application. Draft the content for EACH section listed below, "
         "tailored specifically to this organisation's profile and this grant's priorities.\n\n"
         f"{_grant_context_block(grant)}\n"
-        f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
+        f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n"
+        f"{_guidance_block(template_type, custom_instructions, attachments)}\n"
         f"SECTIONS TO WRITE (in this exact order):\n{json.dumps(section_titles, indent=2)}\n\n"
         "Write substantive, specific, professional prose for each section (roughly 80-150 words each). "
         "Use the organisation's real details, not placeholders. In every section, explicitly connect "

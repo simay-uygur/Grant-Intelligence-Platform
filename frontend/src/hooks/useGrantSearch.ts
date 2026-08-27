@@ -39,6 +39,8 @@ interface UseGrantSearchOptions {
   /** Conversation-level setters. */
   setStage: (stage: "researching" | "results") => void;
   setGrants: (grants: Grant[]) => void;
+  /** Returns all grant IDs that have already been shown in this conversation. */
+  getExcludedGrantIds?: () => string[];
 }
 
 /**
@@ -47,7 +49,7 @@ interface UseGrantSearchOptions {
  * Encapsulates the full grant-search lifecycle:
  *   runResearch        — triggers a live/mock search, streams progress events
  *   handleSubmitProfile — posts the profile form submission and starts research
- *   handleRetryResearch — re-runs the last search for the active profile
+ *   handleRetryResearch — re-runs the search excluding previously shown grants
  *
  * Lifted out of App.tsx to reduce its size and make the search logic
  * independently testable.
@@ -60,12 +62,16 @@ export function useGrantSearch({
   setBusy,
   setStage,
   setGrants,
+  getExcludedGrantIds,
 }: UseGrantSearchOptions) {
   const researchInFlight = useRef(false);
   const [lastProfile, setLastProfile] = useState<OrganisationProfile | null>(null);
 
   const runResearch = useCallback(
-    async (profile: OrganisationProfile) => {
+    async (
+      profile: OrganisationProfile,
+      options?: { excludedGrantIds?: string[]; userRequest?: string },
+    ) => {
       if (researchInFlight.current) return;
       researchInFlight.current = true;
       setBusy(true);
@@ -109,7 +115,8 @@ export function useGrantSearch({
           );
         };
 
-        const result = await grantService.searchGrants(profile, handleProgress);
+        const excludedIds = options?.excludedGrantIds ?? getExcludedGrantIds?.() ?? [];
+        const result = await grantService.searchGrants(profile, handleProgress, excludedIds);
         const grants = result.grants;
 
         // Mark all steps done
@@ -138,6 +145,7 @@ export function useGrantSearch({
       }
     },
     [
+      getExcludedGrantIds,
       onResearchComplete,
       onResearchError,
       onResearchProgress,
@@ -148,11 +156,18 @@ export function useGrantSearch({
     ],
   );
 
-  const handleRetryResearch = useCallback(() => {
-    if (lastProfile) {
-      void runResearch(lastProfile);
-    }
-  }, [lastProfile, runResearch]);
+  const handleRetryResearch = useCallback(
+    (options?: { userRequest?: string; excludedGrantIds?: string[] }) => {
+      if (lastProfile) {
+        const excludedIds = options?.excludedGrantIds ?? getExcludedGrantIds?.() ?? [];
+        void runResearch(lastProfile, {
+          excludedGrantIds: excludedIds,
+          userRequest: options?.userRequest,
+        });
+      }
+    },
+    [getExcludedGrantIds, lastProfile, runResearch],
+  );
 
   return { runResearch, handleRetryResearch };
 }

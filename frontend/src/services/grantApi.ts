@@ -18,6 +18,7 @@ export const grantSearchRequestSchema = z.object({
   organization_type: z.string().min(1).optional(),
   only_open: z.boolean(),
   limit: z.number().int().min(1).max(25),
+  excluded_grant_ids: z.array(z.string()).optional().default([]),
 });
 
 const grantResultDtoSchema = z.object({
@@ -74,7 +75,10 @@ const clean = (value: string | undefined): string | undefined => {
   return trimmed ? trimmed : undefined;
 };
 
-export function buildGrantSearchRequest(profile: OrganisationProfile): GrantSearchRequestDto {
+export function buildGrantSearchRequest(
+  profile: OrganisationProfile,
+  excludedGrantIds?: string[],
+): GrantSearchRequestDto {
   const primaryQuery = [clean(profile.projectTitle), clean(profile.sector)]
     .filter((value): value is string => Boolean(value))
     .join(" ");
@@ -102,6 +106,7 @@ export function buildGrantSearchRequest(profile: OrganisationProfile): GrantSear
     organization_type: clean(profile.organisationType),
     only_open: true,
     limit: 3,
+    excluded_grant_ids: excludedGrantIds ?? [],
   });
 }
 

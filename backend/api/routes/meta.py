@@ -93,6 +93,12 @@ def frontend_config() -> FrontendConfigResponse:
                 purpose="Rewrite one generated application section with an optional instruction.",
             ),
             FrontendEndpointInfo(
+                name="document_qa",
+                method="POST",
+                path=f"{settings.api_prefix}/documents/{{document_id}}/qa",
+                purpose="Consult AI evaluator and request feedback/critiques on an application proposal.",
+            ),
+            FrontendEndpointInfo(
                 name="frontend_config",
                 method="GET",
                 path=f"{settings.api_prefix}/meta/frontend-config",
@@ -194,6 +200,30 @@ def tools_list() -> ToolsListResponse:
                 },
                 example_input={},
                 notes="Exposed as PATCH /api/v1/documents/{document_id}/sections/{section_id}.",
+            ),
+            ToolInfo(
+                name="documentQa",
+                description="Consult the AI evaluator regarding proposal quality, section revisions, or call compliance.",
+                status="live",
+                handler="agent.service.document_qa",
+                input_model="DocumentQARequest",
+                output_model="DocumentQAResponse",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "question": {"type": "string"},
+                        "sectionId": {"type": "string"},
+                        "document": {"type": "object"},
+                        "grant": {"type": "object"},
+                        "profile": {"type": "object"},
+                    },
+                    "required": ["question"],
+                },
+                example_input={
+                    "question": "Does our Risk Management section meet Horizon Europe standards?",
+                    "sectionId": "risk-management",
+                },
+                notes="Exposed as POST /api/v1/documents/{document_id}/qa and /stream.",
             ),
             ToolInfo(
                 name="searchInternet",

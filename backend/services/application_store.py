@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,6 +12,7 @@ from backend.core.database import (
     applications_table,
     build_engine,
     build_upsert,
+    document_uploads_table,
     metadata,
     saved_grants_table,
 )
@@ -37,8 +39,43 @@ class ApplicationStore:
 
     def _initialize_schema(self) -> None:
         metadata.create_all(self.engine)
+        self._ensure_table_columns(
+            "applications",
+            {
+                "custom_instructions": "TEXT",
+                "template_type": "VARCHAR(32)",
+                "sheets_json": "TEXT",
+            },
+        )
+        self._ensure_table_columns(
+            "document_uploads",
+            {"conversation_id": "VARCHAR(64)"},
+        )
         if self.engine.dialect.name == "sqlite":
             self._migrate_legacy_status_values()
+
+    def _ensure_table_columns(self, table: str, new_columns: dict[str, str]) -> None:
+        """Add columns introduced after the baseline to databases created by create_all.
+
+        Keeps older local SQLite files working without requiring a manual
+        `alembic upgrade head`; Alembic remains the source of truth for
+        managed PostgreSQL deployments.
+        """
+        from sqlalchemy import inspect
+
+        try:
+            inspector = inspect(self.engine)
+            existing = {column["name"] for column in inspector.get_columns(table)}
+        except Exception as exc:  # pragma: no cover - fresh database race
+            logger.debug("Schema inspection skipped for %s: %s", table, exc)
+            return
+        missing = {name: ddl for name, ddl in new_columns.items() if name not in existing}
+        if not missing:
+            return
+        logger.info("Adding missing %s columns: %s", table, ", ".join(missing))
+        with self.engine.begin() as connection:
+            for name, ddl in missing.items():
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
     def _migrate_legacy_status_values(self) -> None:
         """One-time SQLite migration for pre-'under_review' databases (legacy path)."""
@@ -93,6 +130,8 @@ class ApplicationStore:
         grant: dict,
         profile: dict,
         user_id: str | None = None,
+        custom_instructions: str | None = None,
+        template_type: str | None = None,
     ) -> dict:
         logger.info("Saving application '%s' for grant '%s' (user_id=%s)", document.id, document.grantId, user_id)
         timestamp = self._timestamp()
@@ -105,6 +144,8 @@ class ApplicationStore:
             "sections_json": json.dumps([section.model_dump() for section in document.sections], ensure_ascii=False),
             "grant_json": json.dumps(grant, ensure_ascii=False),
             "profile_json": json.dumps(profile, ensure_ascii=False),
+            "custom_instructions": custom_instructions,
+            "template_type": template_type,
             "created_at": timestamp,
             "updated_at": document.updatedAt,
         }
@@ -131,6 +172,9 @@ class ApplicationStore:
             applications_table.c.sections_json,
             applications_table.c.grant_json,
             applications_table.c.profile_json,
+            applications_table.c.custom_instructions,
+            applications_table.c.template_type,
+            applications_table.c.sheets_json,
             applications_table.c.created_at,
             applications_table.c.updated_at,
         ]
@@ -224,6 +268,108 @@ class ApplicationStore:
                 )
             )
         return self.get_application(application_id, user_id)
+
+    # ------------------------------------------------------------------
+    # Structured sheets (work packages / budget / risks / consortium)
+    # ------------------------------------------------------------------
+
+    def get_sheets(self, application_id: str, user_id: str | None = None) -> dict | None:
+        stmt = select(applications_table.c.sheets_json).where(applications_table.c.id == application_id)
+        if user_id is not None:
+            stmt = stmt.where(applications_table.c.user_id == user_id)
+        with self.engine.begin() as connection:
+            row = connection.execute(stmt).mappings().first()
+        if row is None:
+            return None
+        return json.loads(row["sheets_json"]) if row["sheets_json"] else None
+
+    def save_sheets(self, application_id: str, sheets: dict, user_id: str | None = None) -> bool:
+        timestamp = self._timestamp()
+        with self.engine.begin() as connection:
+            stmt = (
+                applications_table.update()
+                .where(applications_table.c.id == application_id)
+                .values(
+                    sheets_json=json.dumps(sheets, ensure_ascii=False),
+                    updated_at=timestamp,
+                )
+            )
+            if user_id is not None:
+                stmt = stmt.where(applications_table.c.user_id == user_id)
+            result = connection.execute(stmt)
+            return result.rowcount > 0
+
+    # ------------------------------------------------------------------
+    # Document uploads
+    # ------------------------------------------------------------------
+
+    def save_upload(
+        self,
+        *,
+        filename: str,
+        content_type: str,
+        extracted_text: str,
+        user_id: str | None = None,
+        application_id: str | None = None,
+        conversation_id: str | None = None,
+    ) -> dict:
+        upload_id = f"upload-{uuid.uuid4().hex[:12]}"
+        timestamp = self._timestamp()
+        values = {
+            "id": upload_id,
+            "user_id": user_id,
+            "application_id": application_id,
+            "conversation_id": conversation_id,
+            "filename": filename,
+            "content_type": content_type,
+            "extracted_text": extracted_text,
+            "character_count": len(extracted_text),
+            "created_at": timestamp,
+        }
+        with self.engine.begin() as connection:
+            connection.execute(document_uploads_table.insert().values(**values))
+        return {
+            "id": upload_id,
+            "filename": filename,
+            "contentType": content_type,
+            "characterCount": len(extracted_text),
+            "textSnippet": extracted_text[:500],
+            "applicationId": application_id,
+            "conversationId": conversation_id,
+            "uploadedAt": timestamp,
+        }
+
+    def list_uploads_for_application(self, application_id: str, user_id: str | None = None) -> list[dict]:
+        stmt = select(document_uploads_table).where(document_uploads_table.c.application_id == application_id)
+        if user_id is not None:
+            stmt = stmt.where(document_uploads_table.c.user_id == user_id)
+        with self.engine.begin() as connection:
+            rows = connection.execute(stmt).mappings().all()
+        return [self._upload_from_row(row) for row in rows]
+
+    def list_uploads_for_conversation(self, conversation_id: str, user_id: str | None = None) -> list[dict]:
+        stmt = select(document_uploads_table).where(document_uploads_table.c.conversation_id == conversation_id)
+        if user_id is not None:
+            stmt = stmt.where(document_uploads_table.c.user_id == user_id)
+        stmt = stmt.order_by(document_uploads_table.c.created_at.desc()).limit(10)
+        with self.engine.begin() as connection:
+            rows = connection.execute(stmt).mappings().all()
+        return [self._upload_from_row(row) for row in rows]
+
+    @staticmethod
+    def _upload_from_row(row: Any) -> dict:
+        extracted_text = row["extracted_text"]
+        return {
+            "id": row["id"],
+            "filename": row["filename"],
+            "contentType": row["content_type"],
+            "characterCount": row["character_count"],
+            "textSnippet": extracted_text[:500],
+            "extractedText": extracted_text,
+            "applicationId": row["application_id"],
+            "conversationId": row["conversation_id"] if "conversation_id" in row.keys() else None,
+            "uploadedAt": row["created_at"],
+        }
 
     # ------------------------------------------------------------------
     # Saved grants
@@ -343,6 +489,8 @@ class ApplicationStore:
             "sections": json.loads(row["sections_json"]),
             "grant": json.loads(row["grant_json"]),
             "profile": json.loads(row["profile_json"]),
+            "customInstructions": row["custom_instructions"],
+            "templateType": row["template_type"],
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
         }
@@ -371,6 +519,9 @@ def _application_select():
         applications_table.c.sections_json,
         applications_table.c.grant_json,
         applications_table.c.profile_json,
+        applications_table.c.custom_instructions,
+        applications_table.c.template_type,
+        applications_table.c.sheets_json,
         applications_table.c.created_at,
         applications_table.c.updated_at,
     )
