@@ -87,8 +87,7 @@ export function ChatMessageItem({ message, callbacks }: Props) {
             .filter(
               (b) =>
                 !(
-                  b.type === "question" &&
-                  message.blocks.some((x) => x.type === "structured_form")
+                  b.type === "question" && message.blocks.some((x) => x.type === "structured_form")
                 ),
             )
             .map((b, i) => (

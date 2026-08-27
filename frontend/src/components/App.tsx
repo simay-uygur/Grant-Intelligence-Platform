@@ -55,7 +55,10 @@ function chatReplyBlocks(reply: ChatReply, includeProfileForm = false): ChatBloc
   const blocks: ChatBlock[] = [{ type: "text", text: reply.assistantMessage }];
   if (!includeProfileForm && reply.nextStep !== "collect_information") {
     blocks.push(
-      ...reply.followUpQuestions.map((question): ChatBlock => ({ type: "question", text: question })),
+      ...reply.followUpQuestions.map((question): ChatBlock => ({
+        type: "question",
+        text: question,
+      })),
     );
   }
   return blocks;
