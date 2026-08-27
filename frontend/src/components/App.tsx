@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
+import { ArrowDown, Menu, MessageSquarePlus, Play, RefreshCw } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -306,7 +306,7 @@ export function App() {
   // App supplies the UI callbacks; the hook owns the research state machine,
   // in-flight guard, and progress event fan-out.
   // ---------------------------------------------------------------------------
-  const { runResearch, handleRetryResearch: internalRetryResearch } = useGrantSearch({
+  const { runResearch } = useGrantSearch({
     setBusy,
     setStage: c.setStage,
     setGrants: c.setGrants,
@@ -349,8 +349,8 @@ export function App() {
         text: "Searching for alternative grant opportunities and excluding previously displayed results...",
       },
     ]);
-    internalRetryResearch();
-  }, [askAssistant, askUser, c.activeConversation?.profile, internalRetryResearch]);
+    void runResearch(profile, { excludedGrantIds: getExcludedGrantIds() });
+  }, [askAssistant, askUser, c.activeConversation?.profile, getExcludedGrantIds, runResearch]);
 
   const handleSubmitProfile = useCallback(
     (profile: OrganisationProfile) => {
@@ -577,25 +577,8 @@ export function App() {
       setBusy(true);
       try {
         const opened = await applicationService.getApplication(applicationId);
-        if (opened.profile) c.setProfile(opened.profile);
-        if (opened.grant) {
-          const grants = c.activeConversation?.grants ?? [];
-          c.setGrants(
-            grants.some((grant) => grant.id === opened.grant?.id)
-              ? grants
-              : [opened.grant, ...grants],
-          );
-        }
-        c.setDocument(opened.document, opened.document.grantId);
-        c.setStage("application");
+        c.createConversationForDocument(opened.document, opened.profile, opened.grant);
         setMainView("chat");
-        askAssistant([
-          {
-            type: "success",
-            message: `Saved application opened for ${opened.document.grantTitle}.`,
-          },
-          { type: "document", documentId: opened.document.id },
-        ]);
       } catch (error) {
         setMainView("chat");
         askAssistant([
@@ -1034,8 +1017,20 @@ export function App() {
             <div ref={scrollBottomRef} className="h-4" />
           </div>
 
-          {showScrollButton && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+          {/* Floating actions container pinned above composer */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2">
+            {Boolean(active?.profile || active?.grants?.length) && !isFreshWelcome && !busy && (
+              <Button
+                type="button"
+                onClick={handleRetryResearch}
+                className="pointer-events-auto flex items-center gap-2 rounded-full border border-brand/30 bg-card/95 px-4 py-2 text-xs font-semibold text-brand shadow-lg shadow-brand/10 backdrop-blur hover:bg-brand hover:text-white hover:shadow-brand/20 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Find alternative grants
+              </Button>
+            )}
+
+            {showScrollButton && (
               <Button
                 type="button"
                 variant="outline"
@@ -1046,8 +1041,8 @@ export function App() {
                 <ArrowDown className="h-3.5 w-3.5" />
                 Scroll to latest
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {mainView === "saved" && (

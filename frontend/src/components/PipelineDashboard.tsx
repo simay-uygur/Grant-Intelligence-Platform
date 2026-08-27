@@ -265,7 +265,6 @@ function ApplicationDetailsSheet({
   onOpenConversation,
   onOpenApplication,
   onDeleteApplication,
-  onGoToChat,
 }: {
   application: DemoApplication | null;
   open: boolean;
@@ -275,7 +274,6 @@ function ApplicationDetailsSheet({
   onOpenConversation: (conversationId: string) => void;
   onOpenApplication?: (applicationId: string) => void;
   onDeleteApplication?: (applicationId: string) => void;
-  onGoToChat: () => void;
 }) {
   const reasonId = "application-actions-reason";
 
@@ -287,10 +285,6 @@ function ApplicationDetailsSheet({
     onOpenConversation(link.conversationId);
   };
 
-  const goToChat = () => {
-    onOpenChange(false);
-    onGoToChat();
-  };
 
   const openInNewChat = () => {
     if (!application) return;
@@ -411,7 +405,7 @@ function ApplicationDetailsSheet({
                       Open draft in new chat
                     </Button>
                   )}
-                  {link.conversationId ? (
+                  {link.conversationId && (
                     <Button
                       type="button"
                       variant="outline"
@@ -420,16 +414,6 @@ function ApplicationDetailsSheet({
                     >
                       <MessagesSquare className="h-4 w-4" />
                       Open source conversation
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={goToChat}
-                      className="justify-start rounded-lg hover:bg-muted"
-                    >
-                      <MessagesSquare className="h-4 w-4" />
-                      Open in chat
                     </Button>
                   )}
                   {onDeleteApplication && (
@@ -823,7 +807,6 @@ export function PipelineDashboard({
         onOpenConversation={onOpenConversation}
         onOpenApplication={onOpenApplication}
         onDeleteApplication={deleteApplication}
-        onGoToChat={onGoToChat}
       />
     </section>
   );

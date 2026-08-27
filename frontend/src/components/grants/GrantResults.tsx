@@ -123,7 +123,7 @@ export function GrantResults({
   }
 
   return (
-    <div className="relative space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">
@@ -262,24 +262,6 @@ export function GrantResults({
         onStart={onStart}
         hasDraft={selectedGrant ? existingGrantIds?.has(selectedGrant.id) : false}
       />
-
-      {/* Floating "Find alternative grants" pill — sticky to the bottom of
-          the scroll container while the user browses results. pointer-events-none
-          on the row wrapper so cards beneath it stay clickable; the button itself
-          re-enables pointer events. Only shown when onRetryResearch is available. */}
-      {onRetryResearch && (
-        <div className="pointer-events-none sticky bottom-4 flex justify-center">
-          <Button
-            type="button"
-            onClick={onRetryResearch}
-            disabled={startDisabled}
-            className="pointer-events-auto flex items-center gap-2 rounded-full border border-brand/30 bg-card/90 px-5 py-2.5 text-xs font-semibold text-brand shadow-lg shadow-brand/10 backdrop-blur-sm transition-all hover:bg-brand hover:text-white hover:shadow-brand/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Find alternative grants
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -417,9 +399,11 @@ function GrantCard({
               <Sparkles className="h-3.5 w-3.5" />
               Why it was returned
             </div>
-            <p className="mt-1 line-clamp-3 break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
-              {grant.whyItMatches}
-            </p>
+            <div className="mt-1 max-h-24 overflow-y-auto pr-1">
+              <p className="whitespace-pre-wrap break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
+                {grant.whyItMatches}
+              </p>
+            </div>
           </div>
         )}
       </CardContent>

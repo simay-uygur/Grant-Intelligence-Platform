@@ -283,8 +283,11 @@ function SavedGrantCard({
       </div>
 
       {whyItMatches && (
-        <div className="mt-2 max-h-20 overflow-y-auto rounded-lg bg-brand/[0.04] p-2 scrollbar-thin">
-          <p className="text-xs font-medium text-foreground/80 italic">
+        <div
+          className="relative z-10 mt-2 max-h-24 overflow-y-auto rounded-lg bg-brand/[0.04] p-2.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="whitespace-pre-wrap break-words text-xs font-medium text-foreground/80 italic [overflow-wrap:anywhere]">
             &ldquo;{whyItMatches}&rdquo;
           </p>
         </div>

@@ -254,6 +254,42 @@ export function useConversations() {
     [updateActive],
   );
 
+  const createConversationForDocument = useCallback(
+    (doc: ApplicationDocument, profile?: OrganisationProfile, grant?: Grant) => {
+      const id = uid();
+      const now = new Date().toISOString();
+      const newConv: Conversation = {
+        id,
+        title: doc.grantTitle.slice(0, 60),
+        createdAt: now,
+        updatedAt: now,
+        stage: "application",
+        profile,
+        grants: grant ? [grant] : undefined,
+        selectedGrantId: doc.grantId,
+        document: doc,
+        messages: [
+          {
+            id: uid(),
+            role: "assistant",
+            createdAt: now,
+            blocks: [
+              {
+                type: "success",
+                message: `Saved application opened for ${doc.grantTitle}. Edit any section, try a rewrite, or export it.`,
+              },
+              { type: "document", documentId: doc.id },
+            ],
+          },
+        ],
+      };
+      setConversations((prev) => [newConv, ...prev]);
+      setActiveId(id);
+      return id;
+    },
+    [],
+  );
+
   return {
     hydrated,
     persistenceOk,
@@ -262,6 +298,7 @@ export function useConversations() {
     activeId,
     newConversation,
     selectConversation,
+    createConversationForDocument,
     renameConversation,
     deleteConversation,
     appendMessage,
