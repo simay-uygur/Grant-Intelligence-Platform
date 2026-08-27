@@ -4,6 +4,11 @@
 # The finalize tool writes the result to a shared holder so we capture it reliably.
 
 import asyncio
+import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 import json
 import os
 from typing import Any
