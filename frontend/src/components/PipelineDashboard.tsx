@@ -285,7 +285,6 @@ function ApplicationDetailsSheet({
     onOpenConversation(link.conversationId);
   };
 
-
   const openInNewChat = () => {
     if (!application) return;
     onOpenChange(false);
