@@ -51,11 +51,14 @@ type BackendHistorySync =
   | { status: "synced"; conversationId: string }
   | { status: "error"; conversationId: string; message: string };
 
-function chatReplyBlocks(reply: ChatReply): ChatBlock[] {
-  return [
-    { type: "text", text: reply.assistantMessage },
-    ...reply.followUpQuestions.map((question): ChatBlock => ({ type: "question", text: question })),
-  ];
+function chatReplyBlocks(reply: ChatReply, includeProfileForm = false): ChatBlock[] {
+  const blocks: ChatBlock[] = [{ type: "text", text: reply.assistantMessage }];
+  if (!includeProfileForm && reply.nextStep !== "collect_information") {
+    blocks.push(
+      ...reply.followUpQuestions.map((question): ChatBlock => ({ type: "question", text: question })),
+    );
+  }
+  return blocks;
 }
 
 const missingGrantFact = (grant: Grant, label: string): ChatBlock[] => [
@@ -639,7 +642,7 @@ export function App() {
         if (reply.conversationId !== backendConversationId) {
           c.setBackendConversationId(reply.conversationId);
         }
-        const blocks = chatReplyBlocks(reply);
+        const blocks = chatReplyBlocks(reply, includeProfileForm);
         if (includeProfileForm) blocks.push({ type: "structured_form" });
         askAssistant(blocks);
         void synchronizeBackendHistory(activeConversation.id, reply.conversationId);

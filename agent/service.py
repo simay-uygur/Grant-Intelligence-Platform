@@ -53,24 +53,68 @@ def _published_service() -> ModuleType:
     return module
 
 
-def search_grants(profile: dict[str, Any], max_grants: int = 3) -> list[dict[str, Any]]:
+def search_grants(
+    profile: dict[str, Any],
+    user_request: str | None = None,
+    conversation_history: list[dict[str, Any]] | None = None,
+    max_grants: int = 3,
+    excluded_grant_ids: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Search live EU calls and rank them against the submitted profile."""
-    return _published_service().search_grants(profile, max_grants=max_grants)
+    return _published_service().search_grants(
+        profile,
+        user_request=user_request,
+        conversation_history=conversation_history,
+        max_grants=max_grants,
+        excluded_grant_ids=excluded_grant_ids,
+    )
 
 
-def search_grants_stream(profile: dict[str, Any], max_grants: int = 3):
+def search_grants_stream(
+    profile: dict[str, Any],
+    max_grants: int = 3,
+    excluded_grant_ids: list[str] | None = None,
+):
     """Stream events while searching live EU calls and ranking them."""
-    yield from _published_service().search_grants_stream(profile, max_grants=max_grants)
+    yield from _published_service().search_grants_stream(
+        profile,
+        max_grants=max_grants,
+        excluded_grant_ids=excluded_grant_ids,
+    )
 
 
-def start_application(grant: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
+def start_application(
+    grant: dict[str, Any],
+    profile: dict[str, Any],
+    custom_instructions: str | None = None,
+    template_type: str | None = None,
+    attachments: str = "",
+) -> dict[str, Any]:
     """Draft a complete application with the published agent layer."""
-    return _published_service().start_application(grant, profile)
+    return _published_service().start_application(
+        grant,
+        profile,
+        custom_instructions=custom_instructions,
+        template_type=template_type,
+        attachments=attachments,
+    )
 
 
-def start_application_stream(grant: dict[str, Any], profile: dict[str, Any]):
+def start_application_stream(
+    grant: dict[str, Any],
+    profile: dict[str, Any],
+    custom_instructions: str | None = None,
+    template_type: str | None = None,
+    attachments: str = "",
+):
     """Stream events while drafting a complete application."""
-    yield from _published_service().start_application_stream(grant, profile)
+    yield from _published_service().start_application_stream(
+        grant,
+        profile,
+        custom_instructions=custom_instructions,
+        template_type=template_type,
+        attachments=attachments,
+    )
 
 
 def rewrite_section(
@@ -104,4 +148,42 @@ def rewrite_section_stream(
         profile=profile,
         grant=grant,
         instruction=instruction,
+    )
+
+
+def document_qa(
+    question: str,
+    document: dict[str, Any],
+    grant: dict[str, Any] | None = None,
+    profile: dict[str, Any] | None = None,
+    section_id: str | None = None,
+    attachments: str = "",
+) -> dict[str, Any]:
+    """Q&A consultation on an application document."""
+    return _published_service().document_qa(
+        question,
+        document,
+        grant=grant,
+        profile=profile,
+        section_id=section_id,
+        attachments=attachments,
+    )
+
+
+def document_qa_stream(
+    question: str,
+    document: dict[str, Any],
+    grant: dict[str, Any] | None = None,
+    profile: dict[str, Any] | None = None,
+    section_id: str | None = None,
+    attachments: str = "",
+):
+    """Stream events while doing document Q&A consultation."""
+    yield from _published_service().document_qa_stream(
+        question,
+        document,
+        grant=grant,
+        profile=profile,
+        section_id=section_id,
+        attachments=attachments,
     )

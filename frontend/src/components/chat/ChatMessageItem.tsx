@@ -83,9 +83,17 @@ export function ChatMessageItem({ message, callbacks }: Props) {
         )}
       >
         <div className="space-y-3">
-          {message.blocks.map((b, i) => (
-            <BlockRenderer key={i} block={b} callbacks={callbacks} isUser={isUser} />
-          ))}
+          {message.blocks
+            .filter(
+              (b) =>
+                !(
+                  b.type === "question" &&
+                  message.blocks.some((x) => x.type === "structured_form")
+                ),
+            )
+            .map((b, i) => (
+              <BlockRenderer key={i} block={b} callbacks={callbacks} isUser={isUser} />
+            ))}
         </div>
       </div>
 
