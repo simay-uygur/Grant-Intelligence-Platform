@@ -533,7 +533,7 @@ function StatusColumn({
       </header>
 
       {displayList.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
+        <div className="flex min-h-28 flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
           {STATUS_EMPTY[status]}
         </div>
       ) : (
@@ -787,7 +787,7 @@ export function PipelineDashboard({
           action={{ label: "Find grants in chat", onClick: onGoToChat, icon: MessagesSquare }}
         />
       ) : (
-        <div className="grid grid-cols-1 items-start gap-3 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3 min-[1200px]:grid-cols-5 min-[1200px]:items-stretch">
+        <div className="grid grid-cols-1 items-start gap-3 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3 min-[1280px]:grid-cols-5">
           {STATUS_ORDER.map((status) => (
             <StatusColumn
               key={status}

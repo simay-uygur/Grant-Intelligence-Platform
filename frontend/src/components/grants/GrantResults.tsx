@@ -123,7 +123,7 @@ export function GrantResults({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">
@@ -180,25 +180,6 @@ export function GrantResults({
           />
         ))}
       </div>
-
-      {onRetryResearch && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-3">
-          <div className="text-xs text-muted-foreground">
-            Looking for alternative options or different European programmes?
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onRetryResearch}
-            disabled={startDisabled}
-            className="h-8 gap-1.5 rounded-full text-xs font-medium hover:bg-background"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Find alternative grants
-          </Button>
-        </div>
-      )}
 
       {compareIds.size >= 1 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
@@ -281,6 +262,24 @@ export function GrantResults({
         onStart={onStart}
         hasDraft={selectedGrant ? existingGrantIds?.has(selectedGrant.id) : false}
       />
+
+      {/* Floating "Find alternative grants" pill — sticky to the bottom of
+          the scroll container while the user browses results. pointer-events-none
+          on the row wrapper so cards beneath it stay clickable; the button itself
+          re-enables pointer events. Only shown when onRetryResearch is available. */}
+      {onRetryResearch && (
+        <div className="pointer-events-none sticky bottom-4 flex justify-center">
+          <Button
+            type="button"
+            onClick={onRetryResearch}
+            disabled={startDisabled}
+            className="pointer-events-auto flex items-center gap-2 rounded-full border border-brand/30 bg-card/90 px-5 py-2.5 text-xs font-semibold text-brand shadow-lg shadow-brand/10 backdrop-blur-sm transition-all hover:bg-brand hover:text-white hover:shadow-brand/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Find alternative grants
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
