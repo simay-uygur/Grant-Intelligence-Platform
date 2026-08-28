@@ -64,6 +64,8 @@ export interface Grant {
 export interface GrantSearchResult {
   grants: Grant[];
   sourceSummary: string;
+  batchId?: string;
+  batchIndex?: number;
 }
 
 /** One section of an Application (see ApplicationDocument). */
@@ -156,6 +158,18 @@ export interface SavedGrant {
   whyItMatches?: string;
   matchReasons?: string[];
   grant?: Grant;
+}
+
+export interface GrantSearchBatch {
+  id: string;
+  conversationId?: string;
+  userId?: string;
+  batchIndex: number;
+  query?: string;
+  profile: OrganisationProfile | Record<string, unknown>;
+  grants: Grant[];
+  sourceSummary?: string;
+  createdAt: string;
 }
 
 export interface Conversation {

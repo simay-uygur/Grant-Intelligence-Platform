@@ -41,6 +41,8 @@ interface UseGrantSearchOptions {
   setGrants: (grants: Grant[]) => void;
   /** Returns all grant IDs that have already been shown in this conversation. */
   getExcludedGrantIds?: () => string[];
+  /** Returns the active conversation ID to link and persist search batches in DB. */
+  getConversationId?: () => string | undefined;
 }
 
 /**
@@ -63,6 +65,7 @@ export function useGrantSearch({
   setStage,
   setGrants,
   getExcludedGrantIds,
+  getConversationId,
 }: UseGrantSearchOptions) {
   const researchInFlight = useRef(false);
   const [lastProfile, setLastProfile] = useState<OrganisationProfile | null>(null);
@@ -70,7 +73,7 @@ export function useGrantSearch({
   const runResearch = useCallback(
     async (
       profile: OrganisationProfile,
-      options?: { excludedGrantIds?: string[]; userRequest?: string },
+      options?: { excludedGrantIds?: string[]; userRequest?: string; conversationId?: string },
     ) => {
       if (researchInFlight.current) return;
       researchInFlight.current = true;
@@ -116,7 +119,13 @@ export function useGrantSearch({
         };
 
         const excludedIds = options?.excludedGrantIds ?? getExcludedGrantIds?.() ?? [];
-        const result = await grantService.searchGrants(profile, handleProgress, excludedIds);
+        const conversationId = options?.conversationId ?? getConversationId?.();
+        const result = await grantService.searchGrants(
+          profile,
+          handleProgress,
+          excludedIds,
+          conversationId,
+        );
         const grants = result.grants;
 
         // Mark all steps done
@@ -145,6 +154,7 @@ export function useGrantSearch({
       }
     },
     [
+      getConversationId,
       getExcludedGrantIds,
       onResearchComplete,
       onResearchError,

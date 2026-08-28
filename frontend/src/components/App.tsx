@@ -6,7 +6,13 @@ import { useApplications } from "@/hooks/useApplications";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { useGrantSearch } from "@/hooks/useGrantSearch";
-import { applicationService, backendService, chatService, isMockMode } from "@/services";
+import {
+  applicationService,
+  backendService,
+  chatService,
+  grantService,
+  isMockMode,
+} from "@/services";
 import { logout } from "@/services/apiClient";
 import type { SseEvent } from "@/services/apiClient";
 import { cn } from "@/lib/utils";
@@ -253,9 +259,29 @@ export function App() {
       const requestId = ++historySyncRequest.current;
       setBackendHistorySync({ status: "syncing", conversationId });
       try {
-        const messages = await chatService.getMessages(backendConversationId);
+        const [messages, batches] = await Promise.all([
+          chatService.getMessages(backendConversationId),
+          grantService?.listSearchBatches
+            ? grantService.listSearchBatches(backendConversationId).catch(() => [])
+            : Promise.resolve([]),
+        ]);
         if (historySyncRequest.current !== requestId) return;
         synchronizeBackendMessages(conversationId, messages);
+
+        // Hydrate offered grants & profile from the latest database search batch
+        if (batches && batches.length > 0) {
+          const latest = batches[batches.length - 1];
+          if (latest.grants && latest.grants.length > 0) {
+            c.setGrants(latest.grants);
+          }
+          if (
+            latest.profile &&
+            (!c.activeConversation?.profile || !c.activeConversation.profile.organisationName)
+          ) {
+            c.setProfile(latest.profile as OrganisationProfile);
+          }
+        }
+
         setBackendHistorySync({ status: "synced", conversationId });
       } catch (error) {
         if (historySyncRequest.current !== requestId) return;
@@ -269,7 +295,7 @@ export function App() {
         });
       }
     },
-    [synchronizeBackendMessages],
+    [c, synchronizeBackendMessages],
   );
 
   useEffect(() => {
@@ -311,6 +337,8 @@ export function App() {
     setStage: c.setStage,
     setGrants: c.setGrants,
     getExcludedGrantIds,
+    getConversationId: () =>
+      c.activeConversation?.backendConversationId || c.activeConversation?.id,
     onResearchStart: (initialState) =>
       askAssistant([{ type: "research_status", state: initialState }]),
     onResearchProgress: (messageId, updater) => setBlocks(messageId, updater),

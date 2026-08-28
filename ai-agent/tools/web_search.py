@@ -24,11 +24,13 @@ def web_search(query: str, max_results: int = 5):
         try:
             results = []
             for r in DDGS().text(query, max_results=max_results):
-                results.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("href", ""),
-                    "snippet": r.get("body", ""),
-                })
+                results.append(
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("href", ""),
+                        "snippet": r.get("body", ""),
+                    }
+                )
             if results:
                 return results
             # empty — wait and retry (likely a transient rate-limit)

@@ -83,6 +83,11 @@ class GrantSearchRequest(AgentProfile):
         description=("List of grant identifiers or titles to exclude from search results (e.g. for search-again / alternative discovery)."),
         examples=[["HORIZON-CL4-2025-DATA-01"]],
     )
+    conversation_id: str | None = Field(
+        default=None,
+        description="Optional conversation ID to link and persist this search batch in the database.",
+        examples=["conv-123456"],
+    )
 
     model_config = ConfigDict(
         extra="allow",
@@ -97,6 +102,7 @@ class GrantSearchRequest(AgentProfile):
                 "fundingAmount": "500,000 - 1,000,000 EUR",
                 "projectDuration": "24 months",
                 "limit": 3,
+                "conversation_id": "conv-123456",
             }
         },
     )
@@ -123,6 +129,8 @@ class GrantSearchRequest(AgentProfile):
             "action_type",
             "only_open",
             "limit",
+            "excluded_grant_ids",
+            "conversation_id",
         ):
             profile.pop(backend_only_key, None)
 
@@ -202,6 +210,8 @@ class GrantSearchResponse(BaseModel):
     grants: list[GrantResult] = Field(description=("Agent-ranked grant results."))
     source_summary: str = Field(description="Human-readable explanation of which source or adapter was used.")
     normalized_filters_applied: dict[str, Any] = Field(description="Final profile values sent to the agent.")
+    batch_id: str | None = Field(default=None, description="Persisted search batch ID if linked to a conversation/user.")
+    batch_index: int | None = Field(default=None, description="Sequential search batch number in the conversation.")
 
     model_config = {
         "json_schema_extra": {
@@ -231,6 +241,8 @@ class GrantSearchResponse(BaseModel):
                     "only_open": False,
                     "limit": 3,
                 },
+                "batch_id": "batch-123456",
+                "batch_index": 1,
             }
         }
     }
@@ -289,4 +301,25 @@ class SavedGrantsListResponse(BaseModel):
     savedGrants: list[SavedGrantItem] = Field(
         default_factory=list,
         description="List of all saved/bookmarked grants with their match scores.",
+    )
+
+
+class GrantSearchBatchItem(BaseModel):
+    id: str = Field(description="Unique batch identifier.")
+    conversationId: str | None = Field(default=None, description="Associated conversation ID.")
+    userId: str | None = Field(default=None, description="Associated user ID.")
+    batchIndex: int = Field(default=1, description="Sequential index of this search batch in the conversation.")
+    query: str | None = Field(default=None, description="Search query or instruction.")
+    profile: dict[str, Any] = Field(default_factory=dict, description="Organisation profile snapshot.")
+    grants: list[dict[str, Any]] = Field(default_factory=list, description="Offered grant items in this batch.")
+    sourceSummary: str | None = Field(default=None, description="Summary of search sources used.")
+    createdAt: str = Field(description="ISO timestamp when the batch was generated.")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class GrantSearchBatchesResponse(BaseModel):
+    batches: list[GrantSearchBatchItem] = Field(
+        default_factory=list,
+        description="List of recorded search batches / offered grant groups.",
     )

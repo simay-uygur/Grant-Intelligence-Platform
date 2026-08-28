@@ -11,6 +11,7 @@ export class MockGrantService implements GrantService {
     _profile: OrganisationProfile,
     onProgress?: (event: SseEvent) => void,
     excludedGrantIds?: string[],
+    _conversationId?: string,
   ): Promise<GrantSearchResult> {
     onProgress?.({
       event: "thinking",
