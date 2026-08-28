@@ -8,6 +8,7 @@ import type {
   OrganisationProfile,
 } from "@/types";
 import { useDrafts } from "@/hooks/useDrafts";
+import { useProgressiveReveal } from "@/hooks/useProgressiveReveal";
 import { grantService } from "@/services";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ function WorkspaceSection({
   onChangeDraft,
   onCancel,
   onSave,
+  revealText,
+  onRevealComplete,
 }: {
   index: number;
   section: DocSection;
@@ -56,9 +59,14 @@ function WorkspaceSection({
   onChangeDraft: (value: string) => void;
   onCancel: () => void;
   onSave: () => void;
+  /** Set only while an AI rewrite just landed on this section — the commit
+   * already happened; this is purely how it's REVEALED on the way there. */
+  revealText?: string;
+  onRevealComplete?: () => void;
 }) {
   const editing = draft !== undefined;
-  const displayText = editing ? draft : section.content;
+  const { revealed, streaming: revealing } = useProgressiveReveal(revealText, onRevealComplete);
+  const displayText = editing ? draft : (revealed ?? section.content);
   const checkboxId = `workspace-select-${section.id}`;
 
   return (
@@ -153,7 +161,13 @@ function WorkspaceSection({
         />
       ) : (
         <p className="whitespace-pre-wrap break-words text-sm leading-[1.8] text-foreground/85 [overflow-wrap:anywhere]">
-          {section.content}
+          {displayText}
+          {revealing && (
+            <span
+              aria-hidden="true"
+              className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[3px] bg-brand motion-safe:animate-pulse dark:bg-foreground"
+            />
+          )}
         </p>
       )}
     </section>
@@ -175,6 +189,8 @@ function WorkspaceEditor({
   onChangeDraft,
   onCancel,
   onSave,
+  streamingSections,
+  onRevealComplete,
 }: {
   doc: ApplicationDocument;
   drafts: Record<string, string>;
@@ -190,6 +206,10 @@ function WorkspaceEditor({
   onChangeDraft: (id: string, value: string) => void;
   onCancel: (id: string) => void;
   onSave: (id: string) => void;
+  /** sectionId -> the full text an AI rewrite just produced for it, purely
+   * for the progressive-reveal effect (see WorkspaceSection). */
+  streamingSections: Record<string, string>;
+  onRevealComplete: (id: string) => void;
 }) {
   const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
   const isDirty = (id: string) => {
@@ -298,6 +318,8 @@ function WorkspaceEditor({
               onChangeDraft={(value) => onChangeDraft(section.id, value)}
               onCancel={() => onCancel(section.id)}
               onSave={() => onSave(section.id)}
+              revealText={streamingSections[section.id]}
+              onRevealComplete={() => onRevealComplete(section.id)}
             />
           ))}
         </div>
@@ -316,6 +338,42 @@ interface WorkspaceChatMessage {
 interface AiEdit {
   sectionId: string;
   previousText: string;
+}
+
+/**
+ * One chat bubble. Assistant confirmations (not errors — bad news shouldn't
+ * be paced out) get the same word-by-word reveal as the document text, so
+ * the panel reads as live too. `useProgressiveReveal` only restarts when
+ * its `text` argument changes, and this message's `text` is fixed for the
+ * lifetime of this component instance, so it plays once on mount and never
+ * replays on unrelated re-renders.
+ */
+function MessageBubble({ message }: { message: WorkspaceChatMessage }) {
+  const shouldReveal = message.role === "assistant" && message.tone !== "error";
+  const { revealed, streaming } = useProgressiveReveal(shouldReveal ? message.text : undefined);
+  const displayText = shouldReveal ? (revealed ?? "") : message.text;
+
+  return (
+    <div
+      className={cn(
+        "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere]",
+        message.role === "user" && "bg-muted text-foreground",
+        message.role === "assistant" &&
+          message.tone !== "error" &&
+          "border border-border bg-muted/30 text-foreground",
+        message.tone === "error" &&
+          "border border-destructive/30 bg-destructive/10 text-destructive",
+      )}
+    >
+      {displayText}
+      {streaming && (
+        <span
+          aria-hidden="true"
+          className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[3px] bg-brand motion-safe:animate-pulse dark:bg-foreground"
+        />
+      )}
+    </div>
+  );
 }
 
 /**
@@ -533,19 +591,7 @@ function AssistantPanel({
                 key={m.id}
                 className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}
               >
-                <div
-                  className={cn(
-                    "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere]",
-                    m.role === "user" && "bg-muted text-foreground",
-                    m.role === "assistant" &&
-                      m.tone !== "error" &&
-                      "border border-border bg-muted/30 text-foreground",
-                    m.tone === "error" &&
-                      "border border-destructive/30 bg-destructive/10 text-destructive",
-                  )}
-                >
-                  {m.text}
-                </div>
+                <MessageBubble message={m} />
               </li>
             ))}
             {pending && (
@@ -658,6 +704,11 @@ function DocumentWorkspaceContent({
   // Starts empty on purpose — an instruction must never silently land on
   // section 1 just because nothing was explicitly checked yet.
   const [selectedSectionIds, setSelectedSectionIds] = useState<Set<string>>(() => new Set());
+  // sectionId -> the full text an AI rewrite just produced for it. Purely
+  // presentational (see useProgressiveReveal) — commitSection below has
+  // already saved the real content by the time this is ever set, so losing
+  // this state (e.g. a refresh mid-reveal) loses nothing but the animation.
+  const [streamingSections, setStreamingSections] = useState<Record<string, string>>({});
 
   const { restore, persistenceOk, flush: flushDrafts } = useDrafts(doc, drafts);
 
@@ -736,6 +787,27 @@ function DocumentWorkspaceContent({
     commitSection(id, draft);
   };
 
+  /**
+   * The AI path: commits exactly like a manual Save (same function, same
+   * call, same timing — nothing about the save is different or delayed),
+   * then separately flags the text for a progressive reveal. The reveal is
+   * fire-and-forget from the caller's perspective; it never gates or
+   * follows the commit.
+   */
+  const applyAiRewrite = (id: string, text: string) => {
+    commitSection(id, text);
+    setStreamingSections((prev) => ({ ...prev, [id]: text }));
+  };
+
+  const clearStreaming = (id: string) => {
+    setStreamingSections((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
   const toggleSection = (id: string) => {
     setSelectedSectionIds((prev) => {
       const next = new Set(prev);
@@ -770,6 +842,8 @@ function DocumentWorkspaceContent({
         onChangeDraft={updateDraft}
         onCancel={cancelEdit}
         onSave={save}
+        streamingSections={streamingSections}
+        onRevealComplete={clearStreaming}
       />
       <AssistantPanel
         doc={doc}
@@ -779,7 +853,7 @@ function DocumentWorkspaceContent({
         selectedSectionIds={selectedSectionIds}
         onSelectAll={selectAllSections}
         onClearSelection={clearSelection}
-        onApplyRewrite={commitSection}
+        onApplyRewrite={applyAiRewrite}
       />
     </div>
   );
