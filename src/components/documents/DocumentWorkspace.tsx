@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, FileText, MessagesSquare, Pencil, Send, X } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { Check, FileText, MessagesSquare, Pencil, Send, Sparkles, Undo2, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import type { ApplicationDocument, DocumentSection as DocSection } from "@/types";
+import type {
+  ApplicationDocument,
+  DocumentSection as DocSection,
+  Grant,
+  OrganisationProfile,
+} from "@/types";
 import { useDrafts } from "@/hooks/useDrafts";
+import { grantService } from "@/services";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
@@ -13,12 +20,17 @@ import { wordCount } from "@/utils/text";
 
 /**
  * One section, always visible (not one-at-a-time like the chat's document
- * card) — the Google-Docs feel this view is going for. Reuses the exact same
- * edit/save/cancel semantics as ApplicationDocumentView's SectionEditor:
- * presence of a key in `drafts` means "in edit mode", Save commits via
+ * card) — the Google-Docs feel this view is going for. Manual edit/save/
+ * cancel mirrors ApplicationDocumentView's SectionEditor exactly: presence
+ * of a key in `drafts` means "in edit mode", Save commits via
  * `onSectionChange`, Cancel discards. Deliberately does NOT include
- * Rewrite-with-AI, Undo, export, or the pipeline-status control — those stay
- * on the chat's document card; this is a structure-only editing surface.
+ * Rewrite-with-AI's OWN button, Undo, export, or the pipeline-status
+ * control — those stay on the chat's document card; AI rewriting here comes
+ * from the side chat instead (see AssistantPanel).
+ *
+ * Also carries the AI's targeting checkbox: any combination of sections can
+ * be checked (not just one), replacing an earlier click-the-title
+ * single-select that made it unclear which section an instruction would hit.
  */
 function WorkspaceSection({
   index,
@@ -26,6 +38,8 @@ function WorkspaceSection({
   draft,
   dirty,
   savedFlash,
+  selected,
+  onToggleSelect,
   onStartEdit,
   onChangeDraft,
   onCancel,
@@ -36,6 +50,8 @@ function WorkspaceSection({
   draft: string | undefined;
   dirty: boolean;
   savedFlash: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onStartEdit: () => void;
   onChangeDraft: (value: string) => void;
   onCancel: () => void;
@@ -43,26 +59,49 @@ function WorkspaceSection({
 }) {
   const editing = draft !== undefined;
   const displayText = editing ? draft : section.content;
+  const checkboxId = `workspace-select-${section.id}`;
 
   return (
-    <section aria-labelledby={`workspace-section-${section.id}`} className="scroll-mt-4">
+    <section
+      aria-labelledby={`workspace-section-${section.id}`}
+      className={cn(
+        "scroll-mt-4 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors",
+        selected && "border-brand/40 bg-brand/5",
+      )}
+    >
       <div className="mb-2 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h3
-            id={`workspace-section-${section.id}`}
-            className="break-words text-base font-semibold text-foreground"
-          >
-            {index}. {section.title}
-          </h3>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-            <span>{wordCount(displayText)} words</span>
-            {dirty && <span className="font-medium text-warning">Unsaved changes</span>}
-            {savedFlash && (
-              <span className="inline-flex items-center gap-1 font-medium text-success">
-                <Check className="h-3 w-3" />
-                Saved
-              </span>
-            )}
+        <div className="flex min-w-0 items-start gap-2.5">
+          <Checkbox
+            id={checkboxId}
+            checked={selected}
+            onCheckedChange={onToggleSelect}
+            aria-label={`Select ${section.title} for AI editing`}
+            className="mt-1 shrink-0"
+          />
+          <div className="min-w-0">
+            <label htmlFor={checkboxId} className="cursor-pointer">
+              <h3
+                id={`workspace-section-${section.id}`}
+                className="break-words text-base font-semibold text-foreground"
+              >
+                {index}. {section.title}
+              </h3>
+            </label>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+              <span>{wordCount(displayText)} words</span>
+              {selected && (
+                <span className="font-medium text-brand dark:text-foreground">
+                  Selected for AI editing
+                </span>
+              )}
+              {dirty && <span className="font-medium text-warning">Unsaved changes</span>}
+              {savedFlash && (
+                <span className="inline-flex items-center gap-1 font-medium text-success">
+                  <Check className="h-3 w-3" />
+                  Saved
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -123,55 +162,35 @@ function WorkspaceSection({
 
 function WorkspaceEditor({
   doc,
-  onSectionChange,
+  drafts,
+  savedFlashId,
+  restoredIds,
+  conflictIds,
+  restoreDismissed,
+  persistenceOk,
+  selectedSectionIds,
+  onToggleSection,
+  onDismissRestore,
+  onStartEdit,
+  onChangeDraft,
+  onCancel,
+  onSave,
 }: {
   doc: ApplicationDocument;
-  onSectionChange: (sectionId: string, content: string) => void;
+  drafts: Record<string, string>;
+  savedFlashId: string | null;
+  restoredIds: string[];
+  conflictIds: string[];
+  restoreDismissed: boolean;
+  persistenceOk: boolean;
+  selectedSectionIds: ReadonlySet<string>;
+  onToggleSection: (id: string) => void;
+  onDismissRestore: () => void;
+  onStartEdit: (id: string) => void;
+  onChangeDraft: (id: string, value: string) => void;
+  onCancel: (id: string) => void;
+  onSave: (id: string) => void;
 }) {
-  // Same in-progress-edit model as ApplicationDocumentView: presence of a key
-  // means that section is being edited. Everything below mirrors that
-  // component's save/cancel/restore logic exactly, so switching between the
-  // chat's document card and this workspace for the same document is safe —
-  // both read and write the same gi.drafts.v1 buffer.
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [restoredIds, setRestoredIds] = useState<string[]>([]);
-  const [conflictIds, setConflictIds] = useState<string[]>([]);
-  const [restoreDismissed, setRestoreDismissed] = useState(false);
-
-  const { restore, persistenceOk, flush: flushDrafts } = useDrafts(doc, drafts);
-
-  useEffect(() => {
-    if (!restore) return;
-    setDrafts((prev) => {
-      const merged = { ...prev };
-      for (const [sectionId, text] of Object.entries(restore.sections)) {
-        if (!(sectionId in merged)) merged[sectionId] = text;
-      }
-      return merged;
-    });
-    setRestoredIds(Object.keys(restore.sections));
-    setConflictIds(restore.conflictSectionIds);
-    setRestoreDismissed(false);
-  }, [restore]);
-
-  const forgetRestored = (id: string) => {
-    setRestoredIds((prev) => prev.filter((restoredId) => restoredId !== id));
-    setConflictIds((prev) => prev.filter((conflictId) => conflictId !== id));
-  };
-
-  const flushRequestedRef = useRef(false);
-  const requestDraftFlush = () => {
-    flushRequestedRef.current = true;
-  };
-
-  useEffect(() => {
-    if (!flushRequestedRef.current) return;
-    flushRequestedRef.current = false;
-    flushDrafts();
-  }, [drafts, flushDrafts]);
-
   const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
   const isDirty = (id: string) => {
     const draft = drafts[id];
@@ -184,45 +203,6 @@ function WorkspaceEditor({
     restoredIds.length === 1
       ? `"${titleOf(restoredIds[0])}"`
       : `${restoredIds.length} sections (${restoredIds.map(titleOf).join(", ")})`;
-
-  const flashSaved = (id: string) => {
-    setSavedFlashId(id);
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setSavedFlashId(null), 1600);
-  };
-
-  const startEdit = (id: string) => {
-    setDrafts((prev) => (prev[id] !== undefined ? prev : { ...prev, [id]: savedContentOf(id) }));
-  };
-
-  const updateDraft = (id: string, value: string) => {
-    setDrafts((prev) => ({ ...prev, [id]: value }));
-  };
-
-  const clearDraft = (id: string) => {
-    setDrafts((prev) => {
-      if (!(id in prev)) return prev;
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  };
-
-  const cancelEdit = (id: string) => {
-    clearDraft(id);
-    forgetRestored(id);
-    requestDraftFlush();
-  };
-
-  const save = (id: string) => {
-    const draft = drafts[id];
-    if (draft === undefined) return;
-    onSectionChange(id, draft);
-    clearDraft(id);
-    forgetRestored(id);
-    requestDraftFlush();
-    flashSaved(id);
-  };
 
   return (
     <section aria-label="Document editor" className="min-h-0 flex-1 overflow-y-auto">
@@ -282,7 +262,7 @@ function WorkspaceEditor({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setRestoreDismissed(true)}
+                  onClick={onDismissRestore}
                   className="h-auto shrink-0 rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
                 >
                   Dismiss
@@ -300,7 +280,10 @@ function WorkspaceEditor({
           )}
         </header>
 
-        <div className="space-y-10">
+        {/* Each section is now its own bordered card (see WorkspaceSection),
+            so this gap only needs to keep cards apart — not also carry the
+            sole visual separation the old borderless layout relied on. */}
+        <div className="space-y-6">
           {doc.sections.map((section, i) => (
             <WorkspaceSection
               key={section.id}
@@ -309,10 +292,12 @@ function WorkspaceEditor({
               draft={drafts[section.id]}
               dirty={isDirty(section.id)}
               savedFlash={savedFlashId === section.id}
-              onStartEdit={() => startEdit(section.id)}
-              onChangeDraft={(value) => updateDraft(section.id, value)}
-              onCancel={() => cancelEdit(section.id)}
-              onSave={() => save(section.id)}
+              selected={selectedSectionIds.has(section.id)}
+              onToggleSelect={() => onToggleSection(section.id)}
+              onStartEdit={() => onStartEdit(section.id)}
+              onChangeDraft={(value) => onChangeDraft(section.id, value)}
+              onCancel={() => onCancel(section.id)}
+              onSave={() => onSave(section.id)}
             />
           ))}
         </div>
@@ -321,54 +306,322 @@ function WorkspaceEditor({
   );
 }
 
-/** Inert shell — visually a chat panel, functionally not wired to anything yet. */
-function AssistantPanelPlaceholder() {
+interface WorkspaceChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  tone?: "error";
+}
+
+interface AiEdit {
+  sectionId: string;
+  previousText: string;
+}
+
+/**
+ * The working side chat: instruction in, section (or whole document)
+ * rewritten out, via the SAME mock service the chat card's "Rewrite (mock
+ * AI)" button already calls. Message history is local component state —
+ * intentionally not persisted (see the round's brief).
+ */
+function AssistantPanel({
+  doc,
+  profile,
+  grant,
+  drafts,
+  selectedSectionIds,
+  onSelectAll,
+  onClearSelection,
+  onApplyRewrite,
+}: {
+  doc: ApplicationDocument;
+  profile: OrganisationProfile | undefined;
+  grant: Grant | undefined;
+  /** Read-only here — used so an instruction rewrites whatever the user is
+   * currently looking at, including an in-progress unsaved edit, matching
+   * how the chat card's own Rewrite button already behaves. */
+  drafts: Record<string, string>;
+  selectedSectionIds: ReadonlySet<string>;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
+  onApplyRewrite: (sectionId: string, text: string) => void;
+}) {
+  const [messages, setMessages] = useState<WorkspaceChatMessage[]>([]);
+  const [value, setValue] = useState("");
+  const [pending, setPending] = useState(false);
+  const [progress, setProgress] = useState<{ index: number; total: number; title: string } | null>(
+    null,
+  );
+  const [lastEdit, setLastEdit] = useState<AiEdit[] | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const nextIdRef = useRef(0);
+  const inputId = useId();
+  const selectAllId = useId();
+
+  const targetSections = doc.sections.filter((s) => selectedSectionIds.has(s.id));
+  const allSelected = selectedSectionIds.size === doc.sections.length;
+
+  const nextId = () => {
+    nextIdRef.current += 1;
+    return `workspace-chat-${nextIdRef.current}`;
+  };
+
+  const pushMessage = useCallback((role: "user" | "assistant", text: string, tone?: "error") => {
+    setMessages((prev) => [...prev, { id: nextId(), role, text, tone }]);
+    if (role === "assistant") setAnnouncement(text);
+  }, []);
+
+  const currentTextOf = (sectionId: string) =>
+    drafts[sectionId] ?? doc.sections.find((s) => s.id === sectionId)?.content ?? "";
+
+  /** One rewrite call. Returns the previous text on success, so the caller can build the undo record. */
+  const runRewrite = async (
+    section: DocSection,
+    instruction: string,
+  ): Promise<{ ok: true; previousText: string } | { ok: false }> => {
+    const previousText = currentTextOf(section.id);
+    try {
+      // profile is guaranteed by the caller (send is disabled without one).
+      const next = await grantService.rewriteSection(
+        section.title,
+        previousText,
+        profile as OrganisationProfile,
+        grant,
+        instruction,
+      );
+      onApplyRewrite(section.id, next);
+      return { ok: true, previousText };
+    } catch (err) {
+      pushMessage(
+        "assistant",
+        err instanceof Error ? err.message : `The rewrite for "${section.title}" didn't finish.`,
+        "error",
+      );
+      return { ok: false };
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const instruction = value.trim();
+    if (!instruction || pending || !profile || targetSections.length === 0) return;
+    setValue("");
+    pushMessage("user", instruction);
+    setPending(true);
+    setLastEdit(null);
+
+    // One loop for every case — one section, several, or all: the checkbox
+    // selection IS the target list, so there's no separate "apply to all"
+    // branch to keep in sync with it.
+    const edits: AiEdit[] = [];
+    const showProgress = targetSections.length > 1;
+    for (let i = 0; i < targetSections.length; i++) {
+      const section = targetSections[i];
+      if (showProgress) {
+        setProgress({ index: i + 1, total: targetSections.length, title: section.title });
+      }
+      const result = await runRewrite(section, instruction);
+      if (!result.ok) break;
+      edits.push({ sectionId: section.id, previousText: result.previousText });
+    }
+    setProgress(null);
+
+    if (edits.length > 0) {
+      setLastEdit(edits);
+      pushMessage(
+        "assistant",
+        edits.length === 1
+          ? `Updated "${targetSections[0].title}".`
+          : edits.length === targetSections.length
+            ? `Applied your instruction to all ${edits.length} selected sections.`
+            : `Applied your instruction to ${edits.length} of ${targetSections.length} selected sections before stopping — the rest are unchanged.`,
+      );
+    }
+
+    setPending(false);
+  };
+
+  const handleUndo = () => {
+    if (!lastEdit) return;
+    for (const edit of lastEdit) {
+      onApplyRewrite(edit.sectionId, edit.previousText);
+    }
+    const label =
+      lastEdit.length === 1
+        ? `"${doc.sections.find((s) => s.id === lastEdit[0].sectionId)?.title ?? "that section"}"`
+        : `${lastEdit.length} sections`;
+    pushMessage("assistant", `Reverted ${label} to the text before that change.`);
+    setLastEdit(null);
+  };
+
   return (
     <aside
       aria-label="Assistant chat"
       className="flex min-h-0 w-full shrink-0 flex-col border-t border-border lg:w-[380px] lg:border-l lg:border-t-0"
     >
       <header className="shrink-0 border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold text-foreground">Assistant</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-semibold text-foreground">Assistant</h2>
+          <DemoBadge marker="mock-draft" compact />
+        </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Ask questions or request edits to this document.
+          Describe a change and it&apos;s applied straight to the document.
         </p>
       </header>
 
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-8">
-        <div className="max-w-[220px] text-center">
-          <MessagesSquare className="mx-auto h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            Ask the assistant to revise your document.
+      <div className="shrink-0 border-b border-border px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <p role="status" aria-live="polite" className="text-xs text-foreground">
+            {selectedSectionIds.size === 0 ? (
+              "No sections selected."
+            ) : (
+              <>
+                Editing:{" "}
+                <span className="font-medium text-foreground">
+                  {allSelected
+                    ? `all ${doc.sections.length} sections`
+                    : selectedSectionIds.size === 1
+                      ? targetSections[0]?.title
+                      : `${selectedSectionIds.size} sections`}
+                </span>
+              </>
+            )}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            Not connected yet — coming in a later step.
-          </p>
+          <label
+            htmlFor={selectAllId}
+            className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] font-medium text-foreground"
+          >
+            <Checkbox
+              id={selectAllId}
+              checked={selectedSectionIds.size === 0 ? false : allSelected ? true : "indeterminate"}
+              onCheckedChange={() => (allSelected ? onClearSelection() : onSelectAll())}
+              disabled={pending}
+              aria-label="Select all sections"
+            />
+            Select all
+          </label>
         </div>
+        {selectedSectionIds.size === 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Check at least one section below to enable the assistant.
+          </p>
+        )}
       </div>
 
-      <form
-        // Structure only: nothing is wired yet, so the only reasonable
-        // behaviour for a submit is to swallow it, not silently navigate.
-        onSubmit={(e) => e.preventDefault()}
-        className="shrink-0 border-t border-border p-3"
-      >
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
+        {messages.length === 0 && !pending ? (
+          <div className="m-auto max-w-[220px] text-center">
+            <MessagesSquare
+              className="mx-auto h-8 w-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <p className="mt-3 text-sm text-muted-foreground">
+              Ask the assistant to revise your document.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              e.g. &ldquo;make this more concise&rdquo; or &ldquo;use a more formal tone&rdquo;.
+            </p>
+          </div>
+        ) : (
+          <ul role="list" className="flex flex-col gap-3">
+            {messages.map((m) => (
+              <li
+                key={m.id}
+                className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}
+              >
+                <div
+                  className={cn(
+                    "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere]",
+                    m.role === "user" && "bg-muted text-foreground",
+                    m.role === "assistant" &&
+                      m.tone !== "error" &&
+                      "border border-border bg-muted/30 text-foreground",
+                    m.tone === "error" &&
+                      "border border-destructive/30 bg-destructive/10 text-destructive",
+                  )}
+                >
+                  {m.text}
+                </div>
+              </li>
+            ))}
+            {pending && (
+              <li aria-hidden="true" className="flex justify-start">
+                <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/30 px-3.5 py-2.5">
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand dark:text-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    {progress
+                      ? `Rewriting ${progress.index} of ${progress.total} — ${progress.title}…`
+                      : "Rewriting…"}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 motion-safe:animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 motion-safe:animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 motion-safe:animate-bounce rounded-full bg-muted-foreground/50" />
+                  </span>
+                </div>
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+
+      {lastEdit && !pending && (
+        <div className="shrink-0 border-t border-border px-4 py-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleUndo}
+            className="h-auto rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
+          >
+            <Undo2 className="h-3 w-3" />
+            Undo last change
+          </Button>
+        </div>
+      )}
+
+      {!profile && (
+        <div className="shrink-0 border-t border-border px-4 py-2.5">
+          <InlineNotice tone="warning">
+            No organisation profile is attached to this conversation, so the assistant can&apos;t
+            rewrite anything yet.
+          </InlineNotice>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3">
         <div className="flex items-end gap-2">
-          <label htmlFor="workspace-chat-input" className="sr-only">
+          <label htmlFor={inputId} className="sr-only">
             Message the assistant
           </label>
           <Textarea
-            id="workspace-chat-input"
-            disabled
+            id={inputId}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSubmit(e);
+              }
+            }}
+            disabled={pending || !profile || targetSections.length === 0}
             rows={2}
-            placeholder="Ask the assistant to revise your document…"
+            placeholder={
+              targetSections.length === 0
+                ? "Select at least one section first…"
+                : "Ask the assistant to revise your document…"
+            }
             className="min-h-0 resize-none rounded-lg text-sm"
           />
           <Button
             type="submit"
             size="icon"
-            disabled
-            aria-label="Send (not available yet)"
+            disabled={pending || !profile || !value.trim() || targetSections.length === 0}
+            aria-label="Send"
             className="shrink-0 rounded-lg bg-brand text-white hover:bg-brand/90"
           >
             <Send className="h-4 w-4" />
@@ -376,6 +629,159 @@ function AssistantPanelPlaceholder() {
         </div>
       </form>
     </aside>
+  );
+}
+
+function DocumentWorkspaceContent({
+  doc,
+  profile,
+  grant,
+  onSectionChange,
+}: {
+  doc: ApplicationDocument;
+  profile: OrganisationProfile | undefined;
+  grant: Grant | undefined;
+  onSectionChange: (sectionId: string, content: string) => void;
+}) {
+  // Same in-progress-edit model as ApplicationDocumentView: presence of a key
+  // means that section is being edited. Lifted up from the editor pane (vs.
+  // the structure-only version of this component) so the assistant panel can
+  // apply an AI rewrite through the exact same commit path as a manual Save —
+  // including clearing out any open draft on that section — rather than a
+  // second, divergent write path.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [restoredIds, setRestoredIds] = useState<string[]>([]);
+  const [conflictIds, setConflictIds] = useState<string[]>([]);
+  const [restoreDismissed, setRestoreDismissed] = useState(false);
+  // Starts empty on purpose — an instruction must never silently land on
+  // section 1 just because nothing was explicitly checked yet.
+  const [selectedSectionIds, setSelectedSectionIds] = useState<Set<string>>(() => new Set());
+
+  const { restore, persistenceOk, flush: flushDrafts } = useDrafts(doc, drafts);
+
+  useEffect(() => {
+    if (!restore) return;
+    setDrafts((prev) => {
+      const merged = { ...prev };
+      for (const [sectionId, text] of Object.entries(restore.sections)) {
+        if (!(sectionId in merged)) merged[sectionId] = text;
+      }
+      return merged;
+    });
+    setRestoredIds(Object.keys(restore.sections));
+    setConflictIds(restore.conflictSectionIds);
+    setRestoreDismissed(false);
+  }, [restore]);
+
+  const forgetRestored = (id: string) => {
+    setRestoredIds((prev) => prev.filter((restoredId) => restoredId !== id));
+    setConflictIds((prev) => prev.filter((conflictId) => conflictId !== id));
+  };
+
+  const flushRequestedRef = useRef(false);
+  const requestDraftFlush = () => {
+    flushRequestedRef.current = true;
+  };
+
+  useEffect(() => {
+    if (!flushRequestedRef.current) return;
+    flushRequestedRef.current = false;
+    flushDrafts();
+  }, [drafts, flushDrafts]);
+
+  const flashSaved = (id: string) => {
+    setSavedFlashId(id);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setSavedFlashId(null), 1600);
+  };
+
+  const startEdit = (id: string) => {
+    const savedContent = doc.sections.find((s) => s.id === id)?.content ?? "";
+    setDrafts((prev) => (prev[id] !== undefined ? prev : { ...prev, [id]: savedContent }));
+  };
+
+  const updateDraft = (id: string, value: string) => {
+    setDrafts((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const clearDraft = (id: string) => {
+    setDrafts((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const cancelEdit = (id: string) => {
+    clearDraft(id);
+    forgetRestored(id);
+    requestDraftFlush();
+  };
+
+  /** The one write path: manual Save and an applied AI rewrite both funnel through here. */
+  const commitSection = (id: string, text: string) => {
+    onSectionChange(id, text);
+    clearDraft(id);
+    forgetRestored(id);
+    requestDraftFlush();
+    flashSaved(id);
+  };
+
+  const save = (id: string) => {
+    const draft = drafts[id];
+    if (draft === undefined) return;
+    commitSection(id, draft);
+  };
+
+  const toggleSection = (id: string) => {
+    setSelectedSectionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllSections = () => {
+    setSelectedSectionIds(new Set(doc.sections.map((s) => s.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedSectionIds(new Set());
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col lg:flex-row lg:overflow-hidden">
+      <WorkspaceEditor
+        doc={doc}
+        drafts={drafts}
+        savedFlashId={savedFlashId}
+        restoredIds={restoredIds}
+        conflictIds={conflictIds}
+        restoreDismissed={restoreDismissed}
+        persistenceOk={persistenceOk}
+        selectedSectionIds={selectedSectionIds}
+        onToggleSection={toggleSection}
+        onDismissRestore={() => setRestoreDismissed(true)}
+        onStartEdit={startEdit}
+        onChangeDraft={updateDraft}
+        onCancel={cancelEdit}
+        onSave={save}
+      />
+      <AssistantPanel
+        doc={doc}
+        profile={profile}
+        grant={grant}
+        drafts={drafts}
+        selectedSectionIds={selectedSectionIds}
+        onSelectAll={selectAllSections}
+        onClearSelection={clearSelection}
+        onApplyRewrite={commitSection}
+      />
+    </div>
   );
 }
 
@@ -388,17 +794,17 @@ function AssistantPanelPlaceholder() {
  * cross-conversation document registry in this app (see getDocument in
  * BlockRenderer), so "open the workspace for an application" means "switch
  * to that application's conversation, then switch mainView to workspace".
- *
- * Structure only: the left pane's editing is fully real (same useDrafts
- * buffer, same save semantics as the chat's document card); the right pane
- * is an inert placeholder — see AssistantPanelPlaceholder.
  */
 export function DocumentWorkspace({
   doc,
+  profile,
+  grant,
   onSectionChange,
   onGoToChat,
 }: {
   doc: ApplicationDocument | undefined;
+  profile: OrganisationProfile | undefined;
+  grant: Grant | undefined;
   onSectionChange: (sectionId: string, content: string) => void;
   onGoToChat: () => void;
 }) {
@@ -419,9 +825,11 @@ export function DocumentWorkspace({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col lg:flex-row lg:overflow-hidden">
-      <WorkspaceEditor doc={doc} onSectionChange={onSectionChange} />
-      <AssistantPanelPlaceholder />
-    </div>
+    <DocumentWorkspaceContent
+      doc={doc}
+      profile={profile}
+      grant={grant}
+      onSectionChange={onSectionChange}
+    />
   );
 }
