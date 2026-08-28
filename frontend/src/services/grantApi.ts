@@ -153,14 +153,20 @@ export function mapGrantResult(dto: GrantResultDto): Grant {
     programme: clean(dto.programme ?? undefined),
     matchPercentage: dto.matchPercentage ?? undefined,
     fundingAmount: clean(dto.fundingAmount ?? dto.amount ?? undefined),
-    deadline: clean(dto.deadline ?? undefined),
+    deadline:
+      dto.deadline && dto.deadline.trim().length >= 8 && !/^\d{1,4}$/.test(dto.deadline.trim())
+        ? clean(dto.deadline)
+        : undefined,
     eligibleCountries: dto.eligibleCountries,
     organisationEligibility,
-    fundingType: clean(dto.fundingType ?? undefined),
+    fundingType:
+      dto.fundingType && !/^\d+$/.test(dto.fundingType.trim())
+        ? clean(dto.fundingType)
+        : undefined,
     whyItMatches: clean(dto.whyItMatches ?? dto.match_explanation ?? undefined),
     matchReasons: dto.matchReasons,
     requirements: dto.requirements,
-    tags: dto.tags,
+    tags: dto.tags?.filter((t) => t && t.trim().length >= 2 && !/^\d+$/.test(t.trim())),
     sourceUrl: clean(dto.sourceUrl ?? dto.url ?? undefined),
   };
 }
