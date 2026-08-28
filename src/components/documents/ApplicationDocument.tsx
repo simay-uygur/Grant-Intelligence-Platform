@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileDown,
+  FileText,
   KanbanSquare,
   Loader2,
   Pencil,
@@ -61,6 +62,8 @@ interface Props {
   applicationStatus?: ApplicationStatus;
   onApplicationStatusChange?: (status: ApplicationStatus) => void;
   onViewInPipeline?: () => void;
+  /** Switches to the full-page document workspace for this application. */
+  onOpenWorkspace?: () => void;
 }
 
 // A rewrite is only treated as "replacing manual edits" once the in-progress
@@ -87,6 +90,7 @@ export function ApplicationDocumentView({
   applicationStatus,
   onApplicationStatusChange,
   onViewInPipeline,
+  onOpenWorkspace,
 }: Props) {
   const sectionSelectId = useId();
   const [activeId, setActiveId] = useState(doc.sections[0]?.id ?? "");
@@ -307,6 +311,18 @@ export function ApplicationDocumentView({
               </p>
             </div>
             <div className="flex flex-wrap gap-2 sm:shrink-0">
+              {onOpenWorkspace && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onOpenWorkspace}
+                  className="rounded-lg hover:bg-muted"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Open full workspace
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"

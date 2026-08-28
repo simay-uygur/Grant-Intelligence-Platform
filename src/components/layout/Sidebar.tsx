@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 import {
   Bookmark,
+  FileText,
   KanbanSquare,
   Landmark,
   MessagesSquare,
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/sheet";
 
 /** Which main view the app is showing. Local UI state only — never persisted. */
-export type MainView = "chat" | "pipeline" | "saved";
+export type MainView = "chat" | "pipeline" | "saved" | "workspace";
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -41,6 +42,7 @@ interface SidebarProps {
 
 const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare },
+  { id: "workspace", label: "Workspace", icon: FileText },
   { id: "pipeline", label: "Pipeline", icon: KanbanSquare },
   { id: "saved", label: "Saved", icon: Bookmark },
 ];

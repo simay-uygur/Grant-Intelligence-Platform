@@ -20,6 +20,7 @@ import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sideb
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
 import { SavedGrants } from "@/components/SavedGrants";
+import { DocumentWorkspace } from "@/components/documents/DocumentWorkspace";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -472,6 +473,7 @@ export function App() {
       onUpdateApplicationStatus: (documentId, status) =>
         updateApplicationStatus(`app-${documentId}`, status),
       onViewInPipeline: () => setMainView("pipeline"),
+      onOpenWorkspace: () => setMainView("workspace"),
       formDisabled: busy,
       // "Has the search finished", not "did it find anything" — a completed
       // search that matched nothing must still stop the research card's
@@ -529,7 +531,9 @@ export function App() {
       ? "Application pipeline"
       : mainView === "saved"
         ? "Saved grants"
-        : (active?.title ?? "No conversation");
+        : mainView === "workspace"
+          ? (active?.document?.grantTitle ?? "Document workspace")
+          : (active?.title ?? "No conversation");
 
   return (
     <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
@@ -683,6 +687,16 @@ export function App() {
         {mainView === "saved" && (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <SavedGrants onGoToChat={() => setMainView("chat")} />
+          </div>
+        )}
+
+        {mainView === "workspace" && (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <DocumentWorkspace
+              doc={active?.document}
+              onSectionChange={c.updateDocumentSection}
+              onGoToChat={() => setMainView("chat")}
+            />
           </div>
         )}
 
