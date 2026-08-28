@@ -42,6 +42,9 @@ export class ApiGrantService implements GrantService {
     const response = parseGrantSearchResponse(payload);
     return {
       grants: response.grants.map(mapGrantResult),
+      allCandidates: response.all_candidates
+        ? response.all_candidates.map(mapGrantResult)
+        : undefined,
       sourceSummary: response.source_summary,
       batchId: response.batch_id ?? undefined,
       batchIndex: response.batch_index ?? undefined,

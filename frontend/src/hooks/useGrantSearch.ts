@@ -31,6 +31,7 @@ interface UseGrantSearchOptions {
     grants: Grant[],
     sourceSummary: string | undefined,
     profile: OrganisationProfile,
+    allCandidates?: Grant[],
   ) => void;
   /** Called with an error message if the search fails. */
   onResearchError: (messageId: string, error: string) => void;
@@ -157,7 +158,7 @@ export function useGrantSearch({
 
         setGrants(grants);
         setStage("results");
-        onResearchComplete(grants, result.sourceSummary, profile);
+        onResearchComplete(grants, result.sourceSummary, profile, result.allCandidates);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Research failed";
         onResearchError(messageId, message);

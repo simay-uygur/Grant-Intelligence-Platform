@@ -127,6 +127,36 @@ describe("grant API mapping", () => {
     expect(grant.matchPercentage).toBeUndefined();
   });
 
+  test("maps all_candidates when provided in backend search response", () => {
+    const response = parseGrantSearchResponse({
+      grants: [
+        {
+          id: "HORIZON-1",
+          title: "AI call",
+          source: "eu_horizon",
+          summary: "A live opportunity",
+        },
+      ],
+      all_candidates: [
+        {
+          id: "web-abc123",
+          title: "EIC Accelerator 2026",
+          source: "Web Search",
+          summary: "EIC funding for breakthrough innovation",
+          url: "https://eic.ec.europa.eu/accelerator",
+        },
+      ],
+      source_summary: "Discovered sources.",
+    });
+
+    expect(response.all_candidates).toHaveLength(1);
+    const candidate = mapGrantResult(response.all_candidates![0]);
+    expect(candidate.id).toBe("web-abc123");
+    expect(candidate.title).toBe("EIC Accelerator 2026");
+    expect(candidate.source).toBe("Web Search");
+    expect(candidate.sourceUrl).toBe("https://eic.ec.europa.eu/accelerator");
+  });
+
   test("rejects malformed backend responses with a stable error", () => {
     expect(() => parseGrantSearchResponse({ grants: "not-an-array" })).toThrow(
       GrantApiContractError,

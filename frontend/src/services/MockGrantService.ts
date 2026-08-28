@@ -68,6 +68,7 @@ export class MockGrantService implements GrantService {
 
     return {
       grants: filteredGrants,
+      allCandidates: filteredGrants,
       sourceSummary: "Demo grants from the local mock catalogue.",
     };
   }

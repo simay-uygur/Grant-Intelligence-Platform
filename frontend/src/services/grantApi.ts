@@ -50,6 +50,7 @@ const grantResultDtoSchema = z.object({
 
 export const grantSearchResponseSchema = z.object({
   grants: z.array(grantResultDtoSchema),
+  all_candidates: z.array(grantResultDtoSchema).optional().nullable(),
   source_summary: z
     .string()
     .optional()

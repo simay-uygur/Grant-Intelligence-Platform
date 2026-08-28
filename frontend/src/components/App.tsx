@@ -176,7 +176,6 @@ const DEMO_PROFILE: OrganisationProfile = {
 
 export function App() {
   const c = useConversations();
-  const { synchronizeBackendMessages } = c;
   const apps = useApplications();
   const addApplication = apps.addApplication;
   const [busy, setBusy] = useState(false);
@@ -277,6 +276,10 @@ export function App() {
     [appendMessage, uid],
   );
 
+  const { setProfile, setGrants, synchronizeBackendMessages } = c;
+  const activeConversationRef = useRef(c.activeConversation);
+  activeConversationRef.current = c.activeConversation;
+
   const synchronizeBackendHistory = useCallback(
     async (conversationId: string, backendConversationId: string) => {
       if (!chatService) return;
@@ -296,13 +299,11 @@ export function App() {
         if (batches && batches.length > 0) {
           const latest = batches[batches.length - 1];
           if (latest.grants && latest.grants.length > 0) {
-            c.setGrants(latest.grants);
+            setGrants(latest.grants);
           }
-          if (
-            latest.profile &&
-            (!c.activeConversation?.profile || !c.activeConversation.profile.organisationName)
-          ) {
-            c.setProfile(latest.profile as OrganisationProfile);
+          const currentProfile = activeConversationRef.current?.profile;
+          if (latest.profile && (!currentProfile || !currentProfile.organisationName)) {
+            setProfile(latest.profile as OrganisationProfile);
           }
         }
 
@@ -319,7 +320,7 @@ export function App() {
         });
       }
     },
-    [c, synchronizeBackendMessages],
+    [setGrants, setProfile, synchronizeBackendMessages],
   );
 
   useEffect(() => {
@@ -327,7 +328,7 @@ export function App() {
     const backendConversationId = c.activeConversation?.backendConversationId;
     if (!chatService || !conversationId || !backendConversationId) {
       historySyncRequest.current += 1;
-      setBackendHistorySync({ status: "idle" });
+      setBackendHistorySync((prev) => (prev.status === "idle" ? prev : { status: "idle" }));
       return;
     }
     void synchronizeBackendHistory(conversationId, backendConversationId);
@@ -366,7 +367,7 @@ export function App() {
     onResearchStart: (initialState) =>
       askAssistant([{ type: "research_status", state: initialState }]),
     onResearchProgress: (messageId, updater) => setBlocks(messageId, updater),
-    onResearchComplete: (grants, sourceSummary, profile) => {
+    onResearchComplete: (grants, sourceSummary, profile, allCandidates) => {
       askAssistant([
         {
           type: "text",
@@ -377,7 +378,7 @@ export function App() {
                 ? `I found ${grants.length} alternative demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
                 : `I found ${grants.length} alternative live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName} (excluding previously shown calls).`,
         },
-        { type: "grant_results", grants, sourceSummary },
+        { type: "grant_results", grants, allCandidates, sourceSummary },
       ]);
     },
     onResearchError: (messageId, message) => {

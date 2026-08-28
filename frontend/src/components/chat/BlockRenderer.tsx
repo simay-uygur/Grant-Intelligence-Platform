@@ -93,6 +93,7 @@ export function BlockRenderer({
       return (
         <GrantResults
           grants={block.grants}
+          allCandidates={block.allCandidates}
           sourceSummary={block.sourceSummary}
           onAsk={callbacks.onAskGrant}
           onStart={callbacks.onStartApplication}

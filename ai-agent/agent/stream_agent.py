@@ -217,8 +217,12 @@ def _search_candidates_step(
                 }
                 continue
 
+            today_str = date.today().isoformat()
             added_count = 0
             for g in results:
+                dl = g.get("deadline")
+                if dl and str(dl)[:10] < today_str:
+                    continue
                 # Ensure source attribution
                 if not g.get("source"):
                     g["source"] = "EU Horizon API" if source_type == "eu_portal" else "Web Search"
@@ -444,11 +448,30 @@ def run_agent_stream(
 
     is_degraded = degraded["keywords"] or degraded["selection"]
 
+    formatted_candidates = []
+    for idx, g in enumerate(candidates):
+        cid = str(g.get("id") or g.get("identifier") or f"cand-{idx}")
+        formatted_candidates.append(
+            {
+                "id": cid,
+                "identifier": str(g.get("identifier") or cid),
+                "title": str(g.get("title") or "Grant Opportunity"),
+                "programme": str(g.get("programme") or "Horizon Europe"),
+                "source": str(g.get("source") or ("Web Search" if "web" in str(g.get("id", "")).lower() else "EU Horizon API")),
+                "url": str(g.get("url") or g.get("sourceUrl") or ""),
+                "sourceUrl": str(g.get("url") or g.get("sourceUrl") or ""),
+                "summary": str(g.get("summary") or g.get("description") or g.get("title") or ""),
+                "description": str(g.get("summary") or g.get("description") or g.get("title") or ""),
+                "deadline": str(g.get("deadline")) if g.get("deadline") else None,
+                "fundingAmount": str(g.get("budget")) if g.get("budget") else None,
+            }
+        )
+
     yield {
         "event": "progress",
         "stage": "select",
-        "message": f"Finalised {len(selected_grants)} recommendation(s) for {org_name}",
-        "data": {"revealed_count": len(revealed), "final_count": len(selected_grants)},
+        "message": f"Finalised {len(selected_grants)} recommendation(s) for {org_name} (from {len(formatted_candidates)} discovered sources)",
+        "data": {"revealed_count": len(revealed), "final_count": len(selected_grants), "candidate_count": len(formatted_candidates)},
     }
 
     yield {
@@ -457,6 +480,7 @@ def run_agent_stream(
         "message": (f"Selected {len(selected_grants)} sample grant recommendations (AI ranking unavailable)" if is_degraded else f"Selected {len(selected_grants)} top grant recommendations"),
         "data": {
             "grants": selected_grants,
+            "all_candidates": formatted_candidates,
             "reply": (
                 f"Found {len(selected_grants)} live grant opportunities for {profile.get('organisationName') or 'your organisation'}. Note: AI ranking was unavailable, so results are unranked samples."
                 if is_degraded

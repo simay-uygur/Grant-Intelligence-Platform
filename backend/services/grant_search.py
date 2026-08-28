@@ -62,6 +62,7 @@ class GrantSearchService:
         ):
             if event.get("event") == "result" and "grants" in event.get("data", {}):
                 grants_data = event["data"]["grants"]
+                all_candidates_data = event["data"].get("all_candidates")
                 batch_id = None
                 batch_index = None
                 if payload.conversation_id or user_id:
@@ -78,6 +79,7 @@ class GrantSearchService:
 
                 response = GrantSearchResponse(
                     grants=[GrantResult.model_validate(grant) for grant in grants_data],
+                    all_candidates=[GrantResult.model_validate(c) for c in all_candidates_data] if all_candidates_data else None,
                     source_summary=source_summary,
                     normalized_filters_applied=payload.to_agent_profile() | {"limit": payload.limit},
                     batch_id=batch_id,

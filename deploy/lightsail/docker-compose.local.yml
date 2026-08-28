@@ -39,7 +39,7 @@ services:
     build:
       context: ../..
       dockerfile: backend/Dockerfile
-    command: ["sh", "-c", "alembic upgrade head && exec uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend --reload-dir /app/agent"]
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend --reload-dir /app/agent --reload-dir /app/ai-agent"]
     ports:
       - "8000:8000"
     expose:
@@ -56,6 +56,7 @@ services:
       # Mount source code for live hot-reloading
       - ../../backend:/app/backend
       - ../../agent:/app/agent
+      - ../../ai-agent:/app/ai-agent
       # Keep SQLite data on the host so deleting or creating an application
       # survives backend image rebuilds and container recreation.
       - ../../storage:/app/storage

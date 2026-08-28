@@ -208,6 +208,7 @@ class GrantResult(BaseModel):
 
 class GrantSearchResponse(BaseModel):
     grants: list[GrantResult] = Field(description=("Agent-ranked grant results."))
+    all_candidates: list[GrantResult] | None = Field(default=None, description="All candidate grants and web discovery sources found prior to ranking.")
     source_summary: str = Field(description="Human-readable explanation of which source or adapter was used.")
     normalized_filters_applied: dict[str, Any] = Field(description="Final profile values sent to the agent.")
     batch_id: str | None = Field(default=None, description="Persisted search batch ID if linked to a conversation/user.")

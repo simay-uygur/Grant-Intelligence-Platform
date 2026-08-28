@@ -63,6 +63,7 @@ export interface Grant {
 
 export interface GrantSearchResult {
   grants: Grant[];
+  allCandidates?: Grant[];
   sourceSummary: string;
   batchId?: string;
   batchIndex?: number;
@@ -136,7 +137,7 @@ export type ChatBlock =
   | { type: "structured_form"; profile?: Partial<OrganisationProfile> }
   | { type: "research_status"; state: ResearchState }
   | { type: "draft_progress"; state: DraftProgressState }
-  | { type: "grant_results"; grants: Grant[]; sourceSummary?: string }
+  | { type: "grant_results"; grants: Grant[]; allCandidates?: Grant[]; sourceSummary?: string }
   | { type: "document"; documentId: string; grantTitle?: string; superseded?: boolean }
   | { type: "error"; message: string }
   | { type: "success"; message: string };
