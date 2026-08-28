@@ -458,10 +458,10 @@ function GrantCard({
   const compareId = `compare-${grant.id}`;
   const hasFacts = Boolean(
     grant.fundingAmount ||
-      grant.deadline ||
-      grant.fundingType ||
-      grant.eligibleCountries?.length ||
-      grant.organisationEligibility?.length,
+    grant.deadline ||
+    grant.fundingType ||
+    grant.eligibleCountries?.length ||
+    grant.organisationEligibility?.length,
   );
 
   const [whyExpanded, setWhyExpanded] = useState(false);
@@ -543,9 +543,7 @@ function GrantCard({
                 icon={<Sparkles className="h-3 w-3" />}
               />
             ) : null}
-            {grant.fundingType ? (
-              <Fact label="Funding type" value={grant.fundingType} />
-            ) : null}
+            {grant.fundingType ? <Fact label="Funding type" value={grant.fundingType} /> : null}
             {grant.deadline ? (
               <Fact
                 label="Deadline"

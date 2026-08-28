@@ -160,9 +160,7 @@ export function mapGrantResult(dto: GrantResultDto): Grant {
     eligibleCountries: dto.eligibleCountries,
     organisationEligibility,
     fundingType:
-      dto.fundingType && !/^\d+$/.test(dto.fundingType.trim())
-        ? clean(dto.fundingType)
-        : undefined,
+      dto.fundingType && !/^\d+$/.test(dto.fundingType.trim()) ? clean(dto.fundingType) : undefined,
     whyItMatches: clean(dto.whyItMatches ?? dto.match_explanation ?? undefined),
     matchReasons: dto.matchReasons,
     requirements: dto.requirements,
