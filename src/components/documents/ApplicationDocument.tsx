@@ -314,10 +314,9 @@ export function ApplicationDocumentView({
               {onOpenWorkspace && (
                 <Button
                   type="button"
-                  variant="outline"
                   size="sm"
                   onClick={onOpenWorkspace}
-                  className="rounded-lg hover:bg-muted"
+                  className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
                 >
                   <FileText className="h-3.5 w-3.5" />
                   Open full workspace
