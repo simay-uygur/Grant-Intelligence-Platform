@@ -98,6 +98,29 @@ function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
   ];
 }
 
+// Same idea as answerAboutGrant: a few keyword checks against what the
+// user actually typed, never a real intent model. The NEXT step is always
+// the same profile form regardless — this only changes the sentence that
+// leads into it, so an opener isn't met with a reply that ignores it.
+const DEFAULT_WELCOME_REPLY =
+  "Great — to match you to the strongest calls, please complete this short profile.";
+
+function openingAcknowledgement(text: string): string {
+  const q = text.toLowerCase();
+
+  if (/compar|funding opportunit/.test(q)) {
+    return "Happy to help you compare funding options — first, a quick profile so I can match the strongest calls:";
+  }
+  if (/draft|application|write/.test(q)) {
+    return "Let's get your application started — first, a short profile so the draft fits the right grant:";
+  }
+  if (/eligib|check/.test(q)) {
+    return "I can check what you're eligible for — first, a quick profile so I can match you accurately:";
+  }
+
+  return DEFAULT_WELCOME_REPLY;
+}
+
 const DEMO_PROFILE: OrganisationProfile = {
   organisationName: "Northlight Robotics",
   organisationType: "SME",
@@ -353,10 +376,7 @@ export function App() {
       } else if (stage === "welcome") {
         c.setStage("collecting_information");
         askAssistant([
-          {
-            type: "text",
-            text: "Great — to match you to the strongest calls, please complete this short profile.",
-          },
+          { type: "text", text: openingAcknowledgement(text) },
           { type: "structured_form" },
         ]);
       } else if (stage === "application") {
