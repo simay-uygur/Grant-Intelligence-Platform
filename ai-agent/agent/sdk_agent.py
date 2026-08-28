@@ -4,6 +4,11 @@
 # The finalize tool writes the result to a per-task ContextVar so concurrent requests stay isolated.
 
 import asyncio
+import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 import json
 import os
 from contextvars import ContextVar
@@ -39,6 +44,7 @@ except ImportError:
     ClaudeSDKClient = None
 
 from tools.eu_horizon_api import eu_horizon_api
+from tools.web_search import web_search as _web_search
 from tools.rewrite_section import rewrite_section as _rewrite_section
 from tools.start_application import start_application as _start_application
 
@@ -53,6 +59,18 @@ MODEL_ID = get_model_id()
 _result_holder_var: ContextVar[list[Any] | None] = ContextVar("_result_holder_var", default=None)
 
 from datetime import date
+
+@tool(
+    "web_search_grants",
+    "Search the WIDER INTERNET for funding opportunities when EU Horizon has no strong match. "
+    "Provide a search query. Returns real web results with titles and source URLs. "
+    "Use this to find national grants, foundations, or other programmes — and always show the URLs.",
+    {"query": str},
+)
+async def web_search_grants(args: dict[str, Any]) -> dict[str, Any]:
+    import json as _json
+    results = _web_search(args["query"], max_results=5)
+    return {"content": [{"type": "text", "text": _json.dumps(results, indent=2)}]}
 
 
 # --- Tool: search EU grants (deterministic, no LLM, no auto-select) ---
@@ -178,12 +196,13 @@ async def rewrite_application_section(args: dict[str, Any]) -> dict[str, Any]:
 grant_server = create_sdk_mcp_server(
     name="grant-tools",
     version="2.0.0",
-    tools=[
+        tools=[
         search_eu_grants,
         evaluate_grant_candidates,
         finalize_grant_recommendations,
         draft_application,
         rewrite_application_section,
+        web_search_grants,
     ],
 )
 
@@ -193,6 +212,7 @@ ALLOWED_TOOLS = [
     "mcp__grants__finalize_grant_recommendations",
     "mcp__grants__draft_application",
     "mcp__grants__rewrite_application_section",
+    "mcp__grants__web_search_grants",
 ]
 
 
