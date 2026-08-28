@@ -23,3 +23,4 @@ sqlalchemy>=2.0.36
 alembic>=1.13
 psycopg[binary]>=3.1
 psycopg2-binary>=2.9.9
+ddgs>=9.16.0
