@@ -496,6 +496,15 @@ export function App() {
 
   const active = c.activeConversation;
 
+  // Same lookup as callbacks.getGrantById (falls back to the mock catalogue
+  // when the document's grant has fallen out of this conversation's current
+  // `grants` list) — computed directly here since the workspace is rendered
+  // outside BlockRenderer and doesn't go through `callbacks`.
+  const workspaceGrant = active?.document
+    ? (active.grants?.find((g) => g.id === active.document?.grantId) ??
+      MOCK_GRANTS.find((g) => g.id === active.document?.grantId))
+    : undefined;
+
   // Show a lightweight "assistant is working" indicator for gaps where busy
   // work is happening but no research_status block (which has its own
   // step-by-step progress and recommendation-skeleton UI) is already
@@ -694,6 +703,8 @@ export function App() {
           <div className="min-h-0 flex-1 overflow-hidden">
             <DocumentWorkspace
               doc={active?.document}
+              profile={active?.profile}
+              grant={workspaceGrant}
               onSectionChange={c.updateDocumentSection}
               onGoToChat={() => setMainView("chat")}
             />

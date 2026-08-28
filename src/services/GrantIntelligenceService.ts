@@ -15,5 +15,7 @@ export interface GrantIntelligenceService {
     currentContent: string,
     profile: OrganisationProfile,
     grant: Grant | undefined,
+    /** Free-text instruction from the user (e.g. "make it more concise"). Optional so existing callers that just want a generic rewrite keep working unchanged. */
+    instruction?: string,
   ): Promise<string>;
 }

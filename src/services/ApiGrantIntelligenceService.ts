@@ -38,7 +38,10 @@ export class ApiGrantIntelligenceService implements GrantIntelligenceService {
 
   // TODO(api): no rewrite endpoint exists yet — this mirrors the interface
   // so switching VITE_API_MODE=api doesn't silently drop the feature; it
-  // fails loudly instead of pretending to work.
+  // fails loudly instead of pretending to work. The interface's optional
+  // `instruction` param (see GrantIntelligenceService) would pass straight
+  // through in the request body once this calls a real endpoint — no params
+  // are declared here since none are used while this only throws.
   async rewriteSection(): Promise<string> {
     throw new Error("Rewrite is not yet available on the API backend");
   }

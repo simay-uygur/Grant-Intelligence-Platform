@@ -118,6 +118,7 @@ export class MockGrantIntelligenceService implements GrantIntelligenceService {
     currentContent: string,
     profile: OrganisationProfile,
     grant: Grant | undefined,
+    instruction?: string,
   ): Promise<string> {
     await wait(700);
     if (isMockScenario("rewrite-error")) {
@@ -127,6 +128,7 @@ export class MockGrantIntelligenceService implements GrantIntelligenceService {
     }
     const org = profile.organisationName || "Our organisation";
     const programme = grant?.programme ?? "the target programme";
+    const cleanInstruction = instruction?.trim();
     const openings: Record<string, string> = {
       "Organisation Overview": `${org} is a ${profile.organisationType || "European"} organisation with a clear mandate in the ${profile.sector || "target"} sector, operating from ${profile.country || "the EU"}.`,
       "Project Summary": `${profile.projectTitle || "This project"} addresses a well-defined need with a focused, ${profile.projectDuration || "multi-month"} plan aligned to ${programme}.`,
@@ -145,6 +147,38 @@ export class MockGrantIntelligenceService implements GrantIntelligenceService {
       openings[sectionTitle] ??
       `This section on ${sectionTitle.toLowerCase()} has been refined for clarity and evaluator focus.`;
     const trimmed = currentContent.trim();
-    return `${opener}\n\n${trimmed}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
+
+    if (!cleanInstruction) {
+      return `${opener}\n\n${trimmed}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
+    }
+
+    // Instruction-aware path — still not a real AI call: a few keyword
+    // matches against common asks, each with a genuine, visible effect on
+    // the body text (not just a label), so the mock actually demonstrates
+    // what was requested. Anything unrecognised still quotes the
+    // instruction back verbatim rather than silently ignoring it.
+    const q = cleanInstruction.toLowerCase();
+    let body = trimmed;
+    let appliedNote: string;
+    if (/concise|short|shorter|trim|brief/.test(q)) {
+      const sentences = trimmed.split(/(?<=[.!?])\s+/).filter(Boolean);
+      body = sentences.slice(0, Math.max(1, Math.ceil(sentences.length / 2))).join(" ");
+      appliedNote = "made more concise";
+    } else if (/expand|longer|detail|elaborate|more\b/.test(q)) {
+      body = `${trimmed} Further detail: this element also strengthens alignment with ${programme}'s evaluation criteria and demonstrates readiness for the requested scope of work.`;
+      appliedNote = "expanded with more detail";
+    } else if (/formal|professional/.test(q)) {
+      appliedNote = "shifted to a more formal register";
+    } else if (/simple|simplify|plain|clear/.test(q)) {
+      appliedNote = "simplified for a general reader";
+    } else if (/persuasive|compelling|strong|confiden/.test(q)) {
+      appliedNote = "sharpened to be more persuasive";
+    } else if (/technical/.test(q)) {
+      appliedNote = "made more technical";
+    } else {
+      appliedNote = `revised per your instruction ("${cleanInstruction}")`;
+    }
+
+    return `${opener}\n\n${body}\n\nApplied instruction — ${appliedNote}. This revision targets ${programme} evaluators.`;
   }
 }
