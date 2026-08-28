@@ -64,7 +64,7 @@ from datetime import date
 
 @tool(
     "web_search_grants",
-    "Search the WIDER INTERNET for funding opportunities when EU Horizon has no strong match. Provide a search query. Returns real web results with titles and source URLs. Use this to find national grants, foundations, or other programmes — and always show the URLs.",
+    "Search the wider internet for funding opportunities, national/regional grants, foundations, or international programmes in parallel with EU database searches. Provide a search query. Returns real web results with titles and source URLs.",
     {"query": str},
 )
 async def web_search_grants(args: dict[str, Any]) -> dict[str, Any]:

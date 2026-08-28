@@ -27,7 +27,7 @@ class GrantSearchService:
             max_grants=payload.limit,
             excluded_grant_ids=effective_excluded,
         )
-        source_summary = "Results come from the live EU Funding & Tenders Portal and are ranked against your profile by the Bedrock-backed grant agent."
+        source_summary = "Results discovered through parallel multi-source search across the live EU Funding & Tenders Portal and web grant discovery, ranked against your profile by the AI agent."
 
         batch_id = None
         batch_index = None
@@ -53,7 +53,7 @@ class GrantSearchService:
 
     def search_stream(self, payload: GrantSearchRequest, user_id: str | None = None) -> Iterator[dict[str, Any]]:
         effective_excluded = self._resolve_excluded_ids(payload, user_id=user_id)
-        source_summary = "Results come from the live EU Funding & Tenders Portal and are ranked against your profile by the Bedrock-backed grant agent."
+        source_summary = "Results discovered through parallel multi-source search across the live EU Funding & Tenders Portal and web grant discovery, ranked against your profile by the AI agent."
 
         for event in self.agent_service.search_grants_stream(
             payload.to_agent_profile(),

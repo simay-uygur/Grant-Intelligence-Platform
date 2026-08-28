@@ -126,7 +126,7 @@ def tools_list() -> ToolsListResponse:
         tools=[
             ToolInfo(
                 name="searchGrants",
-                description="Search live EU grant opportunities and rank them against an organisation profile.",
+                description="Search live EU grant calls and web funding opportunities in parallel, ranking them against an organisation profile.",
                 status="live",
                 handler="agent.service.search_grants",
                 input_model="GrantSearchRequest",
@@ -160,7 +160,7 @@ def tools_list() -> ToolsListResponse:
                     "projectDuration": "24 months",
                     "limit": 3,
                 },
-                notes="Searches the public EU Funding & Tenders Portal and uses Bedrock to structure and rank results.",
+                notes="Executes parallel searches across the EU Funding & Tenders Portal and live web funding calls, using Bedrock to structure and rank results.",
             ),
             ToolInfo(
                 name="startApplication",
@@ -227,9 +227,9 @@ def tools_list() -> ToolsListResponse:
             ),
             ToolInfo(
                 name="searchInternet",
-                description="Search the web for broader grant-related context outside the Horizon source.",
+                description="Search the web in parallel for grant-related opportunities and context outside the Horizon source.",
                 status="planned",
-                handler="Not implemented yet",
+                handler="Planned standalone endpoint (currently integrated inside searchGrants pipeline)",
                 input_model="PlannedSearchInternetRequest",
                 output_model="PlannedSearchInternetResponse",
                 input_schema={
@@ -244,7 +244,7 @@ def tools_list() -> ToolsListResponse:
                     "query": "European AI education grants",
                     "limit": 5,
                 },
-                notes="Useful as a future companion tool for broader research; not connected yet.",
+                notes="Integrated as parallel discovery tool in the agent pipeline alongside the EU portal; planned as separate standalone endpoint.",
             ),
             ToolInfo(
                 name="getGrantDetails",

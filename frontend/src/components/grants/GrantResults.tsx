@@ -30,11 +30,14 @@ import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { EmptyState } from "@/components/EmptyState";
 import {
+  getGrantSourceLabel,
+  getGrantSourceType,
   grantResultProvenance,
   MATCH_TIER_CLASSES,
   type MatchTier,
   matchTierFor,
 } from "./grantPresentation";
+
 import { formatDeadline } from "@/utils/deadline";
 import { useShortlist } from "@/hooks/useShortlist";
 
@@ -139,19 +142,24 @@ export function GrantResults({
         </div>
         <span
           className={cn(
-            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+            "shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-medium flex items-center gap-1.5",
             provenance === "live"
-              ? "border-success/40 bg-success/10 text-success"
+              ? "border-brand/40 bg-brand/10 text-brand"
               : provenance === "mock"
                 ? "border-amber-300/50 bg-amber-100/60 text-amber-800"
                 : "border-border bg-muted text-muted-foreground",
           )}
         >
-          {provenance === "live"
-            ? "EU Horizon API"
-            : provenance === "mock"
-              ? "Demo data"
-              : "Saved results"}
+          {provenance === "live" ? (
+            <>
+              <span className="flex h-1.5 w-1.5 rounded-full bg-success" />
+              Parallel Search: EU Portal + Web
+            </>
+          ) : provenance === "mock" ? (
+            "Demo data"
+          ) : (
+            "Saved results"
+          )}
         </span>
       </div>
 
@@ -318,20 +326,35 @@ function GrantCard({
     grant.organisationEligibility?.length,
   );
 
+  const sourceType = getGrantSourceType(grant);
+  const sourceLabel = getGrantSourceLabel(grant);
+
   return (
     <article className="rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-5">
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 p-0">
         <div className="min-w-0 flex-1">
-          <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
-            {grant.programme === "Horizon Europe"
-              ? "EU Horizon API"
-              : grant.programme || grant.source || "EU Horizon API"}
+          <div className="flex flex-wrap items-center gap-1.5 mb-1">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                sourceType === "web_discovery"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+              )}
+            >
+              {sourceType === "web_discovery" ? "🌐 Web Discovery" : "🇪🇺 EU Portal"}
+            </span>
+            <span className="text-[11px] font-medium text-muted-foreground truncate max-w-[240px]">
+              {grant.programme && grant.programme !== "Horizon Europe"
+                ? grant.programme
+                : sourceLabel}
+            </span>
           </div>
           <button
             type="button"
             onClick={() => onViewDetails(grant)}
             title={grant.title}
-            className="group mt-1 flex w-full items-start gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="group mt-0.5 flex w-full items-start gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           >
             <h4 className="line-clamp-2 min-w-0 flex-1 break-words text-base font-semibold text-foreground group-hover:underline [overflow-wrap:anywhere]">
               {grant.title}

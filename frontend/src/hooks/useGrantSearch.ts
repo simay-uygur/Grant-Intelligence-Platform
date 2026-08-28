@@ -6,7 +6,7 @@ import type { ChatBlock, Grant, OrganisationProfile, ResearchState } from "@/typ
 /** Steps shown while streaming live results from the backend agent. */
 const LIVE_RESEARCH_STEPS = [
   "Generating search keywords",
-  "Searching EU Horizon API opportunities",
+  "Parallel multi-source search (EU Portal & Web Discovery)",
   "Filtering & ranking best matches",
 ];
 
@@ -99,6 +99,10 @@ export function useGrantSearch({
             select: 2,
           };
           const activeIndex = stageIndexMap[event.stage] ?? 0;
+          const data = event.data as Record<string, unknown> | undefined;
+          const euCount = typeof data?.eu_count === "number" ? data.eu_count : undefined;
+          const webCount = typeof data?.web_count === "number" ? data.web_count : undefined;
+
           onResearchProgress(messageId, (blocks) =>
             blocks.map((block) => {
               if (block.type !== "research_status") return block;
@@ -109,11 +113,20 @@ export function useGrantSearch({
                     ...step,
                     status: "active" as const,
                     detail: event.message || step.detail,
+                    euCount: euCount ?? step.euCount,
+                    webCount: webCount ?? step.webCount,
                   };
                 }
                 return { ...step, status: "pending" as const };
               });
-              return { type: "research_status" as const, state: { steps } };
+              return {
+                type: "research_status" as const,
+                state: {
+                  steps,
+                  euCount: euCount ?? block.state.euCount,
+                  webCount: webCount ?? block.state.webCount,
+                },
+              };
             }),
           );
         };

@@ -90,12 +90,16 @@ export interface ResearchStep {
   label: string;
   status: "pending" | "active" | "done";
   detail?: string;
+  euCount?: number;
+  webCount?: number;
 }
 
 /** Progress of the current research session (grant matching in progress for a profile). */
 export interface ResearchState {
   steps: ResearchStep[];
   error?: string;
+  euCount?: number;
+  webCount?: number;
 }
 
 /**

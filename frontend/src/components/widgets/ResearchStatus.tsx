@@ -103,35 +103,119 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
 
       <CardContent className="p-0">
         <ol className="mt-3 space-y-2 sm:mt-4">
-          {state.steps.map((step, i) => (
-            <li
-              key={i}
-              aria-current={step.status === "active" ? "step" : undefined}
-              className={cn(
-                "flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors sm:gap-3 sm:px-3.5 sm:py-2.5",
-                ROW_STATE_CLASSES[step.status],
-              )}
-            >
-              <StepMarker status={step.status} index={i} />
-              <div className="min-w-0 flex-1 break-words">
-                <span
-                  className={cn(
-                    "block",
-                    step.status === "pending" ? "text-muted-foreground" : "text-foreground",
-                    step.status === "active" && "font-medium",
-                  )}
-                >
-                  {step.label}
-                </span>
-                {step.detail && (
-                  <span className="mt-0.5 block text-xs text-muted-foreground/90 font-normal">
-                    {step.detail}
-                  </span>
+          {state.steps.map((step, i) => {
+            const isParallelSearchStep =
+              step.label.toLowerCase().includes("parallel") ||
+              (step.label.toLowerCase().includes("search") && !isMockMode && i === 1);
+            const showParallelPanel =
+              isParallelSearchStep && (step.status === "active" || step.status === "done");
+
+            return (
+              <li
+                key={i}
+                aria-current={step.status === "active" ? "step" : undefined}
+                className={cn(
+                  "flex flex-col gap-2 rounded-lg border px-3 py-2 text-sm transition-colors sm:px-3.5 sm:py-2.5",
+                  ROW_STATE_CLASSES[step.status],
                 )}
-              </div>
-              <StepStatusIndicator status={step.status} />
-            </li>
-          ))}
+              >
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <StepMarker status={step.status} index={i} />
+                  <div className="min-w-0 flex-1 break-words">
+                    <span
+                      className={cn(
+                        "block",
+                        step.status === "pending" ? "text-muted-foreground" : "text-foreground",
+                        step.status === "active" && "font-medium",
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                    {step.detail && (
+                      <span className="mt-0.5 block text-xs text-muted-foreground/90 font-normal">
+                        {step.detail}
+                      </span>
+                    )}
+                  </div>
+                  <StepStatusIndicator status={step.status} />
+                </div>
+
+                {showParallelPanel && (
+                  <div className="mt-1 grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
+                    <div
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
+                        step.status === "active"
+                          ? "border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10"
+                          : "border-border/60 bg-muted/30",
+                      )}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs">
+                          🇪🇺
+                        </span>
+                        <div className="min-w-0">
+                          <span className="font-medium text-foreground block truncate">
+                            EU Portal Calls
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block truncate">
+                            Horizon Europe / SEDIA
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {step.euCount !== undefined && (
+                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
+                            +{step.euCount}
+                          </span>
+                        )}
+                        {step.status === "active" ? (
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                        ) : (
+                          <Check className="h-3 w-3 text-success" />
+                        )}
+                      </div>
+                    </div>
+
+                    <div
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
+                        step.status === "active"
+                          ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10"
+                          : "border-border/60 bg-muted/30",
+                      )}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs">
+                          🌐
+                        </span>
+                        <div className="min-w-0">
+                          <span className="font-medium text-foreground block truncate">
+                            Web Grant Discovery
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block truncate">
+                            National & Regional Funds
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {step.webCount !== undefined && (
+                          <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                            +{step.webCount}
+                          </span>
+                        )}
+                        {step.status === "active" ? (
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        ) : (
+                          <Check className="h-3 w-3 text-success" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ol>
 
         {preparingResults && <RecommendationSkeletons />}
