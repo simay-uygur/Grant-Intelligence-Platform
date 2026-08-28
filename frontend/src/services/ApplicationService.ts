@@ -43,5 +43,6 @@ export interface ApplicationService {
     grant: Grant | undefined,
     documentId?: string,
     onProgress?: (event: SseEvent) => void,
+    instruction?: string,
   ): Promise<string>;
 }

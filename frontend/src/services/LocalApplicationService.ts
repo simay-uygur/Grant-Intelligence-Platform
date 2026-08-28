@@ -227,6 +227,7 @@ export class LocalApplicationService implements ApplicationService {
     grant: Grant | undefined,
     _documentId?: string,
     onProgress?: (event: SseEvent) => void,
+    instruction?: string,
   ): Promise<string> {
     onProgress?.({
       event: "thinking",
@@ -275,7 +276,10 @@ export class LocalApplicationService implements ApplicationService {
     const opener =
       openings[sectionTitle] ??
       `This section on ${sectionTitle.toLowerCase()} has been refined for clarity and evaluator focus.`;
-    return `${opener}\n\n${currentContent.trim()}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
+    const instructionNote = instruction?.trim()
+      ? `\n\n[Applied guidance: "${instruction.trim()}"]`
+      : "";
+    return `${opener}\n\n${currentContent.trim()}${instructionNote}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
   }
 }
 

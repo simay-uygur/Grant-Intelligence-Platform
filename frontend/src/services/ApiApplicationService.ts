@@ -261,6 +261,7 @@ export class ApiApplicationService implements ApplicationService {
     grant: Grant | undefined,
     documentId?: string,
     onProgress?: (event: SseEvent) => void,
+    instruction?: string,
   ): Promise<string> {
     const sectionId = sectionTitle.toLowerCase().replace(/\s+/g, "-");
     const storedDocumentId = documentId ?? grant?.id ?? "active-document";
@@ -273,6 +274,7 @@ export class ApiApplicationService implements ApplicationService {
           currentContent,
           profile,
           grant,
+          instruction,
         }),
       },
       onProgress,

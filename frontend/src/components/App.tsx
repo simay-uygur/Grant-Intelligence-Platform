@@ -30,6 +30,7 @@ import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sideb
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
 import { SavedGrants } from "@/components/SavedGrants";
+import { DocumentWorkspace } from "@/components/documents/DocumentWorkspace";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -45,6 +46,29 @@ const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   results: "Ask about one of these grants…",
   application: "Ask to revise, expand, or improve this application…",
 };
+
+// Same idea as answerAboutGrant: a few keyword checks against what the
+// user actually typed, never a real intent model. The NEXT step is always
+// the same profile form regardless — this only changes the sentence that
+// leads into it, so an opener isn't met with a reply that ignores it.
+const DEFAULT_WELCOME_REPLY =
+  "Great — to match you to the strongest calls, please complete this short profile.";
+
+function openingAcknowledgement(text: string): string {
+  const q = text.toLowerCase();
+
+  if (/compar|funding opportunit/.test(q)) {
+    return "Happy to help you compare funding options — first, a quick profile so I can match the strongest calls:";
+  }
+  if (/draft|application|write/.test(q)) {
+    return "Let's get your application started — first, a short profile so the draft fits the right grant:";
+  }
+  if (/eligib|check/.test(q)) {
+    return "I can check what you're eligible for — first, a quick profile so I can match you accurately:";
+  }
+
+  return DEFAULT_WELCOME_REPLY;
+}
 
 type BackendConnection =
   | { status: "local" }
@@ -689,7 +713,10 @@ export function App() {
         askAssistant(answerAboutGrant(text, askingAboutGrant));
       } else if (stage === "welcome") {
         c.setStage("collecting_information");
-        askAssistant([{ type: "structured_form" }]);
+        askAssistant([
+          { type: "text", text: openingAcknowledgement(text) },
+          { type: "structured_form" },
+        ]);
       } else if (stage === "application") {
         askAssistant([
           {
@@ -814,6 +841,7 @@ export function App() {
         }
         setMainView("pipeline");
       },
+      onOpenWorkspace: () => setMainView("workspace"),
       startingGrantId,
       existingGrantIds: new Set([
         ...apps.applications.filter((a) => !a.id.startsWith("app-demo-")).map((a) => a.grantId),
@@ -886,7 +914,15 @@ export function App() {
   );
 
   const headerTitle =
-    mainView === "pipeline" ? "Application pipeline" : (active?.title ?? "No conversation");
+    mainView === "pipeline"
+      ? "Application pipeline"
+      : mainView === "saved"
+        ? "Saved grants"
+        : mainView === "workspace"
+          ? active?.document?.grantTitle
+            ? `Workspace · ${active.document.grantTitle}`
+            : "Document workspace"
+          : (active?.title ?? "No conversation");
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
@@ -1076,6 +1112,23 @@ export function App() {
             )}
           </div>
         </div>
+
+        {mainView === "workspace" && (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <DocumentWorkspace
+              doc={active?.document}
+              profile={active?.profile}
+              grant={
+                active?.document
+                  ? (callbacks.getGrantById(active.document.grantId) ??
+                    active.grants?.find((g) => g.id === active.document?.grantId))
+                  : undefined
+              }
+              onSectionChange={c.updateDocumentSection}
+              onGoToChat={() => setMainView("chat")}
+            />
+          </div>
+        )}
 
         {mainView === "saved" && (
           <div className="min-h-0 flex-1 overflow-y-auto">

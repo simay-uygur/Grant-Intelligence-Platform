@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileDown,
+  FileText,
   KanbanSquare,
   Loader2,
   Pencil,
@@ -11,6 +12,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
+
 import { formatDistanceToNow } from "date-fns";
 import type {
   ApplicationDocument,
@@ -61,6 +63,8 @@ interface Props {
   applicationStatus?: ApplicationStatus;
   onApplicationStatusChange?: (status: ApplicationStatus) => void;
   onViewInPipeline?: (applicationId?: string) => void;
+  /** Switches to the full-page document workspace for this application. */
+  onOpenWorkspace?: () => void;
   /**
    * When true the full editor is hidden and a compact read-only summary is
    * shown instead. Set by the conversation when a newer draft has been started
@@ -93,6 +97,7 @@ export function ApplicationDocumentView({
   applicationStatus,
   onApplicationStatusChange,
   onViewInPipeline,
+  onOpenWorkspace,
   superseded,
 }: Props) {
   const sectionSelectId = useId();
@@ -394,6 +399,17 @@ export function ApplicationDocumentView({
               </p>
             </div>
             <div className="flex flex-wrap gap-2 sm:shrink-0">
+              {onOpenWorkspace && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={onOpenWorkspace}
+                  className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Open full workspace
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
