@@ -56,7 +56,11 @@ export const MATCH_TIER_LABEL: Record<MatchTier, string> = {
 };
 
 export function getEffectiveMatchPercentage(grant: Grant, index?: number): number {
-  if (typeof grant.matchPercentage === "number" && !Number.isNaN(grant.matchPercentage) && grant.matchPercentage > 0) {
+  if (
+    typeof grant.matchPercentage === "number" &&
+    !Number.isNaN(grant.matchPercentage) &&
+    grant.matchPercentage > 0
+  ) {
     return grant.matchPercentage;
   }
   // Deterministic, varied percentage (62% - 84%) for candidate grants missing an explicit score
