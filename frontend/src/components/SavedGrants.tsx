@@ -13,7 +13,9 @@ import type { Grant } from "@/types";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import { useShortlist, type SavedGrant } from "@/hooks/useShortlist";
 import { formatDeadline } from "@/utils/deadline";
+import { getGrantSourceType } from "@/components/grants/grantPresentation";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DeadlineBadge } from "@/components/grants/DeadlineBadge";
 import { EmptyState } from "@/components/EmptyState";
@@ -75,6 +77,9 @@ function SavedGrantDetailsSheet({
   const matchPct = saved?.matchPercentage ?? saved?.grant?.matchPercentage;
   const whyItMatches = saved?.whyItMatches ?? saved?.grant?.whyItMatches;
   const matchReasons = saved?.matchReasons ?? saved?.grant?.matchReasons;
+  const sourceType = saved
+    ? getGrantSourceType(saved.grant ?? grantForRemoval(saved))
+    : "eu_portal";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -86,7 +91,17 @@ function SavedGrantDetailsSheet({
           <>
             <SheetHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-brand">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                    sourceType === "web_discovery"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                      : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+                  )}
+                >
+                  {sourceType === "web_discovery" ? "🌐 Web Discovery" : "🇪🇺 EU Portal"}
+                </span>
+                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   {saved.programme}
                 </div>
                 {Boolean(matchPct) && (
@@ -236,6 +251,7 @@ function SavedGrantCard({
 }) {
   const matchPct = saved.matchPercentage ?? saved.grant?.matchPercentage;
   const whyItMatches = saved.whyItMatches ?? saved.grant?.whyItMatches;
+  const sourceType = getGrantSourceType(saved.grant ?? grantForRemoval(saved));
 
   return (
     // `relative` anchors the title button's stretched hit area. The card
@@ -243,8 +259,18 @@ function SavedGrantCard({
     <article className="relative flex h-full flex-col rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-brand/20 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                sourceType === "web_discovery"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+              )}
+            >
+              {sourceType === "web_discovery" ? "🌐 Web Discovery" : "🇪🇺 EU Portal"}
+            </span>
+            <div className="break-words text-[11px] font-medium text-muted-foreground [overflow-wrap:anywhere]">
               {saved.programme}
             </div>
             {Boolean(matchPct) && (
@@ -254,7 +280,7 @@ function SavedGrantCard({
             )}
           </div>
           {/* The title button stretches its hit area across the whole card */}
-          <h3 className="mt-1 break-words text-base font-semibold text-foreground [overflow-wrap:anywhere]">
+          <h3 className="mt-0.5 break-words text-base font-semibold text-foreground [overflow-wrap:anywhere]">
             <button
               type="button"
               onClick={onOpenDetails}
@@ -265,6 +291,7 @@ function SavedGrantCard({
             </button>
           </h3>
         </div>
+
         {/* Bookmark button lifted above the card overlay */}
         <Button
           type="button"

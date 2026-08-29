@@ -87,12 +87,33 @@ def search_grants_stream(
     )
 
 
+def generate_outline(
+    grant: dict[str, Any],
+    profile: dict[str, Any],
+    template_type: str | None = None,
+    custom_instructions: str | None = None,
+    attachments: str = "",
+) -> list[dict[str, Any]]:
+    """Generate adaptive proposal outline with the published agent layer."""
+    return cast(
+        list[dict[str, Any]],
+        _published_service().generate_outline(
+            grant,
+            profile,
+            template_type=template_type,
+            custom_instructions=custom_instructions,
+            attachments=attachments,
+        ),
+    )
+
+
 def start_application(
     grant: dict[str, Any],
     profile: dict[str, Any],
     custom_instructions: str | None = None,
     template_type: str | None = None,
     attachments: str = "",
+    custom_sections: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Draft a complete application with the published agent layer."""
     return cast(
@@ -103,6 +124,7 @@ def start_application(
             custom_instructions=custom_instructions,
             template_type=template_type,
             attachments=attachments,
+            custom_sections=custom_sections,
         ),
     )
 
@@ -113,6 +135,7 @@ def start_application_stream(
     custom_instructions: str | None = None,
     template_type: str | None = None,
     attachments: str = "",
+    custom_sections: list[dict[str, Any]] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Stream events while drafting a complete application."""
     yield from _published_service().start_application_stream(
@@ -121,6 +144,7 @@ def start_application_stream(
         custom_instructions=custom_instructions,
         template_type=template_type,
         attachments=attachments,
+        custom_sections=custom_sections,
     )
 
 

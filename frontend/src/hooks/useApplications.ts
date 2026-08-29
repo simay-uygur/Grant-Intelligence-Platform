@@ -112,10 +112,19 @@ export function useApplications() {
 
   const updateStatus = useCallback((applicationId: string, status: ApplicationStatus) => {
     let previous: DemoApplication[] = [];
+    let matchedId = applicationId;
     setApplications((prev) => {
       previous = prev;
+      const match = prev.find(
+        (a) =>
+          a.id === applicationId ||
+          a.id === `app-${applicationId}` ||
+          `app-${a.id}` === applicationId ||
+          a.grantId === applicationId,
+      );
+      if (match) matchedId = match.id;
       return prev.map((a) =>
-        a.id === applicationId && a.status !== status
+        a.id === matchedId && a.status !== status
           ? // updatedAt is documented as the last edit *or status change*, so
             // moving a card counts — and the card surfaces it as "Updated …".
             { ...a, status, updatedAt: new Date().toISOString() }
@@ -123,10 +132,10 @@ export function useApplications() {
       );
     });
     void applicationService
-      .updateApplicationStatus(applicationId, status)
+      .updateApplicationStatus(matchedId, status)
       .then((updated) => {
         setApplications((current) =>
-          current.map((application) => (application.id === applicationId ? updated : application)),
+          current.map((application) => (application.id === matchedId ? updated : application)),
         );
         setPersistenceOk(true);
       })

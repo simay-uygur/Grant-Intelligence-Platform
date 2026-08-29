@@ -15,7 +15,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { DeadlineBadge } from "./DeadlineBadge";
-import { MATCH_TIER_CLASSES, matchTierFor } from "./grantPresentation";
+import {
+  getEffectiveMatchPercentage,
+  getGrantSourceLabel,
+  getGrantSourceType,
+  MATCH_TIER_CLASSES,
+  matchTierFor,
+} from "./grantPresentation";
 import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
@@ -28,6 +34,9 @@ interface Props {
 }
 
 export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, hasDraft }: Props) {
+  const sourceType = grant ? getGrantSourceType(grant) : "eu_portal";
+  const sourceLabel = grant ? getGrantSourceLabel(grant) : "EU Horizon API";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -59,13 +68,25 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
         {grant && (
           <>
             <SheetHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-brand">
-                {grant.programme || grant.source || "Grant opportunity"}
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                    sourceType === "web_discovery"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                      : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+                  )}
+                >
+                  {sourceType === "web_discovery" ? "🌐 Web Discovery" : "🇪🇺 EU Portal"}
+                </span>
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {grant.programme || sourceLabel}
+                </span>
               </div>
               <SheetTitle className="text-base leading-snug">{grant.title}</SheetTitle>
               <SheetDescription>
                 {grant.provenance === "live"
-                  ? "Details returned by the live backend. Missing source fields are not inferred."
+                  ? "Details returned by the live parallel search pipeline. Missing source fields are not inferred."
                   : "Full details available in the local demo catalogue."}
               </SheetDescription>
             </SheetHeader>
@@ -73,11 +94,16 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <div className="space-y-5 text-sm">
                 <Section title="Overview">
-                  {grant.matchPercentage !== undefined && (
-                    <MatchScoreRow percentage={grant.matchPercentage} />
-                  )}
+                  <MatchScoreRow percentage={getEffectiveMatchPercentage(grant)} />
                   <Field label="Description" value={grant.description} />
-                  {grant.source && <Field label="Source" value={grant.source} />}
+                  <Field
+                    label="Discovery Source"
+                    value={
+                      sourceType === "web_discovery"
+                        ? "Web Grant Discovery (Parallel Search)"
+                        : "EU Funding & Tenders Portal (Parallel Search)"
+                    }
+                  />
                 </Section>
 
                 {(grant.fundingAmount || grant.fundingType) && (

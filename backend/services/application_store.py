@@ -13,6 +13,7 @@ from backend.core.database import (
     build_engine,
     build_upsert,
     document_uploads_table,
+    grant_search_batches_table,
     metadata,
     saved_grants_table,
 )
@@ -459,6 +460,181 @@ class ApplicationStore:
             return result.rowcount > 0
 
     # ------------------------------------------------------------------
+    # Search batch history (offered grants groups)
+    # ------------------------------------------------------------------
+
+    def record_search_batch(
+        self,
+        grants: list[dict[str, Any]],
+        profile: dict[str, Any],
+        conversation_id: str | None = None,
+        user_id: str | None = None,
+        query: str | None = None,
+        source_summary: str | None = None,
+    ) -> dict[str, Any]:
+        """Persist a batch of offered grants returned for a conversation/user search."""
+        batch_id = str(uuid.uuid4())
+        timestamp = self._timestamp()
+
+        # Calculate batch index for this conversation
+        batch_index = 1
+        if conversation_id:
+            with self.engine.begin() as connection:
+                count_stmt = select(func.count()).select_from(grant_search_batches_table).where(grant_search_batches_table.c.conversation_id == conversation_id)
+                existing_count = connection.execute(count_stmt).scalar() or 0
+                batch_index = int(existing_count) + 1
+
+        record = {
+            "id": batch_id,
+            "conversation_id": conversation_id,
+            "user_id": user_id,
+            "batch_index": batch_index,
+            "query": query,
+            "profile_json": json.dumps(profile, ensure_ascii=False),
+            "grants_json": json.dumps(grants, ensure_ascii=False),
+            "source_summary": source_summary,
+            "created_at": timestamp,
+        }
+
+        with self.engine.begin() as connection:
+            connection.execute(grant_search_batches_table.insert().values(**record))
+
+        logger.info(
+            "Recorded grant search batch '%s' (#%d) with %d grants for conversation=%s (user_id=%s)",
+            batch_id,
+            batch_index,
+            len(grants),
+            conversation_id,
+            user_id,
+        )
+
+        return {
+            "id": batch_id,
+            "conversationId": conversation_id,
+            "userId": user_id,
+            "batchIndex": batch_index,
+            "query": query,
+            "profile": profile,
+            "grants": grants,
+            "sourceSummary": source_summary,
+            "createdAt": timestamp,
+        }
+
+    def list_search_batches(
+        self,
+        conversation_id: str | None = None,
+        user_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List search batches, optionally filtered by conversation_id or user_id."""
+        stmt = (
+            select(
+                grant_search_batches_table.c.id,
+                grant_search_batches_table.c.conversation_id,
+                grant_search_batches_table.c.user_id,
+                grant_search_batches_table.c.batch_index,
+                grant_search_batches_table.c.query,
+                grant_search_batches_table.c.profile_json,
+                grant_search_batches_table.c.grants_json,
+                grant_search_batches_table.c.source_summary,
+                grant_search_batches_table.c.created_at,
+            )
+            .order_by(grant_search_batches_table.c.created_at.asc(), grant_search_batches_table.c.batch_index.asc())
+            .limit(limit)
+            .offset(offset)
+        )
+        if conversation_id is not None:
+            stmt = stmt.where(grant_search_batches_table.c.conversation_id == conversation_id)
+        if user_id is not None:
+            stmt = stmt.where(grant_search_batches_table.c.user_id == user_id)
+
+        with self.engine.begin() as connection:
+            rows = connection.execute(stmt).mappings().all()
+
+        return [
+            {
+                "id": row["id"],
+                "conversationId": row["conversation_id"],
+                "userId": row["user_id"],
+                "batchIndex": row["batch_index"],
+                "query": row["query"],
+                "profile": json.loads(row["profile_json"]),
+                "grants": json.loads(row["grants_json"]),
+                "sourceSummary": row["source_summary"],
+                "createdAt": row["created_at"],
+            }
+            for row in rows
+        ]
+
+    def get_search_batch(self, batch_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+        """Fetch a specific search batch by ID."""
+        stmt = select(
+            grant_search_batches_table.c.id,
+            grant_search_batches_table.c.conversation_id,
+            grant_search_batches_table.c.user_id,
+            grant_search_batches_table.c.batch_index,
+            grant_search_batches_table.c.query,
+            grant_search_batches_table.c.profile_json,
+            grant_search_batches_table.c.grants_json,
+            grant_search_batches_table.c.source_summary,
+            grant_search_batches_table.c.created_at,
+        ).where(grant_search_batches_table.c.id == batch_id)
+
+        if user_id is not None:
+            stmt = stmt.where(grant_search_batches_table.c.user_id == user_id)
+
+        with self.engine.begin() as connection:
+            row = connection.execute(stmt).mappings().first()
+
+        if row is None:
+            return None
+
+        return {
+            "id": row["id"],
+            "conversationId": row["conversation_id"],
+            "userId": row["user_id"],
+            "batchIndex": row["batch_index"],
+            "query": row["query"],
+            "profile": json.loads(row["profile_json"]),
+            "grants": json.loads(row["grants_json"]),
+            "sourceSummary": row["source_summary"],
+            "createdAt": row["created_at"],
+        }
+
+    def get_offered_grant_ids_for_conversation(self, conversation_id: str, user_id: str | None = None) -> list[str]:
+        """Extract all grant IDs previously presented across all search batches for a conversation."""
+        if not conversation_id:
+            return []
+
+        stmt = select(grant_search_batches_table.c.grants_json).where(grant_search_batches_table.c.conversation_id == conversation_id)
+        if user_id is not None:
+            stmt = stmt.where(grant_search_batches_table.c.user_id == user_id)
+
+        with self.engine.begin() as connection:
+            rows = connection.execute(stmt).scalars().all()
+
+        offered_ids: list[str] = []
+        seen = set()
+        for raw_grants in rows:
+            try:
+                grants = json.loads(raw_grants)
+                if isinstance(grants, list):
+                    for g in grants:
+                        if isinstance(g, dict):
+                            for key in ("id", "identifier", "title"):
+                                val = g.get(key)
+                                if val and isinstance(val, str) and val.strip():
+                                    cleaned = val.strip()
+                                    if cleaned.lower() not in seen:
+                                        seen.add(cleaned.lower())
+                                        offered_ids.append(cleaned)
+            except Exception as e:
+                logger.warning("Error parsing grants_json in batch: %s", e)
+
+        return offered_ids
+
+    # ------------------------------------------------------------------
     # Row helpers
     # ------------------------------------------------------------------
 
@@ -480,14 +656,19 @@ class ApplicationStore:
             "updatedAt": row["updated_at"],
         }
 
-    def _application_from_row(self, row: Any) -> dict:  # row is a SQLAlchemy RowMapping
+    def _application_from_row(self, row: Any) -> dict:
+        grant_dict = json.loads(row["grant_json"]) if row["grant_json"] else {}
+        source_url = _normalize_eu_url(str(grant_dict.get("sourceUrl") or grant_dict.get("url") or ""), row["grant_id"])
+        programme = str(grant_dict.get("programme") or "")
         return {
             "id": row["id"],
             "grantId": row["grant_id"],
             "grantTitle": row["grant_title"],
+            "sourceUrl": source_url if source_url else None,
+            "programme": programme if programme else None,
             "status": row["status"],
             "sections": json.loads(row["sections_json"]),
-            "grant": json.loads(row["grant_json"]),
+            "grant": grant_dict,
             "profile": json.loads(row["profile_json"]),
             "customInstructions": row["custom_instructions"],
             "templateType": row["template_type"],

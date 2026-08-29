@@ -30,16 +30,21 @@ import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { EmptyState } from "@/components/EmptyState";
 import {
+  getEffectiveMatchPercentage,
+  getGrantSourceLabel,
+  getGrantSourceType,
   grantResultProvenance,
   MATCH_TIER_CLASSES,
   type MatchTier,
   matchTierFor,
 } from "./grantPresentation";
+
 import { formatDeadline } from "@/utils/deadline";
 import { useShortlist } from "@/hooks/useShortlist";
 
 interface Props {
   grants: Grant[];
+  allCandidates?: Grant[];
   sourceSummary?: string;
   onAsk: (grant: Grant) => void;
   onStart: (grant: Grant) => void;
@@ -55,6 +60,7 @@ const MAX_COMPARE = 3;
 
 export function GrantResults({
   grants,
+  allCandidates,
   sourceSummary,
   onAsk,
   onStart,
@@ -67,10 +73,15 @@ export function GrantResults({
   const [savedToast, setSavedToast] = useState<string | null>(null);
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
-  // Kept separate from `detailsOpen` so the sheet's exit animation still has
-  // a grant to render while it closes, instead of unmounting mid-slide.
   const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  // Expandable all candidates view state
+  const [showAllCandidates, setShowAllCandidates] = useState(false);
+  const [candidateFilter, setCandidateFilter] = useState<"all" | "eu_portal" | "web_discovery">(
+    "all",
+  );
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleToggleSaved = (grant: Grant) => {
     const nextSaved = !isSaved(grant.id);
@@ -102,6 +113,37 @@ export function GrantResults({
     [grants, compareIds],
   );
   const provenance = grantResultProvenance(grants);
+
+  // Discover pool candidates (ensure allCandidates or fall back to grants)
+  const candidatePool = useMemo(() => {
+    if (allCandidates && allCandidates.length > 0) return allCandidates;
+    return grants;
+  }, [allCandidates, grants]);
+
+  const euCount = useMemo(
+    () => candidatePool.filter((g) => getGrantSourceType(g) === "eu_portal").length,
+    [candidatePool],
+  );
+  const webCount = useMemo(
+    () => candidatePool.filter((g) => getGrantSourceType(g) === "web_discovery").length,
+    [candidatePool],
+  );
+
+  const filteredCandidates = useMemo(() => {
+    return candidatePool.filter((g) => {
+      if (candidateFilter !== "all" && getGrantSourceType(g) !== candidateFilter) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const title = (g.title || "").toLowerCase();
+        const desc = (g.description || "").toLowerCase();
+        const prog = (g.programme || "").toLowerCase();
+        return title.includes(q) || desc.includes(q) || prog.includes(q);
+      }
+      return true;
+    });
+  }, [candidatePool, candidateFilter, searchQuery]);
 
   // Zero matches is a real outcome for a real grant-seeker, not an edge case:
   // it needs to say what to change next, not just report the absence. Reachable
@@ -139,19 +181,24 @@ export function GrantResults({
         </div>
         <span
           className={cn(
-            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+            "shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-medium flex items-center gap-1.5",
             provenance === "live"
-              ? "border-success/40 bg-success/10 text-success"
+              ? "border-brand/40 bg-brand/10 text-brand"
               : provenance === "mock"
                 ? "border-amber-300/50 bg-amber-100/60 text-amber-800"
                 : "border-border bg-muted text-muted-foreground",
           )}
         >
-          {provenance === "live"
-            ? "EU Horizon API"
-            : provenance === "mock"
-              ? "Demo data"
-              : "Saved results"}
+          {provenance === "live" ? (
+            <>
+              <span className="flex h-1.5 w-1.5 rounded-full bg-success" />
+              Parallel Search: EU Portal + Web
+            </>
+          ) : provenance === "mock" ? (
+            "Demo data"
+          ) : (
+            "Saved results"
+          )}
         </span>
       </div>
 
@@ -180,6 +227,107 @@ export function GrantResults({
           />
         ))}
       </div>
+
+      {/* Expandable all discovered grants & web search sources */}
+      {candidatePool.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card/60 overflow-hidden shadow-xs">
+          <button
+            type="button"
+            onClick={() => setShowAllCandidates(!showAllCandidates)}
+            className="w-full flex items-center justify-between px-4 py-3.5 text-left text-xs font-medium text-foreground hover:bg-muted/40 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand/10 text-brand">
+                <Globe2 className="h-3.5 w-3.5" />
+              </span>
+              <div>
+                <span className="font-semibold text-foreground">
+                  All Discovered Opportunities & Web Sources
+                </span>
+                <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground tabular-nums">
+                  {candidatePool.length} found
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-normal">
+              <span>{showAllCandidates ? "Hide list" : "Show all"}</span>
+              <ChevronRight
+                className={cn(
+                  "h-4 w-4 transition-transform duration-200",
+                  showAllCandidates && "rotate-90",
+                )}
+              />
+            </div>
+          </button>
+
+          {showAllCandidates && (
+            <div className="border-t border-border px-4 py-3.5 space-y-3 bg-muted/10 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                {/* Source Filter Tabs */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    type="button"
+                    variant={candidateFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCandidateFilter("all")}
+                    className="h-7 text-xs rounded-full px-2.5"
+                  >
+                    All ({candidatePool.length})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={candidateFilter === "eu_portal" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCandidateFilter("eu_portal")}
+                    className="h-7 text-xs rounded-full px-2.5 gap-1"
+                  >
+                    <span>🇪🇺</span> EU Portal ({euCount})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={candidateFilter === "web_discovery" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCandidateFilter("web_discovery")}
+                    className="h-7 text-xs rounded-full px-2.5 gap-1"
+                  >
+                    <span>🌐</span> Web Discovery ({webCount})
+                  </Button>
+                </div>
+
+                {/* Filter / Search input */}
+                {candidatePool.length > 5 && (
+                  <input
+                    type="text"
+                    placeholder="Filter by title / topic…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-7 w-full sm:w-44 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                )}
+              </div>
+
+              {/* Candidates List */}
+              <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
+                {filteredCandidates.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground">
+                    No discovered opportunities matched your filter.
+                  </div>
+                ) : (
+                  filteredCandidates.map((candidate, idx) => (
+                    <CandidateItem
+                      key={candidate.id}
+                      grant={candidate}
+                      index={idx}
+                      onAsk={onAsk}
+                      onViewDetails={openDetails}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {compareIds.size >= 1 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
@@ -318,63 +466,94 @@ function GrantCard({
     grant.organisationEligibility?.length,
   );
 
+  const [whyExpanded, setWhyExpanded] = useState(false);
+  const isWeb = getGrantSourceType(grant) === "web_discovery";
+  const sourceLabel = getGrantSourceLabel(grant);
+
   return (
-    <article className="rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-5">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 p-0">
-        <div className="min-w-0 flex-1">
-          <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
-            {grant.programme === "Horizon Europe"
-              ? "EU Horizon API"
-              : grant.programme || grant.source || "EU Horizon API"}
+    <article
+      aria-labelledby={`grant-title-${grant.id}`}
+      className="group relative flex flex-col rounded-2xl border border-border bg-card p-5 shadow-xs transition-all hover:border-brand/30 hover:shadow-md"
+    >
+      <CardHeader className="flex flex-col gap-3 p-0 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                isWeb
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+              )}
+            >
+              {isWeb ? <Globe2 className="h-3 w-3" /> : <span>🇪🇺</span>}
+              {sourceLabel}
+            </span>
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              {grant.programme || (isWeb ? "Web Grant Discovery" : "Horizon Europe")}
+            </span>
           </div>
+
           <button
             type="button"
             onClick={() => onViewDetails(grant)}
-            title={grant.title}
-            className="group mt-1 flex w-full items-start gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="group mt-0.5 flex w-full items-start gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           >
-            <h4 className="line-clamp-2 min-w-0 flex-1 break-words text-base font-semibold text-foreground group-hover:underline [overflow-wrap:anywhere]">
+            <h4
+              id={`grant-title-${grant.id}`}
+              className="line-clamp-2 min-w-0 flex-1 break-words text-base font-semibold leading-snug text-foreground transition-colors group-hover:text-brand [overflow-wrap:anywhere]"
+            >
               {grant.title}
             </h4>
             <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
           </button>
         </div>
 
-        <div className="flex shrink-0 items-start gap-2">
-          {grant.matchPercentage !== undefined && matchTier && (
-            <MatchMeter percentage={grant.matchPercentage} tier={matchTier} />
-          )}
+        <div className="flex shrink-0 items-center gap-2 sm:self-start">
           <Button
             type="button"
             variant="ghost"
             size="icon"
             onClick={onToggleSaved}
-            aria-pressed={saved}
-            aria-label={saved ? `Remove ${grant.title} from saved grants` : `Save ${grant.title}`}
-            className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-muted"
+            aria-label={saved ? `Remove ${grant.title} from saved` : `Save ${grant.title}`}
+            className="h-8 w-8 rounded-full hover:bg-muted"
           >
             {saved ? (
               <BookmarkCheck className="h-4 w-4 text-brand" />
             ) : (
-              <Bookmark className="h-4 w-4" />
+              <Bookmark className="h-4 w-4 text-muted-foreground" />
             )}
           </Button>
+
+          {grant.matchPercentage !== undefined && (
+            <MatchMeter percentage={grant.matchPercentage} tier={matchTier!} />
+          )}
         </div>
       </CardHeader>
 
-      <CardContent className="p-0">
+      <CardContent className="mt-4 flex-1 p-0">
+        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+          {grant.description}
+        </p>
+
         {hasFacts && (
-          <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-xs sm:grid-cols-3">
-            {grant.fundingAmount && <Fact label="Funding" value={grant.fundingAmount} />}
-            {grant.deadline && (
+          <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 sm:grid-cols-4">
+            {grant.fundingAmount ? (
+              <Fact
+                label="Funding"
+                value={grant.fundingAmount}
+                icon={<Sparkles className="h-3 w-3" />}
+              />
+            ) : null}
+            {grant.fundingType ? <Fact label="Funding type" value={grant.fundingType} /> : null}
+            {grant.deadline ? (
               <Fact
                 label="Deadline"
                 value={formatDeadline(grant.deadline)}
                 icon={<CalendarClock className="h-3 w-3" />}
                 badge={<DeadlineBadge deadline={grant.deadline} compact />}
               />
-            )}
-            {grant.fundingType && <Fact label="Funding type" value={grant.fundingType} />}
+            ) : null}
             {grant.eligibleCountries?.length ? (
               <Fact
                 label="Eligible countries"
@@ -394,13 +573,35 @@ function GrantCard({
         )}
 
         {grant.whyItMatches && (
-          <div className="mt-4 rounded-lg bg-brand/5 p-3">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-brand">
-              <Sparkles className="h-3.5 w-3.5" />
-              Why it was returned
+          <div className="mt-4 rounded-xl bg-brand/5 p-3 transition-all duration-200 border border-brand/10">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-brand">
+                <Sparkles className="h-3.5 w-3.5" />
+                Why it was returned
+              </div>
+              {grant.whyItMatches.length > 130 && (
+                <button
+                  type="button"
+                  onClick={() => setWhyExpanded(!whyExpanded)}
+                  className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline cursor-pointer"
+                >
+                  <span>{whyExpanded ? "Show less" : "More info"}</span>
+                  <ChevronRight
+                    className={cn(
+                      "h-3 w-3 transition-transform duration-200",
+                      whyExpanded && "rotate-90",
+                    )}
+                  />
+                </button>
+              )}
             </div>
-            <div className="mt-1 max-h-24 overflow-y-auto pr-1">
-              <p className="whitespace-pre-wrap break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
+            <div className="mt-1.5">
+              <p
+                className={cn(
+                  "whitespace-pre-wrap break-words text-xs text-foreground/85 leading-relaxed [overflow-wrap:anywhere]",
+                  !whyExpanded && grant.whyItMatches.length > 130 && "line-clamp-2",
+                )}
+              >
                 {grant.whyItMatches}
               </p>
             </div>
@@ -515,6 +716,112 @@ function MatchMeter({ percentage, tier }: { percentage: number; tier: MatchTier 
         className="h-1 w-full overflow-hidden rounded-full bg-muted"
       >
         <div className={cn("h-full rounded-full", cls.bar)} style={{ width: `${clamped}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function CandidateItem({
+  grant,
+  index,
+  onAsk,
+  onViewDetails,
+}: {
+  grant: Grant;
+  index?: number;
+  onAsk: (grant: Grant) => void;
+  onViewDetails: (grant: Grant) => void;
+}) {
+  const isWeb = getGrantSourceType(grant) === "web_discovery";
+  const sourceLabel = isWeb
+    ? grant.programme || "Web Discovery"
+    : grant.programme || "Horizon Europe";
+  const identifier =
+    grant.id.startsWith("web-") || grant.id.startsWith("cand-") ? undefined : grant.id;
+  const score = getEffectiveMatchPercentage(grant, index);
+
+  return (
+    <div
+      onClick={() => onViewDetails(grant)}
+      className="group cursor-pointer rounded-xl border border-border/80 bg-background/80 hover:border-brand/40 hover:bg-muted/40 p-3.5 transition-all space-y-2.5 shadow-2xs"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold",
+              isWeb
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                : "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20",
+            )}
+          >
+            {isWeb ? <Globe2 className="h-3 w-3" /> : <span>🇪🇺</span>}
+            {sourceLabel}
+          </span>
+          {identifier && (
+            <span className="text-[10px] text-muted-foreground/90 font-mono font-medium">
+              {identifier}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="inline-flex items-center rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[10px] font-bold text-brand tabular-nums">
+            {score}% match
+          </span>
+          {grant.deadline && <DeadlineBadge deadline={grant.deadline} compact />}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-foreground group-hover:text-brand transition-colors line-clamp-2 leading-snug">
+          {grant.title}
+        </h4>
+        {grant.description && (
+          <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+            {grant.description}
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/40">
+        <div className="flex items-center gap-2">
+          {grant.sourceUrl && (
+            <a
+              href={grant.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline bg-brand/5 hover:bg-brand/10 border border-brand/20 rounded-md px-2 py-1 transition-colors"
+            >
+              <span>{isWeb ? "Visit Web Source" : "Official EU Portal Call"}</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails(grant);
+            }}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5"
+          >
+            <span>More info</span>
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAsk(grant);
+          }}
+          className="h-7 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground hover:bg-background"
+        >
+          <MessageSquare className="h-3 w-3" />
+          <span>Ask AI</span>
+        </Button>
       </div>
     </div>
   );

@@ -22,6 +22,8 @@ export interface BlockCallbacks {
   getApplicationStatus?: (documentId: string) => ApplicationStatus | undefined;
   onUpdateApplicationStatus?: (documentId: string, status: ApplicationStatus) => void;
   onViewInPipeline?: () => void;
+  /** Switches to the full-page document workspace for the active conversation. */
+  onOpenWorkspace?: () => void;
   formDisabled?: boolean;
   hasGrantResults?: boolean;
   startingGrantId?: string | null;
@@ -91,6 +93,7 @@ export function BlockRenderer({
       return (
         <GrantResults
           grants={block.grants}
+          allCandidates={block.allCandidates}
           sourceSummary={block.sourceSummary}
           onAsk={callbacks.onAskGrant}
           onStart={callbacks.onStartApplication}
@@ -135,6 +138,7 @@ export function BlockRenderer({
             callbacks.onUpdateApplicationStatus?.(doc.id, status)
           }
           onViewInPipeline={callbacks.onViewInPipeline}
+          onOpenWorkspace={callbacks.onOpenWorkspace}
           superseded={block.superseded}
         />
       );

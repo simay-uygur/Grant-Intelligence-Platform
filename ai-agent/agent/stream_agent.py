@@ -11,6 +11,7 @@ from datetime import date
 from typing import Any
 
 from tools.eu_horizon_api import eu_horizon_api
+from tools.web_search import web_search_funding_opportunities
 
 from tools.config import get_bedrock_client, get_model_id
 
@@ -129,7 +130,7 @@ def _generate_keywords_step(
                             yield {
                                 "event": "thinking",
                                 "stage": "keywords",
-                                "message": "Generating EU search keywords...",
+                                "message": "Generating search keywords...",
                                 "data": {"thought": f"Suggested terms: {preview}"},
                             }
         cleaned_kw = raw_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
@@ -164,49 +165,90 @@ def _generate_keywords_step(
 
 def _search_candidates_step(
     keywords: list[str],
+    profile: dict[str, Any] | None = None,
 ) -> Generator[dict[str, Any], None, list[dict[str, Any]]]:
     keywords_str = ", ".join(f"'{k}'" for k in keywords)
+    country = (profile or {}).get("country")
     pool: dict[str, dict[str, Any]] = {}
+    eu_count = 0
+    web_count = 0
+
     yield {
         "event": "thinking",
         "stage": "search",
-        "message": f"Querying live EU Portal in parallel for {len(keywords)} topic(s): {keywords_str}...",
+        "message": f"Querying EU Portal and searching the web in parallel for {len(keywords)} topic(s): {keywords_str}...",
         "data": {
-            "thought": f"Dispatching {len(keywords)} concurrent searches against active Horizon Europe calls...",
+            "thought": "Dispatching concurrent multi-source searches across EU Portal and web funding programmes...",
+            "keywords": keywords,
         },
     }
 
-    def _search(kw: str) -> list[dict[str, Any]]:
-        return eu_horizon_api(kw, page_size=10)
+    # Define tasks for concurrent execution
+    tasks: list[tuple[str, str, Any]] = []
+    for kw in keywords:
+        tasks.append(("eu_portal", kw, lambda k=kw: eu_horizon_api(k, page_size=10)))
+        tasks.append(("web_search", kw, lambda k=kw: web_search_funding_opportunities(k, country=country, max_results=5)))
 
+    total_tasks = len(tasks)
     completed = 0
-    with ThreadPoolExecutor(max_workers=min(6, len(keywords))) as executor:
-        futures = {executor.submit(_search, kw): kw for kw in keywords}
+
+    with ThreadPoolExecutor(max_workers=min(8, total_tasks)) as executor:
+        futures = {executor.submit(fn): (source_type, kw) for source_type, kw, fn in tasks}
         for future in as_completed(futures):
-            kw = futures[future]
+            source_type, kw = futures[future]
             completed += 1
+            source_label = "EU Portal" if source_type == "eu_portal" else "Web Discovery"
             try:
                 results = future.result()
             except Exception as e:
-                logger.warning("EU Portal search failed for '%s': %s", kw, e)
+                logger.warning("%s search failed for '%s': %s", source_label, kw, e)
                 yield {
                     "event": "progress",
                     "stage": "search",
-                    "message": f"Search '{kw}' failed ({completed}/{len(keywords)}) — continuing with other topics",
-                    "data": {"keyword": kw, "added": 0, "candidate_count": len(pool)},
+                    "message": f"{source_label} search '{kw}' failed ({completed}/{total_tasks}) — continuing with other channels",
+                    "data": {
+                        "source": source_type,
+                        "keyword": kw,
+                        "added": 0,
+                        "candidate_count": len(pool),
+                        "eu_count": eu_count,
+                        "web_count": web_count,
+                    },
                 }
                 continue
+
+            today_str = date.today().isoformat()
             added_count = 0
             for g in results:
-                key = g.get("identifier") or g.get("title")
+                dl = g.get("deadline")
+                if dl and str(dl)[:10] < today_str:
+                    continue
+                # Ensure source attribution
+                if not g.get("source"):
+                    g["source"] = "EU Horizon API" if source_type == "eu_portal" else "Web Search"
+                key = g.get("identifier") or g.get("url") or g.get("title")
                 if key and key not in pool:
                     pool[key] = g
                     added_count += 1
+                    if source_type == "eu_portal":
+                        eu_count += 1
+                    else:
+                        web_count += 1
+
             yield {
                 "event": "progress",
                 "stage": "search",
-                "message": f"Searched '{kw}' (+{len(results)} calls, {added_count} new) — {len(pool)} total candidate grants pooled ({completed}/{len(keywords)} queries done)",
-                "data": {"keyword": kw, "added": added_count, "candidate_count": len(pool)},
+                "message": f"[{source_label}] Searched '{kw}' (+{len(results)} found, {added_count} new) — {len(pool)} total candidates pooled ({eu_count} EU, {web_count} Web)",
+                "data": {
+                    "source": source_type,
+                    "keyword": kw,
+                    "added": added_count,
+                    "candidate_count": len(pool),
+                    "eu_count": eu_count,
+                    "web_count": web_count,
+                    "completed_queries": completed,
+                    "total_queries": total_tasks,
+                },
             }
 
     return list(pool.values())
@@ -245,14 +287,14 @@ def _evaluate_and_select_step(
     try:
         select_prompt = (
             f"You are a grant selection expert. Today's date is {today}. "
-            f"From the candidate grants below, choose the {max_grants} that BEST fit the organisation profile. "
+            f"From the candidate grants below (discovered via parallel EU Portal and Web Search queries), choose the {max_grants} that BEST fit the organisation profile. "
             "Evaluate match percentages relative to the organisation's core domain and profile: "
             "assign top relevant domain matches scores between 75% and 95%, and provide clear, encouraging, "
             "bespoke whyItMatches explanations and matchReasons.\n\n"
             f"ORGANISATION PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
             f"CANDIDATE GRANTS:\n{json.dumps(open_candidates[:15], indent=2)}\n\n"
             "Return ONLY a JSON array (no other text) where each selected grant has EXACTLY these fields:\n"
-            "  id (string), programme (string), title (string), matchPercentage (number 0-100),\n"
+            "  id (string), programme (string), source (string, e.g. 'EU Horizon API' or 'Web Search'), title (string), matchPercentage (number 0-100),\n"
             "  fundingAmount (string), deadline (string), eligibleCountries (array of strings),\n"
             "  organisationEligibility (array of strings), fundingType (string), description (string),\n"
             "  whyItMatches (string), matchReasons (array of strings), requirements (array of strings),\n"
@@ -338,6 +380,7 @@ def _evaluate_and_select_step(
                 {
                     "id": str(g.get("identifier") or g.get("id") or f"grant-{len(selected_grants)}"),
                     "programme": str(g.get("programme") or "Horizon Europe"),
+                    "source": str(g.get("source") or ("Web Search" if "web" in str(g.get("id", "")).lower() else "EU Horizon API")),
                     "title": str(g.get("title") or "Grant Opportunity"),
                     "matchPercentage": 75,
                     "fundingAmount": str(g.get("budget") or "EU Funding"),
@@ -345,11 +388,11 @@ def _evaluate_and_select_step(
                     "eligibleCountries": ["EU Member States", "Associated Countries"],
                     "organisationEligibility": ["SME", "Research", "Enterprise"],
                     "fundingType": "Grant",
-                    "description": str(g.get("summary") or g.get("title") or ""),
+                    "description": str(g.get("summary") or g.get("description") or g.get("title") or ""),
                     "whyItMatches": f"Relevant opportunity for {profile.get('organisationName', 'the organisation')}.",
-                    "matchReasons": ["Open Horizon Europe call"],
+                    "matchReasons": [f"Discovered via {g.get('source', 'multi-source search')}"],
                     "requirements": ["EU Consortium or SME applicant"],
-                    "tags": ["Horizon Europe"],
+                    "tags": [str(g.get("programme") or "Innovation Funding")],
                     "sourceUrl": str(g.get("url") or g.get("sourceUrl") or "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/home"),
                 }
             )
@@ -379,8 +422,8 @@ def run_agent_stream(
     # Step 1: LLM Keyword Generation
     keywords = yield from _generate_keywords_step(client, model_id, profile, sector, org_name, degraded)
 
-    # Step 2: Live EU Portal API Search
-    candidates = yield from _search_candidates_step(keywords)
+    # Step 2: Live Multi-Source Search (EU Portal + Web Discovery in parallel)
+    candidates = yield from _search_candidates_step(keywords, profile=profile)
 
     if not candidates:
         yield {
@@ -405,11 +448,55 @@ def run_agent_stream(
 
     is_degraded = degraded["keywords"] or degraded["selection"]
 
+    # Build match percentage lookup from selected_grants
+    score_map: dict[str, int] = {}
+    for sg in selected_grants:
+        if isinstance(sg, dict) and sg.get("matchPercentage") is not None:
+            try:
+                score = int(sg["matchPercentage"])
+                for k in [sg.get("id"), sg.get("identifier"), sg.get("title")]:
+                    if k:
+                        score_map[str(k).strip().lower()] = score
+            except Exception:
+                pass
+
+    formatted_candidates = []
+    for idx, g in enumerate(candidates):
+        cid = str(g.get("id") or g.get("identifier") or f"cand-{idx}")
+        ident = str(g.get("identifier") or cid)
+        title = str(g.get("title") or "Grant Opportunity")
+
+        # Lookup score or calculate calibrated candidate score based on pool position
+        score = None
+        for k in [cid, ident, title]:
+            if k.strip().lower() in score_map:
+                score = score_map[k.strip().lower()]
+                break
+        if score is None:
+            score = max(55, 75 - (idx * 2))
+
+        formatted_candidates.append(
+            {
+                "id": cid,
+                "identifier": ident,
+                "title": title,
+                "programme": str(g.get("programme") or "Horizon Europe"),
+                "source": str(g.get("source") or ("Web Search" if "web" in str(g.get("id", "")).lower() else "EU Horizon API")),
+                "url": str(g.get("url") or g.get("sourceUrl") or ""),
+                "sourceUrl": str(g.get("url") or g.get("sourceUrl") or ""),
+                "summary": str(g.get("summary") or g.get("description") or g.get("title") or ""),
+                "description": str(g.get("summary") or g.get("description") or g.get("title") or ""),
+                "deadline": str(g.get("deadline")) if g.get("deadline") else None,
+                "fundingAmount": str(g.get("budget")) if g.get("budget") else None,
+                "matchPercentage": score,
+            }
+        )
+
     yield {
         "event": "progress",
         "stage": "select",
-        "message": f"Finalised {len(selected_grants)} recommendation(s) for {org_name}",
-        "data": {"revealed_count": len(revealed), "final_count": len(selected_grants)},
+        "message": f"Finalised {len(selected_grants)} recommendation(s) for {org_name} (from {len(formatted_candidates)} discovered sources)",
+        "data": {"revealed_count": len(revealed), "final_count": len(selected_grants), "candidate_count": len(formatted_candidates)},
     }
 
     yield {
@@ -418,6 +505,7 @@ def run_agent_stream(
         "message": (f"Selected {len(selected_grants)} sample grant recommendations (AI ranking unavailable)" if is_degraded else f"Selected {len(selected_grants)} top grant recommendations"),
         "data": {
             "grants": selected_grants,
+            "all_candidates": formatted_candidates,
             "reply": (
                 f"Found {len(selected_grants)} live grant opportunities for {profile.get('organisationName') or 'your organisation'}. Note: AI ranking was unavailable, so results are unranked samples."
                 if is_degraded

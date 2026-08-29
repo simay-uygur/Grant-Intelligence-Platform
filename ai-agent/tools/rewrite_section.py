@@ -35,7 +35,8 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
         f"GRANT:\n{grant_context}\n\n"
         f"{instruction_line}"
         "Keep it roughly the same length (80-150 words). Use the organisation's real details. "
-        "Align with the grant's programme priorities. Write professional application prose.\n\n"
+        "Align with the grant's programme priorities. Write professional application prose. "
+        "Do NOT use markdown bold syntax (such as **bold** or asterisks) or bullet headings.\n\n"
         "Respond ONLY with the rewritten section text. No preamble, no headings, no quotes."
     )
 
@@ -74,7 +75,8 @@ def rewrite_section_stream(section_title, current_content, profile, grant=None, 
         f"GRANT:\n{grant_context}\n\n"
         f"{instruction_line}"
         "Keep it roughly the same length (80-150 words). Use the organisation's real details. "
-        "Align with the grant's programme priorities. Write professional application prose.\n\n"
+        "Align with the grant's programme priorities. Write professional application prose. "
+        "Do NOT use markdown bold syntax (such as **bold** or asterisks) or bullet headings.\n\n"
         "Respond ONLY with the rewritten section text. No preamble, no headings, no quotes."
     )
 
