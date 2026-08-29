@@ -407,10 +407,6 @@ export function ApplicationDocumentView({
                   </a>
                 </div>
               )}
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Edit each section, use the AI rewrite tool when connected, then export your
-                application.
-              </p>
             </div>
             <div className="flex flex-wrap gap-2 sm:shrink-0">
               {onOpenWorkspace && (

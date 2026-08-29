@@ -84,6 +84,7 @@ def draft_single_section(grant, profile, section_title, custom_instructions=None
         f"'{section_title}' section (roughly 100-150 words). "
         "Use the organisation's real details, not placeholders. Explicitly connect the "
         "organisation's capabilities to this specific call's objectives and priorities. "
+        "Do NOT use markdown bold syntax (such as **bold** or asterisks) or bullet asterisks. Write clean, continuous, formal grant prose directly. "
         "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
     )
     try:
@@ -114,6 +115,7 @@ def draft_single_section_stream(grant, profile, section_title, custom_instructio
         f"'{section_title}' section (roughly 100-150 words). "
         "Use the organisation's real details, not placeholders. Explicitly connect the "
         "organisation's capabilities to this specific call's objectives and priorities. "
+        "Do NOT use markdown bold syntax (such as **bold** or asterisks) or bullet asterisks. Write clean, continuous, formal grant prose directly. "
         "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
     )
     try:
@@ -172,7 +174,9 @@ def start_application(grant, profile, custom_instructions=None, template_type=No
         "Write substantive, specific, professional prose for each section (roughly 80-150 words each). "
         "Use the organisation's real details, not placeholders. In every section, explicitly connect "
         "the organisation's capabilities to this specific call's objectives, scope, and priorities "
-        "rather than producing generic company text.\n\n"
+        "rather than producing generic company text. "
+        "Do NOT use markdown bold syntax (such as **bold** or asterisks) inside section bodies. "
+        "Write clean, formal prose paragraphs directly.\n\n"
         "Respond ONLY with a JSON array, no other text, in this exact format:\n"
         '[{"title": "Organisation Overview", "content": "..."}, ...]'
     )

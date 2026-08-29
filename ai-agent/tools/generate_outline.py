@@ -126,36 +126,38 @@ def generate_outline(
     grant_title = str(grant.get("title") or "").lower()
     summary = str(grant.get("summary") or grant.get("description") or "").strip()
 
-    # If explicit template specified
-    if template_type == "HORIZON_STANDARD" or ("horizon" in programme and "ria" in grant_title):
+    # 1. If explicit template explicitly requested by caller
+    if template_type == "HORIZON_STANDARD":
         return [dict(s) for s in HORIZON_RIA_OUTLINE]
-    if template_type == "EIC_ACCELERATOR" or ("eic" in programme or "accelerator" in grant_title):
+    if template_type == "EIC_ACCELERATOR":
         return [dict(s) for s in EIC_ACCELERATOR_OUTLINE]
 
-    # Attempt AI outline generation tailored to the specific call text
-    if summary and len(summary) > 60:
+    # 2. Prioritize dynamic AI outline tailored to the specific real call objectives and scope
+    if summary and len(summary) > 40:
         try:
             client = get_bedrock_client()
             prompt = (
-                "You are an expert grant proposal strategist. Analyze the grant call and applicant profile below, "
-                "and determine the 4 to 6 most relevant and impactful proposal sections for this application.\n\n"
+                "You are an expert grant proposal strategist for European and international funding programs. "
+                "Analyze the grant call requirements and the applicant profile below. "
+                "Determine the optimal proposal outline (between 4 and 8 tailored, substantive sections) "
+                "specifically tailored to address this call's unique scope, objectives, evaluation criteria, and pilot expectations.\n\n"
                 f"GRANT TITLE: {grant.get('title', 'Grant Call')}\n"
                 f"PROGRAMME: {grant.get('programme', 'Innovation')}\n"
                 f"SOURCE URL: {grant.get('sourceUrl') or grant.get('url') or 'N/A'}\n"
-                f"CALL OBJECTIVES & SCOPE:\n{summary[:3000]}\n\n"
+                f"CALL OBJECTIVES, SCOPE & TOPICS:\n{summary[:4000]}\n\n"
                 f"APPLICANT PROFILE:\n{json.dumps(profile, indent=2)}\n\n"
-                "Return ONLY a JSON array of 4 to 6 section objects. Each object MUST have:\n"
-                '  - "id": short slug string (e.g. "excellence-state-of-art")\n'
-                '  - "title": descriptive human-readable title without number prefix (e.g. "Excellence & Scientific Novelty")\n'
-                '  - "description": 1-2 sentence guidance on what content should be covered in this section\n'
-                '  - "targetWords": recommended word count number between 100 and 200\n\n'
+                "Return ONLY a JSON array of section objects. Each object MUST have:\n"
+                '  - "id": short slug string (e.g. "factory-pilot-deployment")\n'
+                '  - "title": clear descriptive title without numbering (e.g. "Pilot Deployment & Factory Validation")\n'
+                '  - "description": 1-2 sentence guidance outlining what key points and evidence to cover in this section\n'
+                '  - "targetWords": recommended word count number between 100 and 250\n\n'
                 "Output JSON array ONLY without code blocks or conversational text."
             )
 
             response = client.converse(
                 modelId=get_model_id(),
                 messages=[{"role": "user", "content": [{"text": prompt}]}],
-                inferenceConfig={"maxTokens": 1500},
+                inferenceConfig={"maxTokens": 2000},
             )
 
             raw_text = ""
@@ -170,7 +172,7 @@ def generate_outline(
                 for item in parsed:
                     if isinstance(item, dict) and item.get("title"):
                         raw_title = str(item["title"]).strip()
-                        s_title = re.sub(r"^\s*\d+[\.\)\-:]\s*", "", raw_title).strip() or raw_title
+                        s_title = re.sub(r"^\s*\d+[.)\-:]\s*", "", raw_title).strip() or raw_title
                         s_id = str(item.get("id") or _slugify(s_title))
                         s_desc = str(item.get("description") or f"Coverage of {s_title} for this grant.")
                         s_words = int(item.get("targetWords") or 150)
@@ -188,10 +190,10 @@ def generate_outline(
         except Exception as e:
             logger.warning("Bedrock outline generation failed (%s); using intelligent fallback", e)
 
-    # Intelligent Fallback
-    if "horizon" in programme or "european" in programme:
-        return [dict(s) for s in HORIZON_RIA_OUTLINE]
-    if "eic" in programme or "startup" in programme or "sme" in programme:
+    # 3. Intelligent Fallback (when call text is absent or Bedrock is unavailable)
+    if "eic" in programme or "accelerator" in grant_title:
         return [dict(s) for s in EIC_ACCELERATOR_OUTLINE]
+    if "horizon" in programme or "european" in programme or "ria" in grant_title:
+        return [dict(s) for s in HORIZON_RIA_OUTLINE]
 
     return [dict(s) for s in DEFAULT_CORE_OUTLINE]
