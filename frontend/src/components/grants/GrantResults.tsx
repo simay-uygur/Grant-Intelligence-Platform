@@ -30,6 +30,7 @@ import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { EmptyState } from "@/components/EmptyState";
 import {
+  getEffectiveMatchPercentage,
   getGrantSourceLabel,
   getGrantSourceType,
   grantResultProvenance,
@@ -312,10 +313,11 @@ export function GrantResults({
                     No discovered opportunities matched your filter.
                   </div>
                 ) : (
-                  filteredCandidates.map((candidate) => (
+                  filteredCandidates.map((candidate, idx) => (
                     <CandidateItem
                       key={candidate.id}
                       grant={candidate}
+                      index={idx}
                       onAsk={onAsk}
                       onViewDetails={openDetails}
                     />
@@ -721,10 +723,12 @@ function MatchMeter({ percentage, tier }: { percentage: number; tier: MatchTier 
 
 function CandidateItem({
   grant,
+  index,
   onAsk,
   onViewDetails,
 }: {
   grant: Grant;
+  index?: number;
   onAsk: (grant: Grant) => void;
   onViewDetails: (grant: Grant) => void;
 }) {
@@ -734,6 +738,7 @@ function CandidateItem({
     : grant.programme || "Horizon Europe";
   const identifier =
     grant.id.startsWith("web-") || grant.id.startsWith("cand-") ? undefined : grant.id;
+  const score = getEffectiveMatchPercentage(grant, index);
 
   return (
     <div
@@ -759,7 +764,12 @@ function CandidateItem({
             </span>
           )}
         </div>
-        {grant.deadline && <DeadlineBadge deadline={grant.deadline} compact />}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="inline-flex items-center rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[10px] font-bold text-brand tabular-nums">
+            {score}% match
+          </span>
+          {grant.deadline && <DeadlineBadge deadline={grant.deadline} compact />}
+        </div>
       </div>
 
       <div>

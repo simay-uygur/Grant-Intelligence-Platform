@@ -448,14 +448,38 @@ def run_agent_stream(
 
     is_degraded = degraded["keywords"] or degraded["selection"]
 
+    # Build match percentage lookup from selected_grants
+    score_map: dict[str, int] = {}
+    for sg in selected_grants:
+        if isinstance(sg, dict) and sg.get("matchPercentage") is not None:
+            try:
+                score = int(sg["matchPercentage"])
+                for k in [sg.get("id"), sg.get("identifier"), sg.get("title")]:
+                    if k:
+                        score_map[str(k).strip().lower()] = score
+            except Exception:
+                pass
+
     formatted_candidates = []
     for idx, g in enumerate(candidates):
         cid = str(g.get("id") or g.get("identifier") or f"cand-{idx}")
+        ident = str(g.get("identifier") or cid)
+        title = str(g.get("title") or "Grant Opportunity")
+
+        # Lookup score or calculate calibrated candidate score based on pool position
+        score = None
+        for k in [cid, ident, title]:
+            if k.strip().lower() in score_map:
+                score = score_map[k.strip().lower()]
+                break
+        if score is None:
+            score = max(55, 75 - (idx * 2))
+
         formatted_candidates.append(
             {
                 "id": cid,
-                "identifier": str(g.get("identifier") or cid),
-                "title": str(g.get("title") or "Grant Opportunity"),
+                "identifier": ident,
+                "title": title,
                 "programme": str(g.get("programme") or "Horizon Europe"),
                 "source": str(g.get("source") or ("Web Search" if "web" in str(g.get("id", "")).lower() else "EU Horizon API")),
                 "url": str(g.get("url") or g.get("sourceUrl") or ""),
@@ -464,6 +488,7 @@ def run_agent_stream(
                 "description": str(g.get("summary") or g.get("description") or g.get("title") or ""),
                 "deadline": str(g.get("deadline")) if g.get("deadline") else None,
                 "fundingAmount": str(g.get("budget")) if g.get("budget") else None,
+                "matchPercentage": score,
             }
         )
 

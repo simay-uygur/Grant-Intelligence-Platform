@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import {
+  getEffectiveMatchPercentage,
   getGrantSourceLabel,
   getGrantSourceType,
   MATCH_TIER_CLASSES,
@@ -93,9 +94,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <div className="space-y-5 text-sm">
                 <Section title="Overview">
-                  {grant.matchPercentage !== undefined && (
-                    <MatchScoreRow percentage={grant.matchPercentage} />
-                  )}
+                  <MatchScoreRow percentage={getEffectiveMatchPercentage(grant)} />
                   <Field label="Description" value={grant.description} />
                   <Field
                     label="Discovery Source"

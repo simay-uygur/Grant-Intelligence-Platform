@@ -67,8 +67,39 @@ User Confirms Outline ──► Triggers `start_application_stream`
 3. **Company & Team Track Record** (~150 words): Founders' background, technical competencies, ownership structure, and advisory board.
 4. **Financing Needs & Risk Mitigation** (~150 words): Milestones for grant and equity blended finance, co-investment readiness, and de-risking plan.
 
-#### C. Adaptive Bedrock Outline (General Calls)
-For niche or regional calls with specific call text, AWS Bedrock analyzes the call objectives and the applicant profile to return 4 to 6 tailored section slugs, descriptions, and recommended word count targets.
+#### C. Adaptive Bedrock Outline (General Calls & Extracted Call Text)
+For niche or live calls with extracted call text, AWS Bedrock prioritizes the call objectives, scope, and topics alongside the applicant profile to return between 4 and 8 tailored section slugs, descriptions, and recommended word count targets.
+
+---
+
+## 3. Format & Content Tailoring for Web-Discovered Grants
+
+When users initiate application drafting on grants discovered through **Web Search** ([web_search.py](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/ai-agent/tools/web_search.py)), the platform dynamically tailors both proposal format and drafting content to match non-SEDIA funding agencies:
+
+### A. Format Tailoring (Adaptive Proposal Outlines)
+[generate_outline.py](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/ai-agent/tools/generate_outline.py) inspects the specific grant title, programme, and web summary snippet:
+
+1. **For Eureka / Eurostars Calls**:
+   Bedrock constructs an outline matching Eurostars' SME commercialization rules:
+   - **Market-Driven Innovation & Cross-Border Collaboration**: Transnational synergy, market readiness, and partner roles.
+   - **SME Lead & R&D Capability**: Leadership role of the innovative SME, technical core competencies.
+   - **Work Plan & Fast Time-to-Market (24 months)**: Concrete milestones and commercial release roadmap within 2 years of project completion.
+   - **Commercial Exploitation & ROI**: Sales projections, European market penetration, and return on investment.
+
+2. **For National Innovation Calls (e.g., Innovate UK, German BMBF, Nordic Innovation)**:
+   Adapts to national innovation agency priorities:
+   - **Need for Public Funding & Additionality**: Why public support is necessary and how it de-risks the initiative.
+   - **Market Opportunity & Domestic/Export Growth**: Commercial demand, job creation, and export expansion.
+   - **Technical Feasibility & Project Delivery**: Milestones, testing methodology, and team execution.
+   - **Risk Management & Financial Breakdown**: Project governance, financial controls, and risk mitigation.
+
+3. **For General Thematic Web Grants**:
+   Generates 4 to 8 sections mapped directly to the specific technical topics extracted in the web search snippet.
+
+### B. Content Prose Tailoring
+When drafting the proposal prose in [start_application.py](file:///Users/simayy/Documents/aws_uep_github/Grant-Intelligence-Platform/ai-agent/tools/start_application.py):
+- **Context Injection**: Every section prompt injects the grant's title, funder, and extracted call summary/scope alongside the applicant's company profile.
+- **Explicit Strategic Alignment**: Prompts instruct the LLM to explicitly connect the applicant's real technology and pilot metrics to the funding agency's stated goals, producing high-impact, funder-tailored proposals.
 
 ---
 
