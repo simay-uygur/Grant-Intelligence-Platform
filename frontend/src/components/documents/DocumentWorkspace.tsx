@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { Check, FileText, MessagesSquare, Pencil, Send, Sparkles, Undo2, X } from "lucide-react";
+import {
+  Check,
+  ExternalLink,
+  FileText,
+  MessagesSquare,
+  Pencil,
+  Send,
+  Sparkles,
+  Undo2,
+  X,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type {
   ApplicationDocument,
@@ -17,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
-import { wordCount } from "@/utils/text";
+import { wordCount, stripLeadingNumber } from "@/utils/text";
 
 /**
  * One section, always visible (not one-at-a-time like the chat's document
@@ -83,7 +93,7 @@ function WorkspaceSection({
             id={checkboxId}
             checked={selected}
             onCheckedChange={onToggleSelect}
-            aria-label={`Select ${section.title} for AI editing`}
+            aria-label={`Select ${stripLeadingNumber(section.title)} for AI editing`}
             className="mt-1 shrink-0"
           />
           <div className="min-w-0">
@@ -92,7 +102,7 @@ function WorkspaceSection({
                 id={`workspace-section-${section.id}`}
                 className="break-words text-base font-semibold text-foreground"
               >
-                {index}. {section.title}
+                {index}. {stripLeadingNumber(section.title)}
               </h3>
             </label>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
@@ -261,6 +271,20 @@ function WorkspaceEditor({
                 ? `${dirtyCount} unsaved edit${dirtyCount === 1 ? "" : "s"}`
                 : "All edits saved"}
             </span>
+            {doc.sourceUrl && (
+              <>
+                <span>·</span>
+                <a
+                  href={doc.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  View Official Call
+                </a>
+              </>
+            )}
           </div>
 
           {restoredIds.length > 0 && !restoreDismissed && (

@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import type { ApplicationDocument } from "@/types";
+import { stripLeadingNumber } from "./text";
 
 /** Returns whether the export actually succeeded, so the caller can show a status if not. */
 export function exportAsPdf(doc: ApplicationDocument): boolean {
@@ -24,7 +25,15 @@ export function exportAsPdf(doc: ApplicationDocument): boolean {
 
     const titleLines = pdf.splitTextToSize(`Grant Application — ${doc.grantTitle}`, contentWidth);
     pdf.text(titleLines, margin, cursorY);
-    cursorY += titleLines.length * 6.5 + 4;
+    cursorY += titleLines.length * 6.5 + 2;
+
+    if (doc.sourceUrl) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(59, 130, 246);
+      pdf.text(`Official Call: ${doc.sourceUrl}`, margin, cursorY);
+      cursorY += 6;
+    }
 
     // Divider Line
     pdf.setDrawColor(203, 213, 225);
@@ -43,7 +52,7 @@ export function exportAsPdf(doc: ApplicationDocument): boolean {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(11.5);
       pdf.setTextColor(30, 58, 138);
-      pdf.text(`${idx + 1}. ${s.title}`, margin, cursorY);
+      pdf.text(`${idx + 1}. ${stripLeadingNumber(s.title)}`, margin, cursorY);
       cursorY += 6.5;
 
       // Section Content
@@ -115,14 +124,30 @@ export async function exportAsWord(doc: ApplicationDocument): Promise<boolean> {
             size: 12,
           },
         },
-        spacing: { after: 300 },
+        spacing: { after: doc.sourceUrl ? 100 : 300 },
       }),
     ];
+
+    if (doc.sourceUrl) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Official Call: ${doc.sourceUrl}`,
+              italics: true,
+              color: "2563EB",
+              size: 20,
+            }),
+          ],
+          spacing: { after: 260 },
+        }),
+      );
+    }
 
     doc.sections.forEach((s, idx) => {
       children.push(
         new Paragraph({
-          text: `${idx + 1}. ${s.title}`,
+          text: `${idx + 1}. ${stripLeadingNumber(s.title)}`,
           heading: HeadingLevel.HEADING_2,
           spacing: { before: 240, after: 120 },
         }),

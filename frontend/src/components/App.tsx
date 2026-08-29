@@ -24,8 +24,10 @@ import type {
   ChatMessage,
   Grant,
   OrganisationProfile,
+  OutlineSection,
 } from "@/types";
 import { AccountModal } from "@/components/AccountModal";
+import { OutlinePreviewModal } from "@/components/documents/OutlinePreviewModal";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
@@ -188,6 +190,7 @@ export function App() {
   const [mainView, setMainView] = useState<MainView>("chat");
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
+  const [outlineModalGrant, setOutlineModalGrant] = useState<Grant | null>(null);
   const [startingGrantId, setStartingGrantId] = useState<string | null>(null);
   const [backendConnection, setBackendConnection] = useState<BackendConnection>(
     isMockMode ? { status: "local" } : { status: "checking" },
@@ -452,124 +455,121 @@ export function App() {
     [askAssistant, askUser],
   );
 
-  const handleStartApplication = useCallback(
-    async (grant: Grant) => {
+  const executeStartApplication = useCallback(
+    async (grant: Grant, customSections?: OutlineSection[]) => {
       if (!c.activeConversation?.profile) return;
       setAskingAboutGrant(null);
       setStartingGrantId(grant.id);
       setBusy(true);
       const profile = c.activeConversation.profile;
       try {
-        const currentDocument = c.activeConversation.document;
-        let doc =
-          currentDocument?.grantId === grant.id
-            ? currentDocument
-            : await applicationService.findSavedApplication(grant.id);
-        const reopened = Boolean(doc);
-        if (!doc) {
-          const statusMessageId = askAssistant([
-            {
-              type: "draft_progress",
-              state: {
-                grantTitle: grant.title,
-                percent: 0,
-                currentSectionTitle: "Analyzing requirements...",
-              },
+        const statusMessageId = askAssistant([
+          {
+            type: "draft_progress",
+            state: {
+              grantTitle: grant.title,
+              percent: 0,
+              currentSectionTitle: "Analyzing requirements & preparing outline...",
             },
-          ]);
-          const handleDraftProgress = (event: SseEvent) => {
-            if (statusMessageId) {
-              const data = event.data as Record<string, unknown> | undefined;
-              const sectionIdx = (data?.section_index as number | undefined) ?? 0;
-              const total = (data?.total_sections as number | undefined) ?? 12;
-              const thought = (data?.thought as string | undefined) ?? undefined;
-              const wordCount = (data?.word_count as number | undefined) ?? undefined;
-              let percent =
-                (data?.progress_percent as number | undefined) ??
-                (sectionIdx ? Math.round((sectionIdx / total) * 100) : 0);
+          },
+        ]);
+        const targetTotalSections = customSections?.length ?? 12;
+        const handleDraftProgress = (event: SseEvent) => {
+          if (statusMessageId) {
+            const data = event.data as Record<string, unknown> | undefined;
+            const sectionIdx = (data?.section_index as number | undefined) ?? 0;
+            const total = (data?.total_sections as number | undefined) ?? targetTotalSections;
+            const thought = (data?.thought as string | undefined) ?? undefined;
+            const wordCount = (data?.word_count as number | undefined) ?? undefined;
+            let percent =
+              (data?.progress_percent as number | undefined) ??
+              (sectionIdx ? Math.round((sectionIdx / total) * 100) : 0);
 
-              if (event.event === "result") {
-                percent = 100;
+            if (event.event === "result") {
+              percent = 100;
+            }
+
+            let sectionTitle = "Preparing sections...";
+            if (event.event === "result") {
+              sectionTitle = "Application draft completed!";
+            } else if (event.message) {
+              const match = event.message.match(/Section \d+\/\d+: (.*?)(?: \([0-9]+%|\.\.\.|$)/);
+              if (match && match[1]) {
+                sectionTitle = match[1];
+              } else if (event.message.includes("Analyzing")) {
+                sectionTitle = "Analyzing grant requirements...";
               }
+            }
 
-              let sectionTitle = "Preparing sections...";
-              if (event.event === "result") {
-                sectionTitle = "Application draft completed!";
-              } else if (event.message) {
-                const match = event.message.match(/Section \d+\/\d+: (.*?)(?: \([0-9]+%|\.\.\.|$)/);
-                if (match && match[1]) {
-                  sectionTitle = match[1];
-                } else if (event.message.includes("Analyzing")) {
-                  sectionTitle = "Analyzing grant requirements...";
-                }
+            let liveTextChunk: string | undefined = undefined;
+
+            // Real-time token streaming: update single section content live as text chunks arrive
+            if (
+              event.event === "section_chunk" &&
+              typeof data?.section_id === "string" &&
+              typeof data?.accumulated_content === "string"
+            ) {
+              liveTextChunk = data.accumulated_content;
+              c.updateDocumentSection(data.section_id, data.accumulated_content);
+              if (c.activeConversation?.stage !== "application") {
+                c.setStage("application");
               }
+            }
 
-              let liveTextChunk: string | undefined = undefined;
-
-              // Real-time token streaming: update single section content live as text chunks arrive
-              if (
-                event.event === "section_chunk" &&
-                typeof data?.section_id === "string" &&
-                typeof data?.accumulated_content === "string"
-              ) {
-                liveTextChunk = data.accumulated_content;
-                c.updateDocumentSection(data.section_id, data.accumulated_content);
+            // Full document snapshot update on section completion
+            if (event.data?.document && typeof event.data.document === "object") {
+              const liveDoc = event.data.document as ApplicationDocument;
+              if (liveDoc.sections && liveDoc.sections.length > 0) {
+                c.setDocument(liveDoc, grant.id);
                 if (c.activeConversation?.stage !== "application") {
                   c.setStage("application");
                 }
               }
-
-              // Full document snapshot update on section completion
-              if (event.data?.document && typeof event.data.document === "object") {
-                const liveDoc = event.data.document as ApplicationDocument;
-                if (liveDoc.sections && liveDoc.sections.length > 0) {
-                  c.setDocument(liveDoc, grant.id);
-                  if (c.activeConversation?.stage !== "application") {
-                    c.setStage("application");
-                  }
-                }
-              }
-
-              setBlocks(statusMessageId, (existingBlocks) => {
-                const firstBlock = existingBlocks[0] as
-                  { state?: { liveTextChunk?: string } } | undefined;
-                const prevChunk = firstBlock?.state?.liveTextChunk;
-                return [
-                  {
-                    type: "draft_progress",
-                    state: {
-                      grantTitle: grant.title,
-                      currentSectionTitle: sectionTitle,
-                      thought,
-                      wordCount,
-                      liveTextChunk: liveTextChunk ?? prevChunk,
-                      sectionIndex: event.event === "result" ? total : sectionIdx || 1,
-                      totalSections: total,
-                      percent,
-                    },
-                  },
-                ];
-              });
             }
-          };
-          doc = await applicationService.startApplication(grant, profile, handleDraftProgress, {
-            conversationId: c.activeConversation?.backendConversationId,
-          });
-          if (statusMessageId) {
-            setBlocks(statusMessageId, () => [
-              {
-                type: "draft_progress",
-                state: {
-                  grantTitle: grant.title,
-                  currentSectionTitle: "Application draft completed!",
-                  sectionIndex: 12,
-                  totalSections: 12,
-                  percent: 100,
+
+            setBlocks(statusMessageId, (existingBlocks) => {
+              const firstBlock = existingBlocks[0] as
+                { state?: { liveTextChunk?: string } } | undefined;
+              const prevChunk = firstBlock?.state?.liveTextChunk;
+              return [
+                {
+                  type: "draft_progress",
+                  state: {
+                    grantTitle: grant.title,
+                    currentSectionTitle: sectionTitle,
+                    thought,
+                    wordCount,
+                    liveTextChunk: liveTextChunk ?? prevChunk,
+                    sectionIndex: event.event === "result" ? total : sectionIdx || 1,
+                    totalSections: total,
+                    percent,
+                  },
                 },
-              },
-            ]);
+              ];
+            });
           }
+        };
+
+        const doc = await applicationService.startApplication(grant, profile, handleDraftProgress, {
+          conversationId: c.activeConversation?.backendConversationId,
+          sections: customSections,
+        });
+
+        if (statusMessageId) {
+          setBlocks(statusMessageId, () => [
+            {
+              type: "draft_progress",
+              state: {
+                grantTitle: grant.title,
+                currentSectionTitle: "Application draft completed!",
+                sectionIndex: doc.sections.length,
+                totalSections: doc.sections.length,
+                percent: 100,
+              },
+            },
+          ]);
         }
+
         c.setDocument(doc, grant.id);
         c.setStage("application");
         addApplication({
@@ -583,23 +583,15 @@ export function App() {
           deadline: grant.deadline ?? "",
           updatedAt: doc.updatedAt || new Date().toISOString(),
         });
-        const writtenLabel = reopened ? applicationWrittenLabel(doc) : null;
-        // Collapse any previous document cards in this conversation before
-        // adding the new one — each card is now scoped to its own generation.
         c.supersedePreviousDocumentBlocks();
         askAssistant([
           {
             type: "success",
-            message: reopened
-              ? `Saved application reopened for ${grant.title}. ${writtenLabel ? `${writtenLabel} ` : ""}Continue editing, try a rewrite, or export it.`
-              : `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
+            message: `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
           },
           { type: "document", documentId: doc.id, grantTitle: doc.grantTitle },
         ]);
       } catch (err) {
-        // Previously uncaught: a rejection here left the UI sitting on the
-        // results with no explanation. The stage is deliberately not moved,
-        // so "Start application" on the grant card is still there to retry.
         askAssistant([
           {
             type: "error",
@@ -612,6 +604,36 @@ export function App() {
       }
     },
     [addApplication, askAssistant, c, setBlocks],
+  );
+
+  const handleStartApplication = useCallback(
+    async (grant: Grant) => {
+      if (!c.activeConversation?.profile) return;
+      const currentDocument = c.activeConversation.document;
+      const savedDoc =
+        currentDocument?.grantId === grant.id
+          ? currentDocument
+          : await applicationService.findSavedApplication(grant.id);
+
+      if (savedDoc) {
+        setAskingAboutGrant(null);
+        c.setDocument(savedDoc, grant.id);
+        c.setStage("application");
+        const writtenLabel = applicationWrittenLabel(savedDoc);
+        c.supersedePreviousDocumentBlocks();
+        askAssistant([
+          {
+            type: "success",
+            message: `Saved application reopened for ${grant.title}. ${writtenLabel ? `${writtenLabel} ` : ""}Continue editing, try a rewrite, or export it.`,
+          },
+          { type: "document", documentId: savedDoc.id, grantTitle: savedDoc.grantTitle },
+        ]);
+        return;
+      }
+
+      setOutlineModalGrant(grant);
+    },
+    [askAssistant, c],
   );
 
   const handleDeleteApplication = useCallback(
@@ -831,10 +853,27 @@ export function App() {
       // preparing-results skeletons, or they'd spin forever above the
       // no-matches state.
       hasGrantResults: c.activeConversation?.grants !== undefined,
-      getApplicationStatus: (documentId) =>
-        apps.applications.find((a) => a.id === documentId || a.id === `app-${documentId}`)?.status,
-      onUpdateApplicationStatus: (documentId, status) =>
-        apps.updateStatus(documentId.startsWith("app-") ? documentId : `app-${documentId}`, status),
+      getApplicationStatus: (documentId) => {
+        const app = apps.applications.find(
+          (a) =>
+            a.id === documentId ||
+            a.id === `app-${documentId}` ||
+            `app-${a.id}` === documentId ||
+            a.grantId === documentId,
+        );
+        return app?.status;
+      },
+      onUpdateApplicationStatus: (documentId, status) => {
+        const match = apps.applications.find(
+          (a) =>
+            a.id === documentId ||
+            a.id === `app-${documentId}` ||
+            `app-${a.id}` === documentId ||
+            a.grantId === documentId,
+        );
+        const resolvedId = match ? match.id : documentId;
+        apps.updateStatus(resolvedId, status);
+      },
       onViewInPipeline: (appId?: string) => {
         if (appId) {
           setHighlightApplicationId(appId);
@@ -965,6 +1004,22 @@ export function App() {
         open={accountModalOpen}
         onOpenChange={setAccountModalOpen}
         onSignOut={handleSignOut}
+      />
+      <OutlinePreviewModal
+        open={Boolean(outlineModalGrant)}
+        onOpenChange={(open) => {
+          if (!open) setOutlineModalGrant(null);
+        }}
+        grant={outlineModalGrant}
+        profile={c.activeConversation?.profile ?? null}
+        conversationId={c.activeConversation?.backendConversationId}
+        onConfirm={(sections) => {
+          const targetGrant = outlineModalGrant;
+          setOutlineModalGrant(null);
+          if (targetGrant) {
+            void executeStartApplication(targetGrant, sections);
+          }
+        }}
       />
 
       <main

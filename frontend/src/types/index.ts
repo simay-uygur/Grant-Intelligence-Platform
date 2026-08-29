@@ -76,11 +76,21 @@ export interface DocumentSection {
   content: string;
 }
 
+/** Pre-draft proposal section outline guidance. */
+export interface OutlineSection {
+  id: string;
+  title: string;
+  description?: string;
+  targetWords?: number;
+}
+
 /** An in-progress grant Application draft. */
 export interface ApplicationDocument {
   id: string;
   grantId: string;
   grantTitle: string;
+  sourceUrl?: string;
+  programme?: string;
   sections: DocumentSection[];
   /** Original persistence time. Present when reopening a stored draft. */
   createdAt?: string;

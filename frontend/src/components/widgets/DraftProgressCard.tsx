@@ -3,6 +3,7 @@ import type { DraftProgressState } from "@/types";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { stripLeadingNumber } from "@/utils/text";
 
 interface Props {
   state: DraftProgressState;
@@ -43,7 +44,9 @@ export function DraftProgressCard({ state }: Props) {
                 Section {current} of {total}
               </span>
               <span className="truncate font-semibold text-foreground">
-                {state.currentSectionTitle ?? "Preparing application sections..."}
+                {state.currentSectionTitle
+                  ? stripLeadingNumber(state.currentSectionTitle)
+                  : "Preparing application sections..."}
               </span>
             </div>
             {percent === 100 && (
@@ -61,7 +64,10 @@ export function DraftProgressCard({ state }: Props) {
             <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-brand">
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-brand animate-ping" />
-                Streaming Live &bull; {state.currentSectionTitle ?? "Drafting"}
+                Streaming Live &bull;{" "}
+                {state.currentSectionTitle
+                  ? stripLeadingNumber(state.currentSectionTitle)
+                  : "Drafting"}
               </span>
               {Boolean(state.wordCount) && (
                 <span className="font-mono text-muted-foreground">{state.wordCount} words</span>

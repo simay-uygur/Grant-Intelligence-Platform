@@ -656,14 +656,19 @@ class ApplicationStore:
             "updatedAt": row["updated_at"],
         }
 
-    def _application_from_row(self, row: Any) -> dict:  # row is a SQLAlchemy RowMapping
+    def _application_from_row(self, row: Any) -> dict:
+        grant_dict = json.loads(row["grant_json"]) if row["grant_json"] else {}
+        source_url = _normalize_eu_url(str(grant_dict.get("sourceUrl") or grant_dict.get("url") or ""), row["grant_id"])
+        programme = str(grant_dict.get("programme") or "")
         return {
             "id": row["id"],
             "grantId": row["grant_id"],
             "grantTitle": row["grant_title"],
+            "sourceUrl": source_url if source_url else None,
+            "programme": programme if programme else None,
             "status": row["status"],
             "sections": json.loads(row["sections_json"]),
-            "grant": json.loads(row["grant_json"]),
+            "grant": grant_dict,
             "profile": json.loads(row["profile_json"]),
             "customInstructions": row["custom_instructions"],
             "templateType": row["template_type"],

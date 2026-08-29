@@ -3,6 +3,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   FileDown,
   FileText,
   KanbanSquare,
@@ -52,7 +53,7 @@ import {
   STATUS_ORDER,
   isStatus,
 } from "@/components/pipeline/statusPresentation";
-import { wordCount } from "@/utils/text";
+import { wordCount, stripLeadingNumber } from "@/utils/text";
 
 interface Props {
   doc: ApplicationDocument;
@@ -393,6 +394,19 @@ export function ApplicationDocumentView({
               <h3 className="mt-1 break-words text-lg font-semibold text-foreground">
                 {doc.grantTitle}
               </h3>
+              {(doc.sourceUrl || grant?.sourceUrl) && (
+                <div className="mt-1">
+                  <a
+                    href={doc.sourceUrl || grant?.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    View Official Call on Portal
+                  </a>
+                </div>
+              )}
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Edit each section, use the AI rewrite tool when connected, then export your
                 application.
@@ -526,18 +540,8 @@ export function ApplicationDocumentView({
           {Boolean(onViewInPipeline || applicationStatus) && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
               <span className="text-[11px] font-medium text-muted-foreground">Pipeline status</span>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "shrink-0 whitespace-nowrap font-medium transition-colors duration-200",
-                  STATUS_BADGE[applicationStatus ?? "drafting"],
-                )}
-              >
-                <span className="sr-only">Status: </span>
-                {STATUS_LABEL[applicationStatus ?? "drafting"]}
-              </Badge>
 
-              {onApplicationStatusChange && (
+              {onApplicationStatusChange ? (
                 <Select
                   value={applicationStatus ?? "drafting"}
                   onValueChange={(value) => {
@@ -559,6 +563,17 @@ export function ApplicationDocumentView({
                     ))}
                   </SelectContent>
                 </Select>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "shrink-0 whitespace-nowrap font-medium transition-colors duration-200",
+                    STATUS_BADGE[applicationStatus ?? "drafting"],
+                  )}
+                >
+                  <span className="sr-only">Status: </span>
+                  {STATUS_LABEL[applicationStatus ?? "drafting"]}
+                </Badge>
               )}
 
               {onViewInPipeline && (
@@ -594,7 +609,7 @@ export function ApplicationDocumentView({
                     )}
                   >
                     <span className="mt-px shrink-0 tabular-nums">{i + 1}.</span>
-                    <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                    <span className="min-w-0 flex-1 truncate">{stripLeadingNumber(s.title)}</span>
                     {isDirty(s.id) && (
                       <span
                         className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
@@ -629,7 +644,7 @@ export function ApplicationDocumentView({
               <SelectContent>
                 {doc.sections.map((s, i) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {i + 1}. {s.title}
+                    {i + 1}. {stripLeadingNumber(s.title)}
                     {isDirty(s.id) ? " • unsaved" : ""}
                   </SelectItem>
                 ))}
@@ -689,7 +704,7 @@ export function ApplicationDocumentView({
             <DialogTitle>Replace your edits with a rewrite?</DialogTitle>
             <DialogDescription>
               {pendingRewriteSection
-                ? `"${pendingRewriteSection.title}" has manually edited text that hasn't been saved yet. Running the local rewrite will replace it in the editor. You'll get one undo right after it runs.`
+                ? `"${stripLeadingNumber(pendingRewriteSection.title)}" has manually edited text that hasn't been saved yet. Running the local rewrite will replace it in the editor. You'll get one undo right after it runs.`
                 : "This section has manually edited text that hasn't been saved yet."}
             </DialogDescription>
           </DialogHeader>
@@ -769,7 +784,7 @@ function SectionEditor({
       <div className="mb-2 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h4 className="break-words text-sm font-semibold text-foreground">
-            {index}. {section.title}
+            {index}. {stripLeadingNumber(section.title)}
           </h4>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
             <span>{wordCount(displayText)} words</span>

@@ -39,6 +39,20 @@ def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
         ],
         "updatedAt": "2026-08-06T08:00:00Z",
     }
+    service.agent_service.generate_outline = lambda grant, profile, template_type=None, custom_instructions=None, attachments="": [
+        {
+            "id": "excellence",
+            "title": "1. Excellence",
+            "description": "Scientific excellence notes.",
+            "targetWords": 180,
+        },
+        {
+            "id": "impact",
+            "title": "2. Impact",
+            "description": "Societal impact pathways.",
+            "targetWords": 180,
+        },
+    ]
     service.agent_service.rewrite_section = lambda section_title, current_content, profile, grant=None, instruction=None: f"AI rewrite for {profile['organisationName']}."
     service.agent_service.document_qa = lambda question, document, grant=None, profile=None, section_id=None, attachments="": {
         "answer": f"Evaluator advice for '{question}'.",
@@ -513,3 +527,33 @@ def test_export_text_and_missing_document(tmp_path: Path, monkeypatch: MonkeyPat
 
     missing = client.get("/api/v1/documents/missing-doc/export?format=markdown")
     assert missing.status_code == 404
+
+
+def test_generate_outline_endpoint(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "outline.db", monkeypatch)
+    response = client.post(
+        "/api/v1/grants/HORIZON-APP-001/outline",
+        json={"grant": GRANT, "profile": PROFILE},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["grantId"] == "HORIZON-APP-001"
+    assert data["grantTitle"] == "Robotics Quality Inspection"
+    assert len(data["sections"]) == 2
+    assert data["sections"][0]["id"] == "excellence"
+    assert data["sections"][0]["title"] == "1. Excellence"
+
+
+def test_start_application_with_custom_sections(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "custom_sections.db", monkeypatch)
+    custom_sections = [
+        {"id": "excellence", "title": "1. Excellence"},
+        {"id": "impact", "title": "2. Impact"},
+    ]
+    response = client.post(
+        "/api/v1/grants/HORIZON-APP-001/start-application",
+        json={"grant": GRANT, "profile": PROFILE, "sections": custom_sections},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "doc-application-001"
