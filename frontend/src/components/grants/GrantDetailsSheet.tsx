@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/sheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import {
-  getEffectiveMatchPercentage,
   getGrantSourceLabel,
   getGrantSourceType,
   MATCH_TIER_CLASSES,
@@ -94,7 +93,9 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <div className="space-y-5 text-sm">
                 <Section title="Overview">
-                  <MatchScoreRow percentage={getEffectiveMatchPercentage(grant)} />
+                  {grant.matchPercentage !== undefined && (
+                    <MatchScoreRow percentage={grant.matchPercentage} />
+                  )}
                   <Field label="Description" value={grant.description} />
                   <Field
                     label="Discovery Source"
@@ -119,39 +120,39 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
                   </Section>
                 )}
 
-                {(grant.organisationEligibility?.length || grant.requirements?.length) && (
+                {Boolean(grant.organisationEligibility?.length || grant.requirements?.length) && (
                   <Section title="Eligibility">
-                    {grant.organisationEligibility?.length ? (
+                    {Boolean(grant.organisationEligibility?.length) && (
                       <ListField
                         label="Organisation eligibility"
-                        items={grant.organisationEligibility}
+                        items={grant.organisationEligibility!}
                       />
-                    ) : null}
-                    {grant.requirements?.length ? (
-                      <ListField label="Requirements" items={grant.requirements} />
-                    ) : null}
+                    )}
+                    {Boolean(grant.requirements?.length) && (
+                      <ListField label="Requirements" items={grant.requirements!} />
+                    )}
                   </Section>
                 )}
 
-                {grant.eligibleCountries?.length ? (
+                {Boolean(grant.eligibleCountries?.length) && (
                   <Section title="Geographic scope">
                     <ListField
                       label="Eligible countries / regions"
-                      items={grant.eligibleCountries}
+                      items={grant.eligibleCountries!}
                     />
-                  </Section>
-                ) : null}
-
-                {(grant.whyItMatches || grant.matchReasons?.length) && (
-                  <Section title="Why it was returned">
-                    {grant.whyItMatches && <Field label="Summary" value={grant.whyItMatches} />}
-                    {grant.matchReasons?.length ? (
-                      <ListField label="Match reasons" items={grant.matchReasons} />
-                    ) : null}
                   </Section>
                 )}
 
-                {grant.sourceUrl && (
+                {Boolean(grant.whyItMatches || grant.matchReasons?.length) && (
+                  <Section title="Why it was returned">
+                    {grant.whyItMatches && <Field label="Summary" value={grant.whyItMatches} />}
+                    {Boolean(grant.matchReasons?.length) && (
+                      <ListField label="Match reasons" items={grant.matchReasons!} />
+                    )}
+                  </Section>
+                )}
+
+                {Boolean(grant.sourceUrl) && (
                   <Section title="Official source">
                     <a
                       href={grant.sourceUrl}
@@ -165,15 +166,15 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
                   </Section>
                 )}
 
-                {grant.tags?.length ? (
+                {Boolean(grant.tags?.length) && (
                   <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
-                    {grant.tags.map((t) => (
+                    {grant.tags!.map((t) => (
                       <Badge key={t} variant="secondary" className="font-normal">
                         {t}
                       </Badge>
                     ))}
                   </div>
-                ) : null}
+                )}
               </div>
             </div>
 
