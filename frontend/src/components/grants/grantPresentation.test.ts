@@ -55,7 +55,9 @@ describe("getEffectiveMatchPercentage", () => {
 
   test("returns undefined when missing or invalid", () => {
     expect(getEffectiveMatchPercentage({ ...baseGrant })).toBeUndefined();
-    expect(getEffectiveMatchPercentage({ ...baseGrant, matchPercentage: undefined })).toBeUndefined();
+    expect(
+      getEffectiveMatchPercentage({ ...baseGrant, matchPercentage: undefined }),
+    ).toBeUndefined();
     expect(getEffectiveMatchPercentage({ ...baseGrant, matchPercentage: 0 })).toBeUndefined();
   });
 });
