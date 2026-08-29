@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -53,6 +53,7 @@ export function OutlinePreviewModal({
   const [isAdding, setIsAdding] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open || !grant || !profile) return;
@@ -153,10 +154,27 @@ export function OutlinePreviewModal({
       next[index - 1] = item;
     } else if (direction === "down") {
       if (index === sections.length - 1) return;
-      next[index] = next[index - 1];
+      next[index] = next[index + 1];
       next[index + 1] = item;
     }
     setSections(next);
+  };
+
+  const handleContainerDragOver = (e: React.DragEvent) => {
+    if (!containerRef.current || draggedIndex === null) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const edgeThreshold = 70;
+    const clientY = e.clientY;
+
+    if (clientY <= rect.top + edgeThreshold) {
+      const dist = Math.max(0, clientY - rect.top);
+      const intensity = Math.max(4, Math.floor((edgeThreshold - dist) / 2) + 2);
+      containerRef.current.scrollTop -= intensity;
+    } else if (clientY >= rect.bottom - edgeThreshold) {
+      const dist = Math.max(0, rect.bottom - clientY);
+      const intensity = Math.max(4, Math.floor((edgeThreshold - dist) / 2) + 2);
+      containerRef.current.scrollTop += intensity;
+    }
   };
 
   const handleDrop = (targetIndex: number) => {
@@ -206,7 +224,10 @@ export function OutlinePreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-6 rounded-2xl">
+      <DialogContent
+        onDragOver={handleContainerDragOver}
+        className="max-w-2xl max-h-[90vh] flex flex-col p-6 rounded-2xl"
+      >
         <DialogHeader className="border-b border-border pb-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-brand uppercase tracking-wider">
             <Sparkles className="h-4 w-4 text-brand" />
@@ -232,7 +253,11 @@ export function OutlinePreviewModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1">
+        <div
+          ref={containerRef}
+          onDragOver={handleContainerDragOver}
+          className="flex-1 overflow-y-auto py-3 space-y-3 pr-1"
+        >
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
               <Loader2 className="h-6 w-6 animate-spin text-brand" />
@@ -265,6 +290,7 @@ export function OutlinePreviewModal({
                       }}
                       onDragOver={(e) => {
                         e.preventDefault();
+                        handleContainerDragOver(e);
                         if (dragOverIndex !== idx) setDragOverIndex(idx);
                       }}
                       onDragLeave={() => {

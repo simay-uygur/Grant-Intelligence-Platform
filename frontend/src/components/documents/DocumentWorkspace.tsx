@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import {
+  ArrowLeft,
   Check,
   ExternalLink,
+  FileDown,
   FileText,
   MessagesSquare,
   Pencil,
@@ -13,6 +15,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import type {
   ApplicationDocument,
+  Conversation,
   DocumentSection as DocSection,
   Grant,
   OrganisationProfile,
@@ -28,6 +31,7 @@ import { InlineNotice } from "@/components/common/InlineNotice";
 import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { wordCount, stripLeadingNumber } from "@/utils/text";
+import { exportAsPdf, exportAsWord } from "@/utils/export";
 
 /**
  * One section, always visible (not one-at-a-time like the chat's document
@@ -202,6 +206,9 @@ function WorkspaceEditor({
   onSave,
   streamingSections,
   onRevealComplete,
+  onBackToHub,
+  hasMultipleProposals,
+  onGoToChat,
 }: {
   doc: ApplicationDocument;
   drafts: Record<string, string>;
@@ -219,6 +226,9 @@ function WorkspaceEditor({
   onSave: (id: string) => void;
   streamingSections: Record<string, string>;
   onRevealComplete: (id: string) => void;
+  onBackToHub?: () => void;
+  hasMultipleProposals?: boolean;
+  onGoToChat?: () => void;
 }) {
   const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
   const isDirty = (id: string) => {
@@ -241,13 +251,68 @@ function WorkspaceEditor({
     <div className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-background">
       <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-8">
         <header className="mb-6 border-b border-border pb-4">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-[11px] font-medium text-brand">Grant application</span>
-            {isMockMode && <DemoBadge marker="mock-draft" compact />}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                {onBackToHub && hasMultipleProposals && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onBackToHub}
+                    className="h-6 -ml-1.5 rounded px-1.5 text-xs font-medium text-brand hover:bg-brand/10 hover:text-brand gap-1"
+                  >
+                    <ArrowLeft className="h-3 w-3" />
+                    All proposals
+                  </Button>
+                )}
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  Grant application
+                </span>
+                {isMockMode && <DemoBadge marker="mock-draft" compact />}
+              </div>
+              <h2 className="mt-1 break-words text-xl font-bold text-foreground sm:text-2xl">
+                {doc.grantTitle}
+              </h2>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => exportAsPdf(doc)}
+                className="h-8 rounded-lg gap-1.5 text-xs hover:bg-muted"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                PDF
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => exportAsWord(doc)}
+                className="h-8 rounded-lg gap-1.5 text-xs hover:bg-muted"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                Word
+              </Button>
+
+              {onGoToChat && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onGoToChat}
+                  className="h-8 rounded-lg gap-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <MessagesSquare className="h-3.5 w-3.5" />
+                  Chat
+                </Button>
+              )}
+            </div>
           </div>
-          <h2 className="mt-1 break-words text-xl font-bold text-foreground sm:text-2xl">
-            {doc.grantTitle}
-          </h2>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{doc.sections.length} sections</span>
             <span>·</span>
@@ -678,11 +743,17 @@ function DocumentWorkspaceContent({
   profile,
   grant,
   onSectionChange,
+  onBackToHub,
+  hasMultipleProposals,
+  onGoToChat,
 }: {
   doc: ApplicationDocument;
   profile: OrganisationProfile | undefined;
   grant: Grant | undefined;
   onSectionChange: (sectionId: string, content: string) => void;
+  onBackToHub?: () => void;
+  hasMultipleProposals?: boolean;
+  onGoToChat?: () => void;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
@@ -773,16 +844,6 @@ function DocumentWorkspaceContent({
     commitSection(id, text);
     setStreamingSections((prev) => ({ ...prev, [id]: text }));
   };
-
-  const clearStreaming = (id: string) => {
-    setStreamingSections((prev) => {
-      if (!(id in prev)) return prev;
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  };
-
   const toggleSection = (id: string) => {
     setSelectedSectionIds((prev) => {
       const next = new Set(prev);
@@ -798,6 +859,15 @@ function DocumentWorkspaceContent({
 
   const clearSelection = () => {
     setSelectedSectionIds(new Set());
+  };
+
+  const clearStreaming = (id: string) => {
+    setStreamingSections((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   return (
@@ -819,6 +889,9 @@ function DocumentWorkspaceContent({
         onSave={save}
         streamingSections={streamingSections}
         onRevealComplete={clearStreaming}
+        onBackToHub={onBackToHub}
+        hasMultipleProposals={hasMultipleProposals}
+        onGoToChat={onGoToChat}
       />
       <AssistantPanel
         doc={doc}
@@ -845,16 +918,110 @@ export function DocumentWorkspace({
   grant,
   onSectionChange,
   onGoToChat,
+  conversations,
+  activeConversationId,
+  onSelectConversation,
 }: {
   doc: ApplicationDocument | undefined;
   profile: OrganisationProfile | undefined;
   grant: Grant | undefined;
   onSectionChange: (sectionId: string, content: string) => void;
   onGoToChat: () => void;
+  conversations?: Conversation[];
+  activeConversationId?: string;
+  onSelectConversation?: (conversationId: string) => void;
 }) {
   const goToChat = useCallback(() => onGoToChat(), [onGoToChat]);
+  const [showHub, setShowHub] = useState(false);
 
-  if (!doc) {
+  // List of all conversations with drafted documents
+  const docConversations = useMemo(() => {
+    if (!conversations) return [];
+    return conversations.filter((c) => Boolean(c.document));
+  }, [conversations]);
+
+  // When a new doc is selected/loaded, ensure editor is shown
+  useEffect(() => {
+    setShowHub(false);
+  }, [doc?.id]);
+
+  if (!doc || showHub) {
+    if (docConversations.length > 0) {
+      return (
+        <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto bg-background p-6 sm:p-8">
+          <div className="mx-auto w-full max-w-4xl space-y-6">
+            <header className="border-b border-border pb-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-xl font-bold text-foreground sm:text-2xl">
+                    Proposal Workspaces
+                  </h2>
+                  {docConversations.length > 0 && (
+                    <span
+                      className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums"
+                      aria-label={`${docConversations.length} proposals`}
+                    >
+                      {docConversations.length}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Select an active application draft to edit and revise with AI in full-page
+                  workspace view.
+                </p>
+              </div>
+            </header>
+
+            <div className="grid gap-3.5 sm:grid-cols-2">
+              {docConversations.map((conv) => {
+                const d = conv.document!;
+                const totalWords = d.sections.reduce((acc, s) => acc + wordCount(s.content), 0);
+                const isSelected = conv.id === activeConversationId;
+                return (
+                  <div
+                    key={conv.id}
+                    onClick={() => {
+                      setShowHub(false);
+                      onSelectConversation?.(conv.id);
+                    }}
+                    className={cn(
+                      "group relative flex cursor-pointer flex-col justify-between rounded-xl border p-4 transition-all hover:border-brand/50 hover:shadow-md",
+                      isSelected ? "border-brand/60 bg-brand/[0.03]" : "border-border bg-card",
+                    )}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-brand">
+                          {d.programme || "Grant Proposal"}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {formatDistanceToNow(new Date(d.updatedAt), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <h3 className="mt-1.5 text-sm font-semibold text-foreground group-hover:text-brand transition-colors line-clamp-2">
+                        {d.grantTitle}
+                      </h3>
+                      <div className="mt-2.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span>{d.sections.length} sections</span>
+                        <span>·</span>
+                        <span>{totalWords} words</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                      <span className="text-xs font-medium text-brand group-hover:underline">
+                        Open workspace &rarr;
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex h-full items-center justify-center px-4 py-14">
         <EmptyState
@@ -874,6 +1041,9 @@ export function DocumentWorkspace({
       profile={profile}
       grant={grant}
       onSectionChange={onSectionChange}
+      onBackToHub={() => setShowHub(true)}
+      hasMultipleProposals={docConversations.length > 1}
+      onGoToChat={goToChat}
     />
   );
 }

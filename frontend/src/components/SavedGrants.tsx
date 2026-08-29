@@ -3,10 +3,12 @@ import {
   Bookmark,
   BookmarkCheck,
   CalendarClock,
+  ChevronRight,
   Coins,
   ExternalLink,
   MessagesSquare,
   Search,
+  Sparkles,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Grant } from "@/types";
@@ -249,6 +251,7 @@ function SavedGrantCard({
   onRemove: () => void;
   onOpenDetails: () => void;
 }) {
+  const [whyExpanded, setWhyExpanded] = useState(false);
   const matchPct = saved.matchPercentage ?? saved.grant?.matchPercentage;
   const whyItMatches = saved.whyItMatches ?? saved.grant?.whyItMatches;
   const sourceType = getGrantSourceType(saved.grant ?? grantForRemoval(saved));
@@ -256,92 +259,135 @@ function SavedGrantCard({
   return (
     // `relative` anchors the title button's stretched hit area. The card
     // is interactive: clicking anywhere opens the detail sheet.
-    <article className="relative flex h-full flex-col rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-brand/20 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5 mb-1">
-            <span
+    <article className="relative flex h-full flex-col justify-between rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-brand/20 sm:p-5">
+      <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                  sourceType === "web_discovery"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                    : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+                )}
+              >
+                {sourceType === "web_discovery" ? "🌐 Web Discovery" : "🇪🇺 EU Portal"}
+              </span>
+              <div className="break-words text-[11px] font-medium text-muted-foreground [overflow-wrap:anywhere]">
+                {saved.programme}
+              </div>
+              {Boolean(matchPct) && (
+                <span className="inline-flex items-center rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand">
+                  ★ {matchPct}% Match
+                </span>
+              )}
+            </div>
+            {/* The title button stretches its hit area across the whole card */}
+            <h3 className="mt-0.5 break-words text-base font-semibold text-foreground [overflow-wrap:anywhere]">
+              <button
+                type="button"
+                onClick={onOpenDetails}
+                aria-label={`View full details for ${saved.title}`}
+                className="rounded-sm text-left underline-offset-2 after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {saved.title}
+              </button>
+            </h3>
+          </div>
+
+          {/* Bookmark button lifted above the card overlay */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            aria-pressed={true}
+            aria-label={`Remove ${saved.title} from saved grants`}
+            className="relative z-10 h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-muted"
+          >
+            <BookmarkCheck className="h-4 w-4 text-brand" />
+          </Button>
+        </div>
+
+        {whyItMatches && (
+          <div
+            className="relative z-10 mt-2.5 rounded-lg border border-brand/10 bg-brand/[0.03] p-2.5 transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-brand">
+                <Sparkles className="h-3 w-3" />
+                Why it matches
+              </div>
+              {whyItMatches.length > 90 && (
+                <button
+                  type="button"
+                  onClick={() => setWhyExpanded(!whyExpanded)}
+                  className="inline-flex items-center gap-0.5 text-[10px] font-medium text-brand hover:underline cursor-pointer"
+                >
+                  <span>{whyExpanded ? "Show less" : "More info"}</span>
+                  <ChevronRight
+                    className={cn(
+                      "h-3 w-3 transition-transform duration-200",
+                      whyExpanded && "rotate-90",
+                    )}
+                  />
+                </button>
+              )}
+            </div>
+            <p
               className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
-                sourceType === "web_discovery"
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                  : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+                "mt-1 text-[11.5px] leading-relaxed text-foreground/80 italic [overflow-wrap:anywhere]",
+                !whyExpanded && "line-clamp-2",
               )}
             >
-              {sourceType === "web_discovery" ? "🌐 Web Discovery" : "🇪🇺 EU Portal"}
-            </span>
-            <div className="break-words text-[11px] font-medium text-muted-foreground [overflow-wrap:anywhere]">
-              {saved.programme}
-            </div>
-            {Boolean(matchPct) && (
-              <span className="inline-flex items-center rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand">
-                ★ {matchPct}% Match
-              </span>
-            )}
+              &ldquo;{whyItMatches}&rdquo;
+            </p>
           </div>
-          {/* The title button stretches its hit area across the whole card */}
-          <h3 className="mt-0.5 break-words text-base font-semibold text-foreground [overflow-wrap:anywhere]">
-            <button
-              type="button"
-              onClick={onOpenDetails}
-              aria-label={`View full details for ${saved.title}`}
-              className="rounded-sm text-left underline-offset-2 after:absolute after:inset-0 after:rounded-2xl hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {saved.title}
-            </button>
-          </h3>
-        </div>
+        )}
 
-        {/* Bookmark button lifted above the card overlay */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          aria-pressed={true}
-          aria-label={`Remove ${saved.title} from saved grants`}
-          className="relative z-10 h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-muted"
-        >
-          <BookmarkCheck className="h-4 w-4 text-brand" />
-        </Button>
+        <dl className="mt-3.5 space-y-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <dt className="sr-only">Funding</dt>
+            <dd className="min-w-0 break-words text-foreground">{saved.fundingAmount}</dd>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <dt className="sr-only">Deadline</dt>
+            <dd>{formatDeadline(saved.deadline)}</dd>
+            <DeadlineBadge deadline={saved.deadline} compact />
+          </div>
+        </dl>
       </div>
-
-      {whyItMatches && (
-        <div
-          className="relative z-10 mt-2 max-h-24 overflow-y-auto rounded-lg bg-brand/[0.04] p-2.5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p className="whitespace-pre-wrap break-words text-xs font-medium text-foreground/80 italic [overflow-wrap:anywhere]">
-            &ldquo;{whyItMatches}&rdquo;
-          </p>
-        </div>
-      )}
-
-      <dl className="mt-4 space-y-1.5 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <dt className="sr-only">Funding</dt>
-          <dd className="min-w-0 break-words text-foreground">{saved.fundingAmount}</dd>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <dt className="sr-only">Deadline</dt>
-          <dd>{formatDeadline(saved.deadline)}</dd>
-          <DeadlineBadge deadline={saved.deadline} compact />
-        </div>
-      </dl>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
         <span className="text-[11px] text-muted-foreground">
           Saved {formatDistanceToNow(new Date(saved.savedAt), { addSuffix: true })}
         </span>
-        {/* z-10 so the external link sits above the card's overlay */}
-        <div className="relative z-10">
-          {saved.sourceUrl.trim() ? (
-            <Button asChild variant="outline" size="sm" className="rounded-lg hover:bg-muted">
+        {/* z-10 so the buttons sit above the card's overlay */}
+        <div className="relative z-10 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDetails();
+            }}
+            className="text-[11px] font-medium text-brand underline-offset-2 hover:underline px-1.5 py-1"
+          >
+            More info →
+          </button>
+          {saved.sourceUrl.trim() && (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-7 rounded-lg hover:bg-muted text-xs px-2"
+            >
               <a
                 href={saved.sourceUrl}
                 target="_blank"
@@ -349,18 +395,10 @@ function SavedGrantCard({
                 onClick={(e) => e.stopPropagation()}
                 aria-label={`Open source page for ${saved.title} (opens in a new tab)`}
               >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <ExternalLink className="h-3 w-3 mr-1" />
                 Open source
               </a>
             </Button>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenDetails}
-              className="relative z-10 text-[11px] font-medium text-brand underline-offset-2 hover:underline"
-            >
-              View details →
-            </button>
           )}
         </div>
       </div>
@@ -403,9 +441,19 @@ export function SavedGrants({ onGoToChat }: { onGoToChat: () => void }) {
     <section aria-labelledby="saved-heading" className="w-full px-4 py-6 sm:px-6">
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 id="saved-heading" className="text-lg font-semibold text-foreground">
-            Saved grants
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 id="saved-heading" className="text-lg font-semibold text-foreground">
+              Saved grants
+            </h2>
+            {savedGrants.length > 0 && (
+              <span
+                className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums"
+                aria-label={`${savedGrants.length} saved grants`}
+              >
+                {savedGrants.length}
+              </span>
+            )}
+          </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Grants you&apos;ve bookmarked while researching, newest first. Saved here as their own
             record, so they stay even if you delete the conversation that found them.
