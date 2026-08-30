@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Bookmark,
+  FileText,
   KanbanSquare,
   Landmark,
   LogOut,
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/sheet";
 
 /** Which main view the app is showing. Local UI state only — never persisted. */
-export type MainView = "chat" | "pipeline" | "saved";
+export type MainView = "chat" | "pipeline" | "saved" | "workspace";
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -39,10 +40,14 @@ interface SidebarProps {
   onSelectView: (view: MainView) => void;
   onSignOut?: () => void;
   onOpenAccount?: () => void;
+  savedCount?: number;
+  pipelineCount?: number;
+  workspaceCount?: number;
 }
 
 const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare },
+  { id: "workspace", label: "Workspace", icon: FileText },
   { id: "pipeline", label: "Pipeline", icon: KanbanSquare },
   { id: "saved", label: "Saved", icon: Bookmark },
 ];
@@ -118,6 +123,9 @@ function SidebarContent({
   onSelectView,
   onSignOut,
   onOpenAccount,
+  savedCount,
+  pipelineCount,
+  workspaceCount,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   const searchId = useId();
@@ -205,6 +213,15 @@ function SidebarContent({
         <ul role="list" className="space-y-1">
           {VIEWS.map(({ id, label, icon: Icon }) => {
             const current = mainView === id;
+            const count =
+              id === "saved"
+                ? savedCount
+                : id === "pipeline"
+                  ? pipelineCount
+                  : id === "workspace"
+                    ? workspaceCount
+                    : undefined;
+
             return (
               <li key={id}>
                 <button
@@ -215,14 +232,28 @@ function SidebarContent({
                     onNavigate?.();
                   }}
                   className={cn(
-                    "flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                    "flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                     current
                       ? "bg-sidebar-accent text-white"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-white",
                   )}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {label}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </div>
+                  {typeof count === "number" && count > 0 && (
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                        current
+                          ? "bg-white/20 text-white"
+                          : "bg-sidebar-accent/60 text-sidebar-foreground/80",
+                      )}
+                    >
+                      {count}
+                    </span>
+                  )}
                 </button>
               </li>
             );

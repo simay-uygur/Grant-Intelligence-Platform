@@ -6,6 +6,7 @@ import { GrantResults } from "@/components/grants/GrantResults";
 import { ApplicationDocumentView } from "@/components/documents/ApplicationDocument";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { AlertCircle, CheckCircle2, Compass } from "lucide-react";
+import { MarkdownMessage } from "./MarkdownMessage";
 
 import { DraftProgressCard } from "@/components/widgets/DraftProgressCard";
 
@@ -21,6 +22,8 @@ export interface BlockCallbacks {
   getApplicationStatus?: (documentId: string) => ApplicationStatus | undefined;
   onUpdateApplicationStatus?: (documentId: string, status: ApplicationStatus) => void;
   onViewInPipeline?: () => void;
+  /** Switches to the full-page document workspace for the active conversation. */
+  onOpenWorkspace?: () => void;
   formDisabled?: boolean;
   hasGrantResults?: boolean;
   startingGrantId?: string | null;
@@ -59,9 +62,7 @@ export function BlockRenderer({
               {time && <span className="text-muted-foreground/70">{time}</span>}
             </div>
           )}
-          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
-            {block.text}
-          </p>
+          <MarkdownMessage>{block.text}</MarkdownMessage>
         </div>
       );
     case "question":
@@ -92,6 +93,7 @@ export function BlockRenderer({
       return (
         <GrantResults
           grants={block.grants}
+          allCandidates={block.allCandidates}
           sourceSummary={block.sourceSummary}
           onAsk={callbacks.onAskGrant}
           onStart={callbacks.onStartApplication}
@@ -106,11 +108,21 @@ export function BlockRenderer({
     case "document": {
       const doc = callbacks.getDocument(block.documentId);
       if (!doc) {
+        // If the card is superseded and we can't find the doc, show a minimal
+        // archived notice instead of the "belongs to a different application" text.
+        if (block.superseded) {
+          return (
+            <div className="flex items-center gap-2 rounded-xl border bg-muted/20 px-3.5 py-2.5 text-xs text-muted-foreground">
+              <span className="font-medium">{block.grantTitle ?? "Grant application"}</span>
+              <span>· archived draft</span>
+            </div>
+          );
+        }
         return (
           <InlineNotice tone="empty">
             This application draft isn&apos;t available anymore — it may belong to a different
             application started later in this conversation. Open the most recent application draft,
-            or start a new one from a grant&apos;s "Start application" button.
+            or start a new one from a grant&apos;s &quot;Start application&quot; button.
           </InlineNotice>
         );
       }
@@ -126,6 +138,8 @@ export function BlockRenderer({
             callbacks.onUpdateApplicationStatus?.(doc.id, status)
           }
           onViewInPipeline={callbacks.onViewInPipeline}
+          onOpenWorkspace={callbacks.onOpenWorkspace}
+          superseded={block.superseded}
         />
       );
     }

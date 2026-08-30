@@ -63,7 +63,10 @@ export interface Grant {
 
 export interface GrantSearchResult {
   grants: Grant[];
+  allCandidates?: Grant[];
   sourceSummary: string;
+  batchId?: string;
+  batchIndex?: number;
 }
 
 /** One section of an Application (see ApplicationDocument). */
@@ -73,12 +76,24 @@ export interface DocumentSection {
   content: string;
 }
 
+/** Pre-draft proposal section outline guidance. */
+export interface OutlineSection {
+  id: string;
+  title: string;
+  description?: string;
+  targetWords?: number;
+}
+
 /** An in-progress grant Application draft. */
 export interface ApplicationDocument {
   id: string;
   grantId: string;
   grantTitle: string;
+  sourceUrl?: string;
+  programme?: string;
   sections: DocumentSection[];
+  /** Original persistence time. Present when reopening a stored draft. */
+  createdAt?: string;
   updatedAt: string;
 }
 
@@ -86,12 +101,16 @@ export interface ResearchStep {
   label: string;
   status: "pending" | "active" | "done";
   detail?: string;
+  euCount?: number;
+  webCount?: number;
 }
 
 /** Progress of the current research session (grant matching in progress for a profile). */
 export interface ResearchState {
   steps: ResearchStep[];
   error?: string;
+  euCount?: number;
+  webCount?: number;
 }
 
 /**
@@ -128,8 +147,8 @@ export type ChatBlock =
   | { type: "structured_form"; profile?: Partial<OrganisationProfile> }
   | { type: "research_status"; state: ResearchState }
   | { type: "draft_progress"; state: DraftProgressState }
-  | { type: "grant_results"; grants: Grant[]; sourceSummary?: string }
-  | { type: "document"; documentId: string }
+  | { type: "grant_results"; grants: Grant[]; allCandidates?: Grant[]; sourceSummary?: string }
+  | { type: "document"; documentId: string; grantTitle?: string; superseded?: boolean }
   | { type: "error"; message: string }
   | { type: "success"; message: string };
 
@@ -154,6 +173,18 @@ export interface SavedGrant {
   whyItMatches?: string;
   matchReasons?: string[];
   grant?: Grant;
+}
+
+export interface GrantSearchBatch {
+  id: string;
+  conversationId?: string;
+  userId?: string;
+  batchIndex: number;
+  query?: string;
+  profile: OrganisationProfile | Record<string, unknown>;
+  grants: Grant[];
+  sourceSummary?: string;
+  createdAt: string;
 }
 
 export interface Conversation {

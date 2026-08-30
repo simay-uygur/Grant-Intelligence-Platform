@@ -176,16 +176,85 @@ export class LocalApplicationService implements ApplicationService {
     return undefined;
   }
 
+  async generateOutline(
+    grant: Grant,
+    _profile: OrganisationProfile,
+    _options?: StartApplicationOptions,
+  ): Promise<import("@/types").OutlineSection[]> {
+    await wait(100);
+    const programme = (grant.programme || grant.source || "").toLowerCase();
+    if (programme.includes("horizon")) {
+      return [
+        {
+          id: "excellence",
+          title: "1. Excellence & State-of-the-Art",
+          description: "Methodology and research novelty.",
+          targetWords: 180,
+        },
+        {
+          id: "impact",
+          title: "2. Expected Impact & Exploitation",
+          description: "Pathways to economic and societal impact.",
+          targetWords: 180,
+        },
+        {
+          id: "implementation",
+          title: "3. Implementation & Work Plan",
+          description: "Work packages, milestones, and deliverables.",
+          targetWords: 180,
+        },
+        {
+          id: "budget",
+          title: "4. Budget & Resources",
+          description: "Cost breakdown and resource justification.",
+          targetWords: 120,
+        },
+      ];
+    }
+    return [
+      {
+        id: "objectives",
+        title: "Project Objectives & Excellence",
+        description: "Core objectives and solution concept.",
+        targetWords: 150,
+      },
+      {
+        id: "innovation",
+        title: "Innovation & Value Proposition",
+        description: "Novelty and competitive advantage.",
+        targetWords: 150,
+      },
+      {
+        id: "impact",
+        title: "Expected Impact & Exploitation",
+        description: "Beneficiaries and scalability.",
+        targetWords: 150,
+      },
+      {
+        id: "implementation",
+        title: "Work Plan & Milestones",
+        description: "Execution timeline and deliverables.",
+        targetWords: 150,
+      },
+      {
+        id: "budget",
+        title: "Budget Justification",
+        description: "Financial requirements.",
+        targetWords: 120,
+      },
+    ];
+  }
+
   async startApplication(
     grant: Grant,
     profile: OrganisationProfile,
     onProgress?: (event: SseEvent) => void,
-    _options?: StartApplicationOptions,
+    options?: StartApplicationOptions,
   ): Promise<ApplicationDocument> {
     onProgress?.({
       event: "thinking",
       stage: "draft",
-      message: `Analyzing requirements for grant '${grant.title}'...`,
+      message: `Analyzing grant requirements for '${grant.title}'...`,
     });
     await wait(150);
     onProgress?.({
@@ -204,11 +273,29 @@ export class LocalApplicationService implements ApplicationService {
         "Simulated failure (?mock=generate-error): the draft couldn't be generated. Nothing was sent anywhere.",
       );
     }
+    const defaultSections = makeSections(grant, profile);
+    const sections: DocumentSection[] = options?.sections?.length
+      ? options.sections.map((s) => {
+          const match = defaultSections.find(
+            (d) => d.id === s.id || d.title.toLowerCase() === s.title.toLowerCase(),
+          );
+          return {
+            id: s.id,
+            title: s.title,
+            content: match
+              ? match.content
+              : `Draft content for ${s.title} tailored to ${grant.title} priorities and ${profile.organisationName || "applicant"} capabilities.`,
+          };
+        })
+      : defaultSections;
+
     const doc: ApplicationDocument = {
       id: `doc-${grant.id}-${Date.now()}`,
       grantId: grant.id,
       grantTitle: grant.title,
-      sections: makeSections(grant, profile),
+      sourceUrl: grant.sourceUrl,
+      programme: grant.programme,
+      sections,
       updatedAt: new Date().toISOString(),
     };
     onProgress?.({
@@ -227,6 +314,7 @@ export class LocalApplicationService implements ApplicationService {
     grant: Grant | undefined,
     _documentId?: string,
     onProgress?: (event: SseEvent) => void,
+    instruction?: string,
   ): Promise<string> {
     onProgress?.({
       event: "thinking",
@@ -275,7 +363,10 @@ export class LocalApplicationService implements ApplicationService {
     const opener =
       openings[sectionTitle] ??
       `This section on ${sectionTitle.toLowerCase()} has been refined for clarity and evaluator focus.`;
-    return `${opener}\n\n${currentContent.trim()}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
+    const instructionNote = instruction?.trim()
+      ? `\n\n[Applied guidance: "${instruction.trim()}"]`
+      : "";
+    return `${opener}\n\n${currentContent.trim()}${instructionNote}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
   }
 }
 

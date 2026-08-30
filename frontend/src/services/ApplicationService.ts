@@ -1,4 +1,10 @@
-import type { ApplicationDocument, Attachment, Grant, OrganisationProfile } from "@/types";
+import type {
+  ApplicationDocument,
+  Attachment,
+  Grant,
+  OrganisationProfile,
+  OutlineSection,
+} from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import type { SseEvent } from "./apiClient";
 
@@ -11,6 +17,10 @@ export interface OpenedApplication {
 export interface StartApplicationOptions {
   /** Backend chat conversation whose uploaded documents should inform the draft. */
   conversationId?: string;
+  /** Custom or user-reviewed sections for drafting. */
+  sections?: OutlineSection[];
+  customInstructions?: string;
+  templateType?: string;
 }
 
 export interface UploadDocumentOptions {
@@ -30,6 +40,11 @@ export interface ApplicationService {
   saveSection(applicationId: string, sectionId: string, content: string): Promise<void>;
   findSavedApplication(grantId: string): Promise<ApplicationDocument | undefined>;
   uploadDocument?(file: File, options?: UploadDocumentOptions): Promise<Attachment>;
+  generateOutline?(
+    grant: Grant,
+    profile: OrganisationProfile,
+    options?: StartApplicationOptions,
+  ): Promise<OutlineSection[]>;
   startApplication(
     grant: Grant,
     profile: OrganisationProfile,
@@ -43,5 +58,6 @@ export interface ApplicationService {
     grant: Grant | undefined,
     documentId?: string,
     onProgress?: (event: SseEvent) => void,
+    instruction?: string,
   ): Promise<string>;
 }

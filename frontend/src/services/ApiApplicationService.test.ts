@@ -35,6 +35,7 @@ test("finds the latest saved application for a grant", async () => {
         grantId: "MOCK-1",
         grantTitle: "Manufacturing Research and Innovation Action",
         sections: [{ id: "executive-summary", title: "Executive Summary", content: "Saved" }],
+        createdAt: "2026-08-05T12:30:00Z",
         updatedAt: "2026-08-06T00:00:00Z",
         status: "drafting",
       }),
@@ -50,6 +51,7 @@ test("finds the latest saved application for a grant", async () => {
 
   expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/applications/latest");
   expect(document?.id).toBe("doc-saved");
+  expect(document?.createdAt).toBe("2026-08-05T12:30:00Z");
 });
 
 test("lists stored applications for the pipeline dashboard", async () => {
@@ -131,6 +133,7 @@ test("opens a stored application with grant and profile context", async () => {
 
   expect(requestedUrl).toBe("http://localhost:8000/api/v1/applications/doc-1");
   expect(opened.document.id).toBe("doc-1");
+  expect(opened.document.createdAt).toBe("2026-08-06T00:00:00Z");
   expect(opened.grant?.id).toBe("MOCK-1");
   expect(opened.profile?.organisationName).toBe("Northlight");
 });
@@ -301,4 +304,103 @@ test("rewrites a section through the backend document stream endpoint", async ()
     grant,
   });
   expect(content).toBe("Rewritten by backend mock");
+});
+
+test("generates tailored outline through the backend outline endpoint", async () => {
+  let requestedUrl = "";
+  let requestedInit: RequestInit | undefined;
+  const fetchImpl: typeof fetch = async (input, init) => {
+    requestedUrl = String(input);
+    requestedInit = init;
+    return new Response(
+      JSON.stringify({
+        grantId: "MOCK-1",
+        grantTitle: "Manufacturing Research and Innovation Action",
+        sourceUrl:
+          "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/horizon-cl4-2024-01",
+        programme: "Horizon Europe",
+        sections: [
+          {
+            id: "excellence",
+            title: "1. Excellence",
+            description: "Methodology and scientific novelty",
+            targetWords: 200,
+          },
+          {
+            id: "impact",
+            title: "2. Impact",
+            description: "Scale and dissemination pathways",
+            targetWords: 180,
+          },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  const sections = await service.generateOutline(grant, profile);
+
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/outline");
+  expect(requestedInit?.method).toBe("POST");
+  expect(sections).toHaveLength(2);
+  expect(sections[0]?.id).toBe("excellence");
+  expect(sections[0]?.title).toBe("1. Excellence");
+  expect(sections[0]?.targetWords).toBe(200);
+});
+
+test("starts application with custom sections and sourceUrl", async () => {
+  let requestedUrl = "";
+  let requestedInit: RequestInit | undefined;
+  const customSections = [
+    { id: "excellence", title: "1. Excellence" },
+    { id: "impact", title: "2. Impact" },
+  ];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    requestedUrl = String(input);
+    requestedInit = init;
+    const sseBody = `data: ${JSON.stringify({
+      event: "result",
+      stage: "draft",
+      data: {
+        document: {
+          id: "doc-custom-sections",
+          grantId: "MOCK-1",
+          grantTitle: "Manufacturing Research and Innovation Action",
+          sourceUrl: "https://ec.europa.eu/call-1",
+          programme: "Horizon Europe",
+          sections: [
+            { id: "excellence", title: "1. Excellence", content: "Excellence content" },
+            { id: "impact", title: "2. Impact", content: "Impact content" },
+          ],
+          updatedAt: "2026-08-28T00:00:00Z",
+        },
+      },
+    })}\n\n`;
+    return new Response(sseBody, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  const document = await service.startApplication(grant, profile, undefined, {
+    sections: customSections,
+  });
+
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/MOCK-1/start-application/stream");
+  expect(JSON.parse(String(requestedInit?.body))).toEqual({
+    grant,
+    profile,
+    sections: customSections,
+  });
+  expect(document.sourceUrl).toBe("https://ec.europa.eu/call-1");
+  expect(document.programme).toBe("Horizon Europe");
+  expect(document.sections).toHaveLength(2);
 });

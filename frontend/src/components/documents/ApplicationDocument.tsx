@@ -3,7 +3,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   FileDown,
+  FileText,
   KanbanSquare,
   Loader2,
   Pencil,
@@ -11,6 +13,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
+
 import { formatDistanceToNow } from "date-fns";
 import type {
   ApplicationDocument,
@@ -50,7 +53,7 @@ import {
   STATUS_ORDER,
   isStatus,
 } from "@/components/pipeline/statusPresentation";
-import { wordCount } from "@/utils/text";
+import { wordCount, stripLeadingNumber } from "@/utils/text";
 
 interface Props {
   doc: ApplicationDocument;
@@ -61,6 +64,14 @@ interface Props {
   applicationStatus?: ApplicationStatus;
   onApplicationStatusChange?: (status: ApplicationStatus) => void;
   onViewInPipeline?: (applicationId?: string) => void;
+  /** Switches to the full-page document workspace for this application. */
+  onOpenWorkspace?: () => void;
+  /**
+   * When true the full editor is hidden and a compact read-only summary is
+   * shown instead. Set by the conversation when a newer draft has been started
+   * for a different grant in the same chat.
+   */
+  superseded?: boolean;
 }
 
 // A rewrite is only treated as "replacing manual edits" once the in-progress
@@ -87,6 +98,8 @@ export function ApplicationDocumentView({
   applicationStatus,
   onApplicationStatusChange,
   onViewInPipeline,
+  onOpenWorkspace,
+  superseded,
 }: Props) {
   const sectionSelectId = useId();
   const sections = doc?.sections ?? [];
@@ -162,6 +175,54 @@ export function ApplicationDocumentView({
         <InlineNotice tone="empty">
           This application draft does not have any sections available yet.
         </InlineNotice>
+      </Card>
+    );
+  }
+
+  // Superseded: another draft was started for a different grant in this
+  // conversation. Render a compact collapsed card instead of the full editor
+  // so the older draft is clearly finished and doesn't confuse users.
+  if (superseded) {
+    return (
+      <Card className="rounded-2xl border bg-muted/30 p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Grant application draft · archived
+              </span>
+            </div>
+            <h3 className="mt-0.5 break-words text-sm font-semibold text-foreground">
+              {doc.grantTitle}
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {sections.length} section{sections.length === 1 ? "" : "s"} · last saved{" "}
+              {formatDistanceToNow(new Date(doc.updatedAt), { addSuffix: true })}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => exportAsPdf(doc)}
+              className="rounded-lg text-xs hover:bg-muted"
+            >
+              <FileDown className="h-3 w-3" />
+              PDF
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void exportAsWord(doc)}
+              className="rounded-lg text-xs hover:bg-muted"
+            >
+              <FileDown className="h-3 w-3" />
+              Word
+            </Button>
+          </div>
+        </div>
       </Card>
     );
   }
@@ -333,12 +394,32 @@ export function ApplicationDocumentView({
               <h3 className="mt-1 break-words text-lg font-semibold text-foreground">
                 {doc.grantTitle}
               </h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Edit each section, use the AI rewrite tool when connected, then export your
-                application.
-              </p>
+              {(doc.sourceUrl || grant?.sourceUrl) && (
+                <div className="mt-1">
+                  <a
+                    href={doc.sourceUrl || grant?.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    View Official Call on Portal
+                  </a>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-2 sm:shrink-0">
+              {onOpenWorkspace && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={onOpenWorkspace}
+                  className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Open full workspace
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -455,18 +536,8 @@ export function ApplicationDocumentView({
           {Boolean(onViewInPipeline || applicationStatus) && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
               <span className="text-[11px] font-medium text-muted-foreground">Pipeline status</span>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "shrink-0 whitespace-nowrap font-medium transition-colors duration-200",
-                  STATUS_BADGE[applicationStatus ?? "drafting"],
-                )}
-              >
-                <span className="sr-only">Status: </span>
-                {STATUS_LABEL[applicationStatus ?? "drafting"]}
-              </Badge>
 
-              {onApplicationStatusChange && (
+              {onApplicationStatusChange ? (
                 <Select
                   value={applicationStatus ?? "drafting"}
                   onValueChange={(value) => {
@@ -488,6 +559,17 @@ export function ApplicationDocumentView({
                     ))}
                   </SelectContent>
                 </Select>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "shrink-0 whitespace-nowrap font-medium transition-colors duration-200",
+                    STATUS_BADGE[applicationStatus ?? "drafting"],
+                  )}
+                >
+                  <span className="sr-only">Status: </span>
+                  {STATUS_LABEL[applicationStatus ?? "drafting"]}
+                </Badge>
               )}
 
               {onViewInPipeline && (
@@ -523,7 +605,7 @@ export function ApplicationDocumentView({
                     )}
                   >
                     <span className="mt-px shrink-0 tabular-nums">{i + 1}.</span>
-                    <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                    <span className="min-w-0 flex-1 truncate">{stripLeadingNumber(s.title)}</span>
                     {isDirty(s.id) && (
                       <span
                         className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
@@ -558,7 +640,7 @@ export function ApplicationDocumentView({
               <SelectContent>
                 {doc.sections.map((s, i) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {i + 1}. {s.title}
+                    {i + 1}. {stripLeadingNumber(s.title)}
                     {isDirty(s.id) ? " • unsaved" : ""}
                   </SelectItem>
                 ))}
@@ -618,7 +700,7 @@ export function ApplicationDocumentView({
             <DialogTitle>Replace your edits with a rewrite?</DialogTitle>
             <DialogDescription>
               {pendingRewriteSection
-                ? `"${pendingRewriteSection.title}" has manually edited text that hasn't been saved yet. Running the local rewrite will replace it in the editor. You'll get one undo right after it runs.`
+                ? `"${stripLeadingNumber(pendingRewriteSection.title)}" has manually edited text that hasn't been saved yet. Running the local rewrite will replace it in the editor. You'll get one undo right after it runs.`
                 : "This section has manually edited text that hasn't been saved yet."}
             </DialogDescription>
           </DialogHeader>
@@ -698,7 +780,7 @@ function SectionEditor({
       <div className="mb-2 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h4 className="break-words text-sm font-semibold text-foreground">
-            {index}. {section.title}
+            {index}. {stripLeadingNumber(section.title)}
           </h4>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
             <span>{wordCount(displayText)} words</span>

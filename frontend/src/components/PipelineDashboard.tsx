@@ -264,8 +264,8 @@ function ApplicationDetailsSheet({
   link,
   onOpenConversation,
   onOpenApplication,
+  onOpenWorkspace,
   onDeleteApplication,
-  onGoToChat,
 }: {
   application: DemoApplication | null;
   open: boolean;
@@ -274,8 +274,8 @@ function ApplicationDetailsSheet({
   link: ApplicationLink;
   onOpenConversation: (conversationId: string) => void;
   onOpenApplication?: (applicationId: string) => void;
+  onOpenWorkspace?: (applicationId: string) => void;
   onDeleteApplication?: (applicationId: string) => void;
-  onGoToChat: () => void;
 }) {
   const reasonId = "application-actions-reason";
 
@@ -285,11 +285,6 @@ function ApplicationDetailsSheet({
     if (!link.conversationId) return;
     onOpenChange(false);
     onOpenConversation(link.conversationId);
-  };
-
-  const goToChat = () => {
-    onOpenChange(false);
-    onGoToChat();
   };
 
   const openInNewChat = () => {
@@ -390,6 +385,20 @@ function ApplicationDetailsSheet({
                   aria-label="Application actions"
                   className="flex flex-col gap-2 border-t border-border pt-4"
                 >
+                  {application && onOpenWorkspace && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      onClick={() => {
+                        onOpenChange(false);
+                        onOpenWorkspace(application.id);
+                      }}
+                      className="justify-start rounded-lg bg-brand text-white hover:bg-brand/90"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Open in Document Workspace
+                    </Button>
+                  )}
                   {link.hasLiveDraft ? (
                     <Button
                       type="button"
@@ -397,8 +406,8 @@ function ApplicationDetailsSheet({
                       onClick={goToConversation}
                       className="justify-start rounded-lg hover:bg-muted"
                     >
-                      <FileText className="h-4 w-4" />
-                      Open application draft
+                      <MessagesSquare className="h-4 w-4" />
+                      Open application in chat
                     </Button>
                   ) : (
                     <Button
@@ -407,29 +416,20 @@ function ApplicationDetailsSheet({
                       onClick={openInNewChat}
                       className="justify-start rounded-lg hover:bg-muted"
                     >
-                      <FileText className="h-4 w-4" />
+                      <MessagesSquare className="h-4 w-4" />
                       Open draft in new chat
                     </Button>
                   )}
-                  {link.conversationId ? (
+                  {link.conversationId && (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
                       onClick={goToConversation}
-                      className="justify-start rounded-lg hover:bg-muted"
+                      className="justify-start rounded-lg text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
-                      <MessagesSquare className="h-4 w-4" />
-                      Open source conversation
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={goToChat}
-                      className="justify-start rounded-lg hover:bg-muted"
-                    >
-                      <MessagesSquare className="h-4 w-4" />
-                      Open in chat
+                      <MessagesSquare className="h-3.5 w-3.5" />
+                      Go to source conversation
                     </Button>
                   )}
                   {onDeleteApplication && (
@@ -533,7 +533,7 @@ function StatusColumn({
       </header>
 
       {displayList.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
+        <div className="flex min-h-28 flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
           {STATUS_EMPTY[status]}
         </div>
       ) : (
@@ -598,6 +598,7 @@ export function PipelineDashboard({
   conversations,
   onOpenConversation,
   onOpenApplication,
+  onOpenWorkspace,
   highlightApplicationId,
 }: {
   onGoToChat: () => void;
@@ -610,6 +611,7 @@ export function PipelineDashboard({
   conversations: Conversation[];
   onOpenConversation: (conversationId: string) => void;
   onOpenApplication?: (applicationId: string) => void;
+  onOpenWorkspace?: (applicationId: string) => void;
   highlightApplicationId?: string | null;
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
@@ -717,9 +719,19 @@ export function PipelineDashboard({
 
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 id="pipeline-heading" className="text-lg font-semibold text-foreground">
-            Application pipeline
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 id="pipeline-heading" className="text-lg font-semibold text-foreground">
+              Application pipeline
+            </h2>
+            {applications.length > 0 && (
+              <span
+                className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums"
+                aria-label={`${applications.length} applications`}
+              >
+                {applications.length}
+              </span>
+            )}
+          </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Every application across all of your conversations, grouped by stage.
           </p>
@@ -769,7 +781,7 @@ export function PipelineDashboard({
           stacked or wrapped configuration a short group was padded out to
           match the tallest group in its row, leaving dead space after its
           last card. `items-start` sizes each column to its own content
-          there. From 1200px all five sit in a single row, where stretching
+          (). From 1200px all five sit in a single row, where stretching
           is what gives the columns their even bottom edge, so it comes
           back. */}
       {!hydrated ? (
@@ -787,7 +799,7 @@ export function PipelineDashboard({
           action={{ label: "Find grants in chat", onClick: onGoToChat, icon: MessagesSquare }}
         />
       ) : (
-        <div className="grid grid-cols-1 items-start gap-3 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3 min-[1200px]:grid-cols-5 min-[1200px]:items-stretch">
+        <div className="grid grid-cols-1 items-start gap-3 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-3 min-[1280px]:grid-cols-5">
           {STATUS_ORDER.map((status) => (
             <StatusColumn
               key={status}
@@ -822,8 +834,8 @@ export function PipelineDashboard({
         }
         onOpenConversation={onOpenConversation}
         onOpenApplication={onOpenApplication}
+        onOpenWorkspace={onOpenWorkspace}
         onDeleteApplication={deleteApplication}
-        onGoToChat={onGoToChat}
       />
     </section>
   );

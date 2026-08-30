@@ -6,6 +6,7 @@ import html
 import json
 import logging
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 import requests
@@ -36,12 +37,13 @@ def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
     sort = {"order": "DESC", "field": "startDate"}
 
     # query: this is the exact filter the portal uses — grants (type 1,2,8),
-    # open statuses, SEDIA datasource, current programme period, English.
+    # open statuses (31094501: Forthcoming, 31094502: Open), SEDIA datasource,
+    # current programme period, English. (31094503 is Closed - excluded).
     query = {
         "bool": {
             "must": [
                 {"terms": {"type": ["1", "2", "8"]}},
-                {"terms": {"status": ["31094501", "31094502", "31094503"]}},
+                {"terms": {"status": ["31094501", "31094502"]}},
                 {"terms": {"DATASOURCE": ["SEDIA"]}},
                 {"term": {"programmePeriod": "2021 - 2027"}},
                 {"terms": {"language": ["en"]}},
@@ -78,17 +80,21 @@ def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
     data = response.json()
 
     # The results live under "results". Simplify each into a clean dict.
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     grants = []
     for item in data.get("results", []):
         meta = item.get("metadata", {})
         identifier = _first(meta.get("identifier"))
         raw_url = item.get("url")
         url = _build_portal_url(identifier, raw_url)
+        deadline = _clean_date(_first(meta.get("deadlineDate")))
+        if deadline and deadline < today:
+            continue
         grants.append(
             {
                 "title": _first(meta.get("title")) or item.get("title"),
                 "identifier": identifier,
-                "deadline": _clean_date(_first(meta.get("deadlineDate"))),
+                "deadline": deadline,
                 "programme": _programme_from_identifier(identifier),
                 "url": url,
                 "summary": _clean_summary(_first(meta.get("descriptionByte")) or item.get("summary")),

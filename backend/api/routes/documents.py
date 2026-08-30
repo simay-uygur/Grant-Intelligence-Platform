@@ -12,6 +12,8 @@ from backend.schemas.documents import (
     ApplicationStatus,
     DocumentQARequest,
     DocumentQAResponse,
+    GenerateOutlineRequest,
+    GenerateOutlineResponse,
     RewriteSectionRequest,
     RewriteSectionResponse,
     StartApplicationRequest,
@@ -133,6 +135,29 @@ def update_application_section(
         )
     except (ApplicationNotFoundError, ApplicationSectionNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/grants/{grant_id}/outline",
+    response_model=GenerateOutlineResponse,
+    summary="Generate adaptive application outline",
+    description="Generate tailored proposal sections for a selected grant and applicant profile.",
+)
+async def generate_outline(
+    grant_id: str,
+    payload: GenerateOutlineRequest,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> GenerateOutlineResponse:
+    payload_grant_id = payload.grant.id if hasattr(payload.grant, "id") else payload.grant.get("id")
+    if payload_grant_id and payload_grant_id != grant_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Path grant '{grant_id}' does not match payload grant '{payload_grant_id}'."),
+        )
+    try:
+        return await asyncio.to_thread(document_service.generate_outline, payload, current_user["id"] if current_user else None)
+    except AgentUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post(

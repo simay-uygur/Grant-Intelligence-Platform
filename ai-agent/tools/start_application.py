@@ -84,6 +84,7 @@ def draft_single_section(grant, profile, section_title, custom_instructions=None
         f"'{section_title}' section (roughly 100-150 words). "
         "Use the organisation's real details, not placeholders. Explicitly connect the "
         "organisation's capabilities to this specific call's objectives and priorities. "
+        "Do NOT use markdown bold syntax (such as **bold** or asterisks) or bullet asterisks. Write clean, continuous, formal grant prose directly. "
         "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
     )
     try:
@@ -114,6 +115,7 @@ def draft_single_section_stream(grant, profile, section_title, custom_instructio
         f"'{section_title}' section (roughly 100-150 words). "
         "Use the organisation's real details, not placeholders. Explicitly connect the "
         "organisation's capabilities to this specific call's objectives and priorities. "
+        "Do NOT use markdown bold syntax (such as **bold** or asterisks) or bullet asterisks. Write clean, continuous, formal grant prose directly. "
         "Return ONLY the section text prose directly, with no extra headers or JSON formatting."
     )
     try:
@@ -135,7 +137,7 @@ def draft_single_section_stream(grant, profile, section_title, custom_instructio
         yield f"Draft content for {section_title} based on {grant.get('title', 'grant')} priorities."
 
 
-def start_application(grant, profile, custom_instructions=None, template_type=None, attachments=None):
+def start_application(grant, profile, custom_instructions=None, template_type=None, attachments=None, custom_sections=None):
     """
     Draft a grant application document.
 
@@ -144,12 +146,23 @@ def start_application(grant, profile, custom_instructions=None, template_type=No
     custom_instructions: optional free-form user guidelines for the prompts
     template_type: optional call-tailored template (HORIZON_STANDARD, EIC_ACCELERATOR)
     attachments: optional extracted text from the applicant's uploaded documents
+    custom_sections: optional list of (id, title) tuples or {"id": str, "title": str} dicts
 
     Returns an ApplicationDocument dict:
-      { id, grantId, grantTitle, sections: [{id, title, content}], updatedAt }
+      { id, grantId, grantTitle, sourceUrl, programme, sections: [{id, title, content}], updatedAt }
     """
+    active_sections = []
+    if custom_sections:
+        for s in custom_sections:
+            if isinstance(s, (list, tuple)) and len(s) >= 2:
+                active_sections.append((str(s[0]), str(s[1])))
+            elif isinstance(s, dict) and s.get("id") and s.get("title"):
+                active_sections.append((str(s["id"]), str(s["title"])))
+    if not active_sections:
+        active_sections = list(SECTIONS)
+
     # Build the list of section titles for the prompt.
-    section_titles = [title for _, title in SECTIONS]
+    section_titles = [title for _, title in active_sections]
 
     prompt = (
         "You are writing a real EU grant application. Draft the content for EACH section listed below, "
@@ -161,7 +174,9 @@ def start_application(grant, profile, custom_instructions=None, template_type=No
         "Write substantive, specific, professional prose for each section (roughly 80-150 words each). "
         "Use the organisation's real details, not placeholders. In every section, explicitly connect "
         "the organisation's capabilities to this specific call's objectives, scope, and priorities "
-        "rather than producing generic company text.\n\n"
+        "rather than producing generic company text. "
+        "Do NOT use markdown bold syntax (such as **bold** or asterisks) inside section bodies. "
+        "Write clean, formal prose paragraphs directly.\n\n"
         "Respond ONLY with a JSON array, no other text, in this exact format:\n"
         '[{"title": "Organisation Overview", "content": "..."}, ...]'
     )
@@ -190,7 +205,7 @@ def start_application(grant, profile, custom_instructions=None, template_type=No
 
     # Match Claude's drafted sections back to our canonical ids.
     sections = []
-    for section_id, title in SECTIONS:
+    for section_id, title in active_sections:
         # Find the drafted section with this title.
         content = ""
         for item in drafted:
@@ -199,10 +214,15 @@ def start_application(grant, profile, custom_instructions=None, template_type=No
                 break
         sections.append({"id": section_id, "title": title, "content": content})
 
+    source_url = str(grant.get("sourceUrl") or grant.get("url") or "")
+    programme = str(grant.get("programme") or "")
+
     document = {
         "id": f"doc-{grant.get('id', 'unknown')}-{int(time.time())}",
-        "grantId": grant.get("id", ""),
-        "grantTitle": grant.get("title", ""),
+        "grantId": str(grant.get("id") or grant.get("identifier") or ""),
+        "grantTitle": str(grant.get("title") or ""),
+        "sourceUrl": source_url if source_url else None,
+        "programme": programme if programme else None,
         "sections": sections,
         "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }

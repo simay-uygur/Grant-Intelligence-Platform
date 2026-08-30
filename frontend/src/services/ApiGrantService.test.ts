@@ -83,3 +83,90 @@ test("calls the versioned grant stream endpoint and returns mapped live results"
     sourceSummary: "Live Horizon search.",
   });
 });
+
+test("passes conversation_id and fetches search batches via ApiGrantService", async () => {
+  let requestedUrl = "";
+  let requestedInit: RequestInit | undefined;
+  const fetchImpl: typeof fetch = async (input, init) => {
+    requestedUrl = String(input);
+    requestedInit = init;
+    if (requestedUrl.includes("/batches")) {
+      return new Response(
+        JSON.stringify({
+          batches: [
+            {
+              id: "batch-1",
+              conversationId: "conv-1",
+              userId: null,
+              batchIndex: 1,
+              query: "AI robotics",
+              profile: { organisationName: "RoboCorp" },
+              grants: [
+                {
+                  id: "GRANT-1",
+                  title: "Robotics EU",
+                  description: "Robotics call",
+                },
+              ],
+              sourceSummary: "EU Horizon",
+              createdAt: "2026-08-28T12:00:00Z",
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+    const sseBody = `data: ${JSON.stringify({
+      event: "result",
+      stage: "select",
+      data: {
+        grants: [],
+        source_summary: "Empty",
+        batch_id: "batch-new",
+        batch_index: 2,
+      },
+    })}\n\n`;
+    return new Response(sseBody, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  };
+
+  const service = new ApiGrantService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  const profile: OrganisationProfile = {
+    organisationName: "RoboCorp",
+    organisationType: "SME",
+    organisationDescription: "",
+    country: "France",
+    region: "",
+    projectTitle: "AI robotics",
+    projectDescription: "",
+    sector: "Robotics",
+    fundingAmount: "1M EUR",
+    projectStartDate: "",
+    projectDuration: "",
+    eligibilityConstraints: "",
+  };
+
+  const searchRes = await service.searchGrants(profile, undefined, ["EX-1"], "conv-1");
+  expect(JSON.parse(String(requestedInit?.body))).toMatchObject({
+    conversation_id: "conv-1",
+    excluded_grant_ids: ["EX-1"],
+  });
+  expect(searchRes.batchId).toBe("batch-new");
+  expect(searchRes.batchIndex).toBe(2);
+
+  const batches = await service.listSearchBatches("conv-1");
+  expect(requestedUrl).toBe("http://localhost:8000/api/v1/grants/batches?conversation_id=conv-1");
+  expect(batches).toHaveLength(1);
+  expect(batches[0].id).toBe("batch-1");
+  expect(batches[0].batchIndex).toBe(1);
+  expect(batches[0].grants[0].title).toBe("Robotics EU");
+});

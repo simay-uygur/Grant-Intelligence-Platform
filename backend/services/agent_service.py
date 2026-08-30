@@ -45,6 +45,24 @@ class AgentService:
             excluded_grant_ids=excluded_grant_ids,
         )
 
+    def generate_outline(
+        self,
+        grant: dict[str, Any],
+        profile: dict[str, Any],
+        template_type: str | None = None,
+        custom_instructions: str | None = None,
+        attachments: str = "",
+    ) -> list[dict[str, Any]]:
+        generate_outline_fn = self._load_function("generate_outline")
+        result: list[dict[str, Any]] = generate_outline_fn(
+            grant,
+            profile,
+            template_type=template_type,
+            custom_instructions=custom_instructions,
+            attachments=attachments,
+        )
+        return result
+
     def start_application(
         self,
         grant: dict[str, Any],
@@ -52,15 +70,26 @@ class AgentService:
         custom_instructions: str | None = None,
         template_type: str | None = None,
         attachments: str = "",
+        custom_sections: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         start_application = self._load_function("start_application")
-        result: dict[str, Any] = start_application(
-            grant,
-            profile,
-            custom_instructions=custom_instructions,
-            template_type=template_type,
-            attachments=attachments,
-        )
+        try:
+            result: dict[str, Any] = start_application(
+                grant,
+                profile,
+                custom_instructions=custom_instructions,
+                template_type=template_type,
+                attachments=attachments,
+                custom_sections=custom_sections,
+            )
+        except TypeError:
+            result = start_application(
+                grant,
+                profile,
+                custom_instructions=custom_instructions,
+                template_type=template_type,
+                attachments=attachments,
+            )
         return result
 
     def start_application_stream(
@@ -70,15 +99,26 @@ class AgentService:
         custom_instructions: str | None = None,
         template_type: str | None = None,
         attachments: str = "",
+        custom_sections: list[dict[str, Any]] | None = None,
     ) -> Iterator[dict[str, Any]]:
         start_application_stream = self._load_function("start_application_stream")
-        yield from start_application_stream(
-            grant,
-            profile,
-            custom_instructions=custom_instructions,
-            template_type=template_type,
-            attachments=attachments,
-        )
+        try:
+            yield from start_application_stream(
+                grant,
+                profile,
+                custom_instructions=custom_instructions,
+                template_type=template_type,
+                attachments=attachments,
+                custom_sections=custom_sections,
+            )
+        except TypeError:
+            yield from start_application_stream(
+                grant,
+                profile,
+                custom_instructions=custom_instructions,
+                template_type=template_type,
+                attachments=attachments,
+            )
 
     def rewrite_section(
         self,

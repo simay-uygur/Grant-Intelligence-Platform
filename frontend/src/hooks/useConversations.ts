@@ -237,6 +237,24 @@ export function useConversations() {
     [updateActive],
   );
 
+  /**
+   * Mark every existing `document` block in the active conversation's messages
+   * as `superseded: true`. Call this before appending a new document block so
+   * older cards in the chat history collapse into a compact read-only state
+   * instead of continuing to show (and mutate) the previous grant's content.
+   */
+  const supersedePreviousDocumentBlocks = useCallback(() => {
+    updateActive((c) => ({
+      ...c,
+      messages: c.messages.map((m) => ({
+        ...m,
+        blocks: m.blocks.map((b) =>
+          b.type === "document" && !b.superseded ? { ...b, superseded: true } : b,
+        ),
+      })),
+    }));
+  }, [updateActive]);
+
   const updateDocumentSection = useCallback(
     (sectionId: string, content: string) => {
       updateActive((c) => {
@@ -254,6 +272,42 @@ export function useConversations() {
     [updateActive],
   );
 
+  const createConversationForDocument = useCallback(
+    (doc: ApplicationDocument, profile?: OrganisationProfile, grant?: Grant) => {
+      const id = uid();
+      const now = new Date().toISOString();
+      const newConv: Conversation = {
+        id,
+        title: doc.grantTitle.slice(0, 60),
+        createdAt: now,
+        updatedAt: now,
+        stage: "application",
+        profile,
+        grants: grant ? [grant] : undefined,
+        selectedGrantId: doc.grantId,
+        document: doc,
+        messages: [
+          {
+            id: uid(),
+            role: "assistant",
+            createdAt: now,
+            blocks: [
+              {
+                type: "success",
+                message: `Saved application opened for ${doc.grantTitle}. Edit any section, try a rewrite, or export it.`,
+              },
+              { type: "document", documentId: doc.id },
+            ],
+          },
+        ],
+      };
+      setConversations((prev) => [newConv, ...prev]);
+      setActiveId(id);
+      return id;
+    },
+    [],
+  );
+
   return {
     hydrated,
     persistenceOk,
@@ -262,6 +316,7 @@ export function useConversations() {
     activeId,
     newConversation,
     selectConversation,
+    createConversationForDocument,
     renameConversation,
     deleteConversation,
     appendMessage,
@@ -272,6 +327,7 @@ export function useConversations() {
     synchronizeBackendMessages,
     setGrants,
     setDocument,
+    supersedePreviousDocumentBlocks,
     updateDocumentSection,
     uid,
   };
