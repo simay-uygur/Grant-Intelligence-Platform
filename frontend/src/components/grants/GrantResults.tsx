@@ -30,7 +30,6 @@ import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
 import { EmptyState } from "@/components/EmptyState";
 import {
-  getEffectiveMatchPercentage,
   getGrantSourceLabel,
   getGrantSourceType,
   grantResultProvenance,
@@ -723,7 +722,6 @@ function MatchMeter({ percentage, tier }: { percentage: number; tier: MatchTier 
 
 function CandidateItem({
   grant,
-  index,
   onAsk,
   onViewDetails,
 }: {
@@ -738,7 +736,6 @@ function CandidateItem({
     : grant.programme || "Horizon Europe";
   const identifier =
     grant.id.startsWith("web-") || grant.id.startsWith("cand-") ? undefined : grant.id;
-  const score = getEffectiveMatchPercentage(grant, index);
 
   return (
     <div
@@ -764,12 +761,11 @@ function CandidateItem({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="inline-flex items-center rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[10px] font-bold text-brand tabular-nums">
-            {score}% match
-          </span>
-          {grant.deadline && <DeadlineBadge deadline={grant.deadline} compact />}
-        </div>
+        {grant.deadline && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <DeadlineBadge deadline={grant.deadline} compact />
+          </div>
+        )}
       </div>
 
       <div>

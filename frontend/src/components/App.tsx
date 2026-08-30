@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ArrowDown, Menu, MessageSquarePlus, Play, RefreshCw } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
+import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { useGrantSearch } from "@/hooks/useGrantSearch";
@@ -179,6 +180,8 @@ const DEMO_PROFILE: OrganisationProfile = {
 export function App() {
   const c = useConversations();
   const apps = useApplications();
+  const { savedGrants } = useShortlist();
+  const isMobile = useIsMobile();
   const addApplication = apps.addApplication;
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
@@ -199,7 +202,6 @@ export function App() {
     status: "idle",
   });
   const historySyncRequest = useRef(0);
-  const isMobile = useIsMobile();
   const [highlightApplicationId, setHighlightApplicationId] = useState<string | null>(null);
 
   const handleSignOut = useCallback(() => {
@@ -653,6 +655,18 @@ export function App() {
 
   const handleOpenApplication = useCallback(
     async (applicationId: string) => {
+      const existing = c.conversations.find(
+        (conv) =>
+          conv.document?.id === applicationId ||
+          conv.document?.id === `doc-${applicationId}` ||
+          conv.document?.grantId === applicationId ||
+          `app-${conv.document?.id}` === applicationId,
+      );
+      if (existing) {
+        c.selectConversation(existing.id);
+        setMainView("chat");
+        return;
+      }
       setBusy(true);
       try {
         const opened = await applicationService.getApplication(applicationId);
@@ -672,6 +686,34 @@ export function App() {
       }
     },
     [askAssistant, c],
+  );
+
+  const handleOpenApplicationInWorkspace = useCallback(
+    async (applicationId: string) => {
+      const existing = c.conversations.find(
+        (conv) =>
+          conv.document?.id === applicationId ||
+          conv.document?.id === `doc-${applicationId}` ||
+          conv.document?.grantId === applicationId ||
+          `app-${conv.document?.id}` === applicationId,
+      );
+      if (existing) {
+        c.selectConversation(existing.id);
+        setMainView("workspace");
+        return;
+      }
+      setBusy(true);
+      try {
+        const opened = await applicationService.getApplication(applicationId);
+        c.createConversationForDocument(opened.document, opened.profile, opened.grant);
+        setMainView("workspace");
+      } catch {
+        setMainView("workspace");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [c],
   );
 
   const sendBackendChatMessage = useCallback(
@@ -984,6 +1026,9 @@ export function App() {
         onSelectView={setMainView}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
+        savedCount={savedGrants.length}
+        pipelineCount={apps.applications.length}
+        workspaceCount={c.conversations.filter((conv) => Boolean(conv.document)).length}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
@@ -999,6 +1044,9 @@ export function App() {
         onSelectView={setMainView}
         onSignOut={handleSignOut}
         onOpenAccount={() => setAccountModalOpen(true)}
+        savedCount={savedGrants.length}
+        pipelineCount={apps.applications.length}
+        workspaceCount={c.conversations.filter((conv) => Boolean(conv.document)).length}
       />
       <AccountModal
         open={accountModalOpen}
@@ -1182,6 +1230,9 @@ export function App() {
               }
               onSectionChange={c.updateDocumentSection}
               onGoToChat={() => setMainView("chat")}
+              conversations={c.conversations}
+              activeConversationId={active?.id}
+              onSelectConversation={c.selectConversation}
             />
           </div>
         )}
@@ -1199,6 +1250,7 @@ export function App() {
             <PipelineDashboard
               onGoToChat={() => setMainView("chat")}
               onOpenApplication={handleOpenApplication}
+              onOpenWorkspace={handleOpenApplicationInWorkspace}
               applications={apps.applications}
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}

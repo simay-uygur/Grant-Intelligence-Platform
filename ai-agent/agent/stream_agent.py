@@ -466,14 +466,12 @@ def run_agent_stream(
         ident = str(g.get("identifier") or cid)
         title = str(g.get("title") or "Grant Opportunity")
 
-        # Lookup score or calculate calibrated candidate score based on pool position
+        # Lookup score if selected and ranked by LLM, otherwise None
         score = None
         for k in [cid, ident, title]:
             if k.strip().lower() in score_map:
                 score = score_map[k.strip().lower()]
                 break
-        if score is None:
-            score = max(55, 75 - (idx * 2))
 
         formatted_candidates.append(
             {

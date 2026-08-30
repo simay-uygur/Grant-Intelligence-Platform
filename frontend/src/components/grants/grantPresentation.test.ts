@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Grant } from "../../types";
 import {
+  getEffectiveMatchPercentage,
   getGrantSourceLabel,
   getGrantSourceType,
   grantResultProvenance,
@@ -44,5 +45,19 @@ describe("grant source classification", () => {
     };
     expect(getGrantSourceType(euGrant)).toBe("eu_portal");
     expect(getGrantSourceLabel(euGrant)).toBe("EU Horizon API");
+  });
+});
+
+describe("getEffectiveMatchPercentage", () => {
+  test("returns explicit positive number when defined", () => {
+    expect(getEffectiveMatchPercentage({ ...baseGrant, matchPercentage: 88 })).toBe(88);
+  });
+
+  test("returns undefined when missing or invalid", () => {
+    expect(getEffectiveMatchPercentage({ ...baseGrant })).toBeUndefined();
+    expect(
+      getEffectiveMatchPercentage({ ...baseGrant, matchPercentage: undefined }),
+    ).toBeUndefined();
+    expect(getEffectiveMatchPercentage({ ...baseGrant, matchPercentage: 0 })).toBeUndefined();
   });
 });
