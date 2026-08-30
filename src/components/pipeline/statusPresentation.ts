@@ -91,3 +91,19 @@ export const STATUS_ACCENT: Record<ApplicationStatus, string> = {
   approved: "border-l-success/60",
   rejected: "border-l-destructive/60",
 };
+
+/**
+ * A barely-there background wash for a stage group's header — deliberately
+ * separate from STATUS_BADGE (which is a solid-ish chip meant to stand out)
+ * and STATUS_ACCENT (a border, immune to contrast concerns). This is a
+ * background only, so it's safe to use even for `submitted`, where --brand
+ * has no .dark override for TEXT — a 5% wash never has a text-contrast
+ * problem, only a color sitting on top of it would.
+ */
+export const STATUS_GROUP_TINT: Record<ApplicationStatus, string> = {
+  drafting: "bg-muted/50",
+  submitted: "bg-brand/5",
+  under_review: "bg-warning/5",
+  approved: "bg-success/5",
+  rejected: "bg-destructive/5",
+};
