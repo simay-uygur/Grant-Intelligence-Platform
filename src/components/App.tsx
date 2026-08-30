@@ -525,6 +525,12 @@ export function App() {
       MOCK_GRANTS.find((g) => g.id === active.document?.grantId))
     : undefined;
 
+  // Same id scheme as callbacks.getApplicationStatus (app-${documentId}) —
+  // read-only display in the workspace header, so no new callback needed.
+  const workspacePipelineStatus = active?.document
+    ? applications.find((a) => a.id === `app-${active.document?.id}`)?.status
+    : undefined;
+
   // Show a lightweight "assistant is working" indicator for gaps where busy
   // work is happening but no research_status block (which has its own
   // step-by-step progress and recommendation-skeleton UI) is already
@@ -725,6 +731,7 @@ export function App() {
               doc={active?.document}
               profile={active?.profile}
               grant={workspaceGrant}
+              pipelineStatus={workspacePipelineStatus}
               onSectionChange={c.updateDocumentSection}
               onGoToChat={() => setMainView("chat")}
             />
