@@ -305,7 +305,11 @@ function MatchScoreRow({ percentage = 0 }: { percentage?: number }) {
 
 function DeadlineRow({ deadline }: { deadline?: string }) {
   if (!deadline) {
-    return <p className="text-xs italic text-muted-foreground">Deadline unavailable.</p>;
+    return (
+      <p className="text-xs text-muted-foreground">
+        Continuous submission / Open call (see official call document)
+      </p>
+    );
   }
   return (
     <div className="flex flex-wrap items-center gap-2">

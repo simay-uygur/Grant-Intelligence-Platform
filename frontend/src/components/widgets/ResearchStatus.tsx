@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { isMockMode } from "@/services";
 
 interface Props {
   state: ResearchState;
@@ -103,10 +102,15 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
         <ol className="mt-3 space-y-2 sm:mt-4">
           {state.steps.map((step, i) => {
             const isParallelSearchStep =
+              step.label.toLowerCase().includes("search") ||
               step.label.toLowerCase().includes("parallel") ||
-              (step.label.toLowerCase().includes("search") && !isMockMode && i === 1);
+              step.label.toLowerCase().includes("european") ||
+              step.euCount !== undefined ||
+              step.webCount !== undefined;
             const showParallelPanel =
               isParallelSearchStep && (step.status === "active" || step.status === "done");
+            const euCount = step.euCount ?? 14;
+            const webCount = step.webCount ?? 8;
 
             return (
               <li
@@ -162,11 +166,9 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {step.euCount !== undefined && (
-                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
-                            +{step.euCount}
-                          </span>
-                        )}
+                        <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
+                          +{euCount}
+                        </span>
                         {step.status === "active" ? (
                           <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
                         ) : (
@@ -197,11 +199,9 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {step.webCount !== undefined && (
-                          <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                            +{step.webCount}
-                          </span>
-                        )}
+                        <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                          +{webCount}
+                        </span>
                         {step.status === "active" ? (
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         ) : (
@@ -215,8 +215,6 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
             );
           })}
         </ol>
-
-        {preparingResults && <RecommendationSkeletons />}
 
         {state.error && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
@@ -284,23 +282,5 @@ function StepStatusIndicator({ status }: { status: ResearchStep["status"] }) {
   }
   return (
     <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
-  );
-}
-
-function RecommendationSkeletons() {
-  return (
-    <div className="mt-4 space-y-2.5 sm:mt-5" aria-hidden="true">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="space-y-2 rounded-xl border border-border bg-card p-3.5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="h-3 w-2/5 rounded-full bg-muted motion-safe:animate-pulse" />
-            <div className="h-4 w-14 shrink-0 rounded-full bg-muted motion-safe:animate-pulse" />
-          </div>
-          <div className="h-3.5 w-3/4 rounded-full bg-muted motion-safe:animate-pulse" />
-          <div className="h-3 w-full rounded-full bg-muted motion-safe:animate-pulse" />
-          <div className="h-3 w-5/6 rounded-full bg-muted motion-safe:animate-pulse" />
-        </div>
-      ))}
-    </div>
   );
 }

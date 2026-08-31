@@ -130,7 +130,7 @@ export function GrantResults({
         headingLevel="h3"
         icon={SearchX}
         title="No grants matched this profile"
-        description="Nothing in the demo dataset fits every criterion you gave. Widening the funding range, allowing a longer project, or relaxing the country and sector usually opens things up — tell me what to change in the chat below, or search again as-is."
+        description="No grant opportunities matched all of the specified criteria. Widening the funding range, allowing a longer project duration, or relaxing country constraints usually opens up additional calls."
         action={
           onRetryResearch
             ? { label: "Search again", onClick: onRetryResearch, icon: RefreshCw }

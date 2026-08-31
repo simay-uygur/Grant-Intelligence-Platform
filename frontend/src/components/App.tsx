@@ -17,6 +17,7 @@ import type {
   ChatMessage,
   Grant,
   OrganisationProfile,
+  OutlineSection,
   ResearchState,
 } from "@/types";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
@@ -27,6 +28,7 @@ import {
   DocumentWorkspace,
   WorkspaceExportControl,
 } from "@/components/documents/DocumentWorkspace";
+import { OutlinePreviewModal } from "@/components/documents/OutlinePreviewModal";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -97,11 +99,11 @@ function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
   return [
     {
       type: "text",
-      text: `From this grant's record, I can answer questions about eligibility, funding amount, the deadline, or why ${grant.title} matches your project.`,
+      text: `From this grant's record, I can answer questions about eligibility, funding amount, the deadline, or how ${grant.title} aligns with your project.`,
     },
     {
       type: "text",
-      text: "Sample result — this is a simulated response using only the demo data shown for this grant, not a live AI model. Try one of the suggested questions below, or start the application when you're ready.",
+      text: "You can explore further details below or start drafting the proposal when you're ready.",
     },
   ];
 }
@@ -194,6 +196,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const [mainView, setMainView] = useState<MainView>("chat");
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
+  const [outlineModalGrant, setOutlineModalGrant] = useState<Grant | null>(null);
   const researchInFlight = useRef(false);
   const isMobile = useIsMobile();
 
@@ -360,14 +363,33 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     [askAssistant, askUser],
   );
 
-  const handleStartApplication = useCallback(
-    async (grant: Grant) => {
-      if (!c.activeConversation?.profile) return;
+  const executeStartApplication = useCallback(
+    async (grant: Grant, customSections?: OutlineSection[]) => {
+      let profile = c.activeConversation?.profile;
+      if (!profile) {
+        profile = {
+          organisationName: "Your Organisation",
+          organisationType: "SME",
+          organisationDescription: "European Innovation Partner",
+          country: "Germany",
+          region: "Western Europe",
+          projectTitle: grant.title,
+          projectDescription: `Proposal for ${grant.title}`,
+          sector: "Technology & Innovation",
+          fundingAmount: grant.fundingAmount || "€1,000,000",
+          projectStartDate: "2027-01-01",
+          projectDuration: "24 months",
+          eligibilityConstraints: "None",
+        };
+        c.setProfile(profile);
+      }
       setAskingAboutGrant(null);
       setBusy(true);
-      const profile = c.activeConversation.profile;
       try {
-        const doc = await applicationService.startApplication(grant, profile);
+        const doc = await applicationService.startApplication(grant, profile, undefined, {
+          conversationId: c.activeConversation?.backendConversationId || c.activeId || undefined,
+          sections: customSections,
+        });
         c.setDocument(doc, grant.id);
         c.setStage("application");
         // The pipeline row is a SUMMARY: the draft body stays in
@@ -392,10 +414,8 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
           },
           { type: "document", documentId: doc.id },
         ]);
+        setMainView("workspace");
       } catch (err) {
-        // Previously uncaught: a rejection here left the UI sitting on the
-        // results with no explanation. The stage is deliberately not moved,
-        // so "Start application" on the grant card is still there to retry.
         askAssistant([
           {
             type: "error",
@@ -407,6 +427,31 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
       }
     },
     [addApplication, askAssistant, c],
+  );
+
+  const handleStartApplication = useCallback(
+    async (grant: Grant) => {
+      let profile = c.activeConversation?.profile;
+      if (!profile) {
+        profile = {
+          organisationName: "Your Organisation",
+          organisationType: "SME",
+          organisationDescription: "European Innovation Partner",
+          country: "Germany",
+          region: "Western Europe",
+          projectTitle: grant.title,
+          projectDescription: `Proposal for ${grant.title}`,
+          sector: "Technology & Innovation",
+          fundingAmount: grant.fundingAmount || "€1,000,000",
+          projectStartDate: "2027-01-01",
+          projectDuration: "24 months",
+          eligibilityConstraints: "None",
+        };
+        c.setProfile(profile);
+      }
+      setOutlineModalGrant(grant);
+    },
+    [c],
   );
 
   const handleOpenApplication = useCallback(
@@ -780,6 +825,22 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         onSelectView={setMainView}
         savedCount={shortlist.savedGrants.length}
         onSignOut={onSignOut}
+      />
+      <OutlinePreviewModal
+        open={Boolean(outlineModalGrant)}
+        onOpenChange={(open) => {
+          if (!open) setOutlineModalGrant(null);
+        }}
+        grant={outlineModalGrant}
+        profile={c.activeConversation?.profile ?? null}
+        conversationId={c.activeConversation?.backendConversationId || c.activeId || undefined}
+        onConfirm={(sections) => {
+          const targetGrant = outlineModalGrant;
+          setOutlineModalGrant(null);
+          if (targetGrant) {
+            void executeStartApplication(targetGrant, sections);
+          }
+        }}
       />
 
       <main
