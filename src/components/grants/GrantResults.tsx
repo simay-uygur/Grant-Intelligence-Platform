@@ -374,7 +374,17 @@ function GrantCard({
   );
 }
 
-function MetaCell({ label, value, badge }: { label: string; value: string; badge?: ReactNode }) {
+/** Also reused by SavedGrants.tsx, so a saved grant's card reads as the same
+ * visual language as one in the results list. */
+export function MetaCell({
+  label,
+  value,
+  badge,
+}: {
+  label: string;
+  value: string;
+  badge?: ReactNode;
+}) {
   return (
     <div className="min-w-0 px-3 py-2.5">
       <dt className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
