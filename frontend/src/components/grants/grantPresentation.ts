@@ -41,7 +41,8 @@ export function getGrantSourceType(grant: Grant): "web_discovery" | "eu_portal" 
   const source = (grant.source || "").toLowerCase();
   const id = (grant.id || "").toLowerCase();
   if (source.includes("web") || id.startsWith("web-")) return "web_discovery";
-  if (source.includes("eu") || source.includes("horizon") || id.startsWith("horizon-")) return "eu_portal";
+  if (source.includes("eu") || source.includes("horizon") || id.startsWith("horizon-"))
+    return "eu_portal";
   return "other";
 }
 

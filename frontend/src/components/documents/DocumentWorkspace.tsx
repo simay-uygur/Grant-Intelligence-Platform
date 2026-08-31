@@ -804,9 +804,7 @@ const WHOLE_DOCUMENT_PATTERN =
   /whole document|entire document|everything|all sections|every section|the whole thing/;
 
 type SectionTarget =
-  | { kind: "all" }
-  | { kind: "sections"; sections: DocSection[] }
-  | { kind: "none" };
+  { kind: "all" } | { kind: "sections"; sections: DocSection[] } | { kind: "none" };
 
 /**
  * `pinnedSectionId` (set via a section's "Ask assistant" button) is only a

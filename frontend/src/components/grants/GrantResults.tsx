@@ -192,7 +192,9 @@ export function GrantResults({ grants, onAsk, onStart, onRetryResearch, startDis
                 />
                 <CompareRow
                   label="Org eligibility"
-                  values={compareGrants.map((g) => (g.organisationEligibility || []).join(", ") || "—")}
+                  values={compareGrants.map(
+                    (g) => (g.organisationEligibility || []).join(", ") || "—",
+                  )}
                 />
                 <CompareRow
                   label="Programme"
@@ -303,7 +305,10 @@ function GrantCard({
             badge={grant.deadline ? <DeadlineBadge deadline={grant.deadline} compact /> : undefined}
           />
           <MetaCell label="Type" value={grant.fundingType || "—"} />
-          <MetaCell label="Eligibility" value={(grant.organisationEligibility || []).join(", ") || "—"} />
+          <MetaCell
+            label="Eligibility"
+            value={(grant.organisationEligibility || []).join(", ") || "—"}
+          />
         </dl>
 
         <div className="mt-4 rounded-r-lg border-l-2 border-brand bg-brand/5 py-3 pl-3 pr-3">
