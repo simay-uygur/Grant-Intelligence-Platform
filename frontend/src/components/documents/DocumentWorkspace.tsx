@@ -843,10 +843,18 @@ function matchTargetSections(
 
   // 1a. Ordinal word references: "first", "second", "third", "last" section
   const ORDINALS: Record<string, number> = {
-    first: 0, firs: 0, sifrst: 0, firsst: 0, frist: 0, // common typos for "first"
-    second: 1, secnd: 1, secon: 1,
-    third: 2, thrid: 2,
-    fourth: 3, forth: 3,
+    first: 0,
+    firs: 0,
+    sifrst: 0,
+    firsst: 0,
+    frist: 0, // common typos for "first"
+    second: 1,
+    secnd: 1,
+    secon: 1,
+    third: 2,
+    thrid: 2,
+    fourth: 3,
+    forth: 3,
     fifth: 4,
     sixth: 5,
     seventh: 6,
@@ -1415,9 +1423,6 @@ function AssistantPanel({
           </InlineNotice>
         </div>
       )}
-
-
-
 
       <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3">
         <div className="flex items-end gap-2">

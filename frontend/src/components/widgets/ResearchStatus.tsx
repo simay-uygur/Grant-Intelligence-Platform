@@ -105,7 +105,9 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
             const isWebStep = i === 2;
             const showEuPanel = isEuStep && (step.status === "active" || step.status === "done");
             const showWebPanel = isWebStep && (step.status === "active" || step.status === "done");
-            const count = step.candidateCount ?? (isEuStep ? step.euCount : isWebStep ? step.webCount : undefined);
+            const count =
+              step.candidateCount ??
+              (isEuStep ? step.euCount : isWebStep ? step.webCount : undefined);
 
             return (
               <li
@@ -165,8 +167,12 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
                         🇪🇺
                       </span>
                       <div className="min-w-0">
-                        <span className="font-medium text-foreground block truncate">EU Portal Calls</span>
-                        <span className="text-[10px] text-muted-foreground block truncate">Horizon Europe / SEDIA</span>
+                        <span className="font-medium text-foreground block truncate">
+                          EU Portal Calls
+                        </span>
+                        <span className="text-[10px] text-muted-foreground block truncate">
+                          Horizon Europe / SEDIA
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -199,8 +205,12 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
                         🌐
                       </span>
                       <div className="min-w-0">
-                        <span className="font-medium text-foreground block truncate">Web Grant Discovery</span>
-                        <span className="text-[10px] text-muted-foreground block truncate">National & Regional Funds</span>
+                        <span className="font-medium text-foreground block truncate">
+                          Web Grant Discovery
+                        </span>
+                        <span className="text-[10px] text-muted-foreground block truncate">
+                          National & Regional Funds
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

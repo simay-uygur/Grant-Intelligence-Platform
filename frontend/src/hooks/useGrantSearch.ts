@@ -86,7 +86,8 @@ export function useGrantSearch({
           const data = event.data as Record<string, unknown> | undefined;
           const euCount = typeof data?.eu_count === "number" ? data.eu_count : undefined;
           const webCount = typeof data?.web_count === "number" ? data.web_count : undefined;
-          const candidateCount = typeof data?.candidate_count === "number" ? data.candidate_count : undefined;
+          const candidateCount =
+            typeof data?.candidate_count === "number" ? data.candidate_count : undefined;
           const tool = typeof data?.tool === "string" ? data.tool : "";
 
           // Map SSE stage + tool name → 4-step index
