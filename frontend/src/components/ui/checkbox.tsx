@@ -16,6 +16,11 @@ const Checkbox = React.forwardRef<
     )}
     {...props}
   >
+    {/* Two icons, only one ever laid out at a time via the root's own
+        data-state — lets a caller pass checked="indeterminate" (e.g. a
+        "select all" checkbox reflecting a partial selection) and get the
+        conventional dash instead of a misleading checkmark, with zero
+        change for every existing boolean-only checkbox in the app. */}
     <CheckboxPrimitive.Indicator className={cn("grid place-content-center text-current")}>
       <Check className="h-4 w-4 group-data-[state=indeterminate]:hidden" />
       <Minus className="hidden h-4 w-4 group-data-[state=indeterminate]:block" />

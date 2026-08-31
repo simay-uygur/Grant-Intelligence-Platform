@@ -87,6 +87,9 @@ export function useProgressiveReveal(text: string | undefined, onComplete?: () =
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+    // onComplete is deliberately read via the ref above, not listed here —
+    // only a new `text` value or the motion preference changing should
+    // restart the reveal, never a caller passing a fresh callback identity.
   }, [text, reduceMotion]);
 
   return {

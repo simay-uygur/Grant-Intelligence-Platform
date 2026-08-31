@@ -3,6 +3,10 @@ export function wordCount(text: string): number {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
+export function charCount(text: string): number {
+  return text.trim().length;
+}
+
 /**
  * Strips leading numbering (e.g. "1. ", "3. ", "1) ", "2 - ") from a title
  * so the rendering UI can number sections dynamically based on their current order.
