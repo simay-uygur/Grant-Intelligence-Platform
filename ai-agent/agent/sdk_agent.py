@@ -1,7 +1,10 @@
 # agent/sdk_agent.py
 # The Grant Intelligence agent — Claude Agent SDK owns the loop.
-# Claude decides keywords, tool calls, ranking, and final selection.
-# The finalize tool writes the result to a per-task ContextVar so concurrent requests stay isolated.
+# Claude decides keywords, tool calls, ranking, and final selection (the mentor's
+# "agent-controlled" architecture — not a fixed Python pipeline).
+# Captures finalized grants AND the full candidate pool from the tool output
+# messages so the frontend gets top-3 + all_candidates + EU/Web source tags,
+# matching stream_agent's output shape.
 
 import asyncio
 import sys
@@ -54,9 +57,7 @@ from tools.config import get_model_id
 
 MODEL_ID = get_model_id()
 
-# Per-task result holder: each asyncio Task (i.e. each concurrent run_agent call)
-# gets its own isolated value via ContextVar, eliminating the previous race condition
-# where a shared module-level dict could be overwritten by concurrent requests.
+# Per-task result holder for finalized grants.
 _result_holder_var: ContextVar[list[Any] | None] = ContextVar("_result_holder_var", default=None)
 
 from datetime import date
@@ -68,10 +69,8 @@ from datetime import date
     {"query": str},
 )
 async def web_search_grants(args: dict[str, Any]) -> dict[str, Any]:
-    import json as _json
-
     results = _web_search(args["query"], max_results=5)
-    return {"content": [{"type": "text", "text": _json.dumps(results, indent=2)}]}
+    return {"content": [{"type": "text", "text": json.dumps({"web_candidates": results}, indent=2)}]}
 
 
 # --- Tool: search EU grants (deterministic, no LLM, no auto-select) ---
@@ -99,7 +98,7 @@ async def search_eu_grants(args: dict[str, Any]) -> dict[str, Any]:
     if not candidates:
         msg = "No grants found." + (" Errors: " + "; ".join(errors) if errors else "")
         return {"content": [{"type": "text", "text": msg}]}
-    payload = {"count": len(candidates), "candidates": candidates}
+    payload = {"count": len(candidates), "eu_candidates": candidates}
     if errors:
         payload["errors"] = errors
     return {"content": [{"type": "text", "text": json.dumps(payload, indent=2)}]}
@@ -132,14 +131,15 @@ async def evaluate_grant_candidates(args: dict[str, Any]) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": json.dumps({"today": today, "evidence": evidence}, indent=2)}]}
 
 
-# --- Tool: finalize (validates + WRITES result to the holder) ---
+# --- Tool: finalize (validates + returns the top selection) ---
 @tool(
     "finalize_grant_recommendations",
     "Submit your FINAL chosen grants as a JSON array in the frontend Grant shape "
     "(id, programme, title, matchPercentage, fundingAmount, deadline, eligibleCountries, "
     "organisationEligibility, fundingType, description, whyItMatches, matchReasons, "
-    "requirements, tags, sourceUrl). Rejects closed grants and those without a source URL. "
-    "Call this once after searching, evaluating, and choosing.",
+    "requirements, tags, sourceUrl, source). Set source='EU Horizon' or 'Web Search'. "
+    "Rejects closed grants and those without a source URL. Call this once after searching, "
+    "evaluating, and choosing.",
     {"grants_json": str},
 )
 async def finalize_grant_recommendations(args: dict[str, Any]) -> dict[str, Any]:
@@ -159,8 +159,9 @@ async def finalize_grant_recommendations(args: dict[str, Any]) -> dict[str, Any]
         if dl and str(dl)[:10] < today:
             rejected.append({"grant": g.get("title"), "reason": "deadline passed"})
             continue
+        if not g.get("source"):
+            g["source"] = "EU Horizon" if "horizon" in str(g.get("programme", "")).lower() else "Web Search"
         valid.append(g)
-    # Write into the per-task ContextVar so concurrent requests stay isolated.
     _result_holder_var.set(valid)
     result = {"finalGrants": valid, "count": len(valid), "rejected": rejected}
     if len(valid) < 3:
@@ -217,11 +218,16 @@ ALLOWED_TOOLS = [
 ]
 
 
-def _build_prompt(profile, user_message, conversation_history=None):
+def _build_prompt(profile, user_message, conversation_history=None, excluded_grant_ids=None):
     parts = ["ORGANISATION PROFILE:\n" + json.dumps(profile, indent=2)]
     if conversation_history:
         parts.append("RELEVANT PRIOR CONTEXT:\n" + str(conversation_history))
-    parts.append("USER REQUEST:\n" + (user_message or "Find the best matching EU grants for this organisation."))
+    if excluded_grant_ids:
+        parts.append(
+            "EXCLUDE these grant IDs (already shown, user wants different ones):\n"
+            + json.dumps(list(excluded_grant_ids))
+        )
+    parts.append("USER REQUEST:\n" + (user_message or "Find the best matching grants for this organisation."))
     return "\n\n".join(parts)
 
 
@@ -231,28 +237,35 @@ async def run_agent(
     conversation_history: Any | None = None,
     session_id: str | None = None,
     max_turns: int = 20,
+    excluded_grant_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     Run the agent for one turn.
     - If session_id is None: starts a NEW conversation, returns a new session_id.
-    - If session_id is given: RESUMES that conversation (survives restarts).
-    Returns: {"final_grants": [...], "reply": "...", "session_id": "..."}.
-    The backend stores the session_id (per user) and passes it back next turn.
-    """
-    _result_holder_var.set(None)  # Reset for this task's context.
+    - If session_id is given: RESUMES that conversation.
+    - excluded_grant_ids: grants to skip (for "find different grants" re-search).
 
-    if not HAS_CLAUDE_AGENT_SDK:
+    Returns: {
+        "final_grants": [top 3 recommendations],
+        "all_candidates": [full pool of everything found, tagged with source],
+        "reply": "agent's answer",
+        "session_id": "..."
+    }
+    """
+    _result_holder_var.set(None)
+
+    if not HAS_CLAUDE_AGENT_SDK or query is None or ClaudeAgentOptions is None:
         return {
             "final_grants": [],
-            "reply": "Claude Agent SDK is not installed in the python environment.",
+            "all_candidates": [],
+            "reply": "Claude Agent SDK not available.",
             "session_id": session_id,
         }
 
-    # On the first turn, include the profile. On resumed turns, just the message.
     if session_id:
         prompt = user_message or "Continue."
     else:
-        prompt = _build_prompt(profile, user_message, conversation_history)
+        prompt = _build_prompt(profile, user_message, conversation_history, excluded_grant_ids)
 
     options_kwargs = dict(
         model=MODEL_ID,
@@ -266,19 +279,24 @@ async def run_agent(
 
     reply_text = ""
     captured_session_id = session_id
+    captured_grants: list[Any] | None = None
+    all_candidates: list[dict[str, Any]] = []
+    seen_titles: set[str] = set()
 
-    if query is None or ClaudeAgentOptions is None:
-        return {
-            "final_grants": [],
-            "reply": "Claude Agent SDK not available.",
-            "session_id": session_id,
-        }
+    def _pool_add(items, source_label):
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            title = it.get("title")
+            if not title or title in seen_titles:
+                continue
+            seen_titles.add(title)
+            all_candidates.append({**it, "source": source_label})
 
     async for message in query(
         prompt=prompt,
         options=ClaudeAgentOptions(**options_kwargs),
     ):
-        # Capture the session_id from the init message or the result message.
         if hasattr(message, "subtype") and getattr(message, "subtype", None) == "init":
             data = getattr(message, "data", {}) or {}
             captured_session_id = data.get("session_id", captured_session_id)
@@ -287,28 +305,46 @@ async def run_agent(
         if hasattr(message, "result") and message.result:
             reply_text = message.result
 
+        # Parse every tool result block: capture finalGrants + candidate pools.
+        for block in (getattr(message, "content", None) or []):
+            block_content = getattr(block, "content", None)
+            if not block_content:
+                continue
+            for item in (block_content if isinstance(block_content, list) else [block_content]):
+                text = getattr(item, "text", None) if not isinstance(item, dict) else item.get("text")
+                if not text:
+                    continue
+                try:
+                    parsed = json.loads(text)
+                except Exception:
+                    continue
+                if not isinstance(parsed, dict):
+                    continue
+                if "finalGrants" in parsed:
+                    captured_grants = parsed["finalGrants"]
+                if "eu_candidates" in parsed and isinstance(parsed["eu_candidates"], list):
+                    _pool_add(parsed["eu_candidates"], "EU Horizon")
+                if "web_candidates" in parsed and isinstance(parsed["web_candidates"], list):
+                    _pool_add(parsed["web_candidates"], "Web Search")
+
+    # If excluded_grant_ids was given, filter them out defensively.
+    if excluded_grant_ids:
+        excluded_set = set(excluded_grant_ids)
+        all_candidates = [c for c in all_candidates if str(c.get("id") or c.get("identifier") or c.get("title")) not in excluded_set]
+        if captured_grants:
+            captured_grants = [g for g in captured_grants if str(g.get("id") or g.get("title")) not in excluded_set]
+
     return {
-        "final_grants": _result_holder_var.get() or [],
+        "final_grants": captured_grants if captured_grants is not None else (_result_holder_var.get() or []),
+        "all_candidates": all_candidates,
         "reply": reply_text,
         "session_id": captured_session_id,
     }
 
 
 # --- Multi-turn session (#7) ---
-# Keeps one conversation alive so the agent remembers context across turns.
-# The same MCP tools and system prompt are available every turn.
-
-
 class GrantAgentSession:
-    """
-    A multi-turn conversation with the grant agent.
-    Usage:
-        session = GrantAgentSession(profile)
-        await session.start()
-        result1 = await session.send("Find me AI grants")
-        result2 = await session.send("Only ones open after 2027")  # remembers context
-        await session.close()
-    """
+    """A multi-turn conversation with the grant agent."""
 
     def __init__(self, profile, max_turns=20):
         self.profile = profile
@@ -325,25 +361,58 @@ class GrantAgentSession:
         )
         self._client = ClaudeSDKClient(options=options)
         await self._client.__aenter__()
-        # Give the agent the profile once, at the start of the conversation.
         intro = "ORGANISATION PROFILE:\n" + json.dumps(self.profile, indent=2) + "\n\nRemember this profile for the whole conversation."
         await self._client.query(intro)
         async for _ in self._client.receive_response():
-            pass  # consume the acknowledgement
+            pass
 
     async def send(self, user_message):
-        """Send one user turn; returns {'final_grants': [...], 'reply': '...'}."""
-        # Reset the grants holder for this turn.
         _result_holder_var.set(None)
         reply_text = ""
         if self._client is None or not hasattr(self._client, "query"):
-            return {"final_grants": [], "reply": "Client not initialized."}
+            return {"final_grants": [], "all_candidates": [], "reply": "Client not initialized."}
         await self._client.query(user_message)
+        captured_grants: list[Any] | None = None
+        all_candidates: list[dict[str, Any]] = []
+        seen_titles: set[str] = set()
+
+        def _pool_add(items, source_label):
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                title = it.get("title")
+                if not title or title in seen_titles:
+                    continue
+                seen_titles.add(title)
+                all_candidates.append({**it, "source": source_label})
+
         async for message in self._client.receive_response():
             if hasattr(message, "result") and message.result:
                 reply_text = message.result
+            for block in (getattr(message, "content", None) or []):
+                block_content = getattr(block, "content", None)
+                if not block_content:
+                    continue
+                for item in (block_content if isinstance(block_content, list) else [block_content]):
+                    text = getattr(item, "text", None) if not isinstance(item, dict) else item.get("text")
+                    if not text:
+                        continue
+                    try:
+                        parsed = json.loads(text)
+                    except Exception:
+                        continue
+                    if not isinstance(parsed, dict):
+                        continue
+                    if "finalGrants" in parsed:
+                        captured_grants = parsed["finalGrants"]
+                    if "eu_candidates" in parsed and isinstance(parsed["eu_candidates"], list):
+                        _pool_add(parsed["eu_candidates"], "EU Horizon")
+                    if "web_candidates" in parsed and isinstance(parsed["web_candidates"], list):
+                        _pool_add(parsed["web_candidates"], "Web Search")
+
         return {
-            "final_grants": _result_holder_var.get() or [],
+            "final_grants": captured_grants if captured_grants is not None else (_result_holder_var.get() or []),
+            "all_candidates": all_candidates,
             "reply": reply_text,
         }
 
@@ -364,14 +433,16 @@ if __name__ == "__main__":
     }
 
     async def _demo():
-        # Turn 1 — new session
         print("===== TURN 1 (new session) =====")
-        r1 = await run_agent(test_profile, "Find the best matching EU grants.")
+        r1 = await run_agent(test_profile, "Find the best matching grants.")
         sid = r1["session_id"]
         print("session_id:", sid)
         print("grants found:", len(r1["final_grants"]))
+        print("all candidates found:", len(r1["all_candidates"]))
+        eu = sum(1 for c in r1["all_candidates"] if c.get("source") == "EU Horizon")
+        web = sum(1 for c in r1["all_candidates"] if c.get("source") == "Web Search")
+        print(f"  EU Horizon: {eu} | Web Search: {web}")
 
-        # Turn 2 — RESUME by session_id (simulates backend passing stored ID)
         print("\n===== TURN 2 (resumed by session_id) =====")
         r2 = await run_agent(test_profile, "Of those, which is the single best fit? Don't search again.", session_id=sid)
         print("resumed session_id:", r2["session_id"])
