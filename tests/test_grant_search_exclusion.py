@@ -45,7 +45,6 @@ def test_grant_search_service_forwards_excluded_ids(monkeypatch: MonkeyPatch) ->
     assert response.grants[0].id == "HORIZON-NEW-002"
     mock_search.assert_called_once_with(
         payload.to_agent_profile(),
-        max_grants=5,
         excluded_grant_ids=["HORIZON-EXCLUDE-001"],
     )
 

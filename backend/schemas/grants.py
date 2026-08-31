@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AgentProfile(BaseModel):
@@ -205,6 +205,37 @@ class GrantResult(BaseModel):
         },
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_grant_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        d = dict(data)
+        identifier = d.get("identifier") or d.get("id") or d.get("topicId")
+        if not d.get("id"):
+            d["id"] = identifier or f"grant-{abs(hash(d.get('url') or d.get('title') or '')) % 1000000:06d}"
+        if not d.get("title"):
+            d["title"] = d.get("identifier") or d.get("id") or "Grant Opportunity"
+        if not d.get("sourceUrl") and d.get("url"):
+            d["sourceUrl"] = d.get("url")
+        if not d.get("url") and d.get("sourceUrl"):
+            d["url"] = d.get("sourceUrl")
+        if not d.get("description") and d.get("summary"):
+            d["description"] = d.get("summary")
+        elif not d.get("description") and d.get("snippet"):
+            d["description"] = d.get("snippet")
+        if not d.get("summary") and d.get("description"):
+            d["summary"] = d.get("description")
+        if d.get("matchPercentage") is not None:
+            try:
+                mp_str = str(d["matchPercentage"]).replace("%", "").strip()
+                d["matchPercentage"] = int(float(mp_str))
+            except Exception:
+                d["matchPercentage"] = None
+        if d.get("fundingAmount") is not None and not isinstance(d["fundingAmount"], str):
+            d["fundingAmount"] = str(d["fundingAmount"])
+        return d
+
 
 class GrantSearchResponse(BaseModel):
     grants: list[GrantResult] = Field(description=("Agent-ranked grant results."))
@@ -242,7 +273,6 @@ class GrantSearchResponse(BaseModel):
                     "programme_period": None,
                     "action_type": None,
                     "only_open": False,
-                    "limit": 3,
                 },
                 "batch_id": "batch-123456",
                 "batch_index": 1,

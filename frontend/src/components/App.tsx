@@ -683,7 +683,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         setBusy(false);
       }
     },
-    [apps.applications, askAssistant, c],
+    [apps.applications, c],
   );
 
   const handleStartApplicationFromSaved = useCallback(

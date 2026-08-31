@@ -229,3 +229,9 @@ def start_application(grant, profile, custom_instructions=None, template_type=No
 
     logger.info("Drafted %d sections for '%s'", len(sections), document["grantTitle"])
     return document
+
+
+def start_application_stream(grant, profile, custom_instructions=None, template_type=None, attachments=None, custom_sections=None):
+    """Stream application drafting as a single result event (non-true-streaming wrapper)."""
+    doc = start_application(grant, profile, custom_instructions=custom_instructions, template_type=template_type, attachments=attachments, custom_sections=custom_sections)
+    yield {"event": "result", "stage": "draft", "message": "Drafted document", "data": {"document": doc}}

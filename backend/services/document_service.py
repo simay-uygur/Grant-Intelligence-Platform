@@ -144,53 +144,6 @@ class DocumentService:
         )
         return application_document
 
-    def start_application_stream(self, payload: StartApplicationRequest, user_id: str | None = None) -> Iterator[dict[str, Any]]:
-        grant = _grant_to_dict(payload.grant)
-        attachments = self._conversation_attachments(payload.conversationId, user_id)
-        custom_sections = [s.model_dump(exclude_none=True) for s in payload.sections] if payload.sections else None
-
-        stream_kwargs: dict[str, Any] = {
-            "custom_instructions": payload.customInstructions,
-            "template_type": payload.templateType,
-            "attachments": attachments,
-        }
-        if custom_sections is not None:
-            stream_kwargs["custom_sections"] = custom_sections
-
-        try:
-            stream_gen = self.agent_service.start_application_stream(
-                grant,
-                payload.profile.to_agent_profile(),
-                **stream_kwargs,
-            )
-        except TypeError:
-            stream_gen = self.agent_service.start_application_stream(
-                grant,
-                payload.profile.to_agent_profile(),
-                custom_instructions=payload.customInstructions,
-                template_type=payload.templateType,
-                attachments=attachments,
-            )
-
-        for event in stream_gen:
-            if event.get("event") == "result" and "document" in event.get("data", {}):
-                document = event["data"]["document"]
-                if not document.get("error"):
-                    app_doc = ApplicationDocument.model_validate(document)
-                    self.application_store.save_application(
-                        app_doc,
-                        grant=grant,
-                        profile=payload.profile.model_dump(exclude_none=True),
-                        user_id=user_id,
-                        custom_instructions=payload.customInstructions,
-                        template_type=payload.templateType,
-                    )
-                    event = {
-                        **event,
-                        "data": {"document": app_doc.model_dump(exclude_none=True)},
-                    }
-            yield event
-
     def list_applications(
         self,
         *,
@@ -303,6 +256,53 @@ class DocumentService:
             baseRevision=payload.baseRevision,
         )
 
+    def start_application_stream(self, payload: StartApplicationRequest, user_id: str | None = None) -> Iterator[dict[str, Any]]:
+        grant = _grant_to_dict(payload.grant)
+        attachments = self._conversation_attachments(payload.conversationId, user_id)
+        custom_sections = [s.model_dump(exclude_none=True) for s in payload.sections] if payload.sections else None
+
+        stream_kwargs: dict[str, Any] = {
+            "custom_instructions": payload.customInstructions,
+            "template_type": payload.templateType,
+            "attachments": attachments,
+        }
+        if custom_sections is not None:
+            stream_kwargs["custom_sections"] = custom_sections
+
+        try:
+            stream_gen = self.agent_service.start_application_stream(
+                grant,
+                payload.profile.to_agent_profile(),
+                **stream_kwargs,
+            )
+        except TypeError:
+            stream_gen = self.agent_service.start_application_stream(
+                grant,
+                payload.profile.to_agent_profile(),
+                custom_instructions=payload.customInstructions,
+                template_type=payload.templateType,
+                attachments=attachments,
+            )
+
+        for event in stream_gen:
+            if event.get("event") == "result" and "document" in event.get("data", {}):
+                document = event["data"]["document"]
+                if not document.get("error"):
+                    app_doc = ApplicationDocument.model_validate(document)
+                    self.application_store.save_application(
+                        app_doc,
+                        grant=grant,
+                        profile=payload.profile.model_dump(exclude_none=True),
+                        user_id=user_id,
+                        custom_instructions=payload.customInstructions,
+                        template_type=payload.templateType,
+                    )
+                    event = {
+                        **event,
+                        "data": {"document": app_doc.model_dump(exclude_none=True)},
+                    }
+            yield event
+
     def rewrite_section_stream(
         self,
         document_id: str,
@@ -348,6 +348,29 @@ class DocumentService:
                 event = {
                     **event,
                     "data": response.model_dump(exclude_none=True),
+                }
+            yield event
+
+    def document_qa_stream(
+        self,
+        document_id: str,
+        payload: DocumentQARequest,
+        user_id: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        document, grant, profile, attachments = self._resolve_qa_context(document_id, payload, user_id)
+        for event in self.agent_service.document_qa_stream(
+            question=payload.question,
+            document=document,
+            grant=grant,
+            profile=profile,
+            section_id=payload.sectionId,
+            attachments=attachments,
+        ):
+            if event.get("event") == "result" and "answer" in event.get("data", {}):
+                validated = DocumentQAResponse.model_validate(event["data"])
+                event = {
+                    **event,
+                    "data": validated.model_dump(exclude_none=True),
                 }
             yield event
 
@@ -435,29 +458,6 @@ class DocumentService:
             attachments=attachments,
         )
         return DocumentQAResponse.model_validate(result)
-
-    def document_qa_stream(
-        self,
-        document_id: str,
-        payload: DocumentQARequest,
-        user_id: str | None = None,
-    ) -> Iterator[dict[str, Any]]:
-        document, grant, profile, attachments = self._resolve_qa_context(document_id, payload, user_id)
-        for event in self.agent_service.document_qa_stream(
-            question=payload.question,
-            document=document,
-            grant=grant,
-            profile=profile,
-            section_id=payload.sectionId,
-            attachments=attachments,
-        ):
-            if event.get("event") == "result" and "answer" in event.get("data", {}):
-                validated = DocumentQAResponse.model_validate(event["data"])
-                event = {
-                    **event,
-                    "data": validated.model_dump(exclude_none=True),
-                }
-            yield event
 
     # ------------------------------------------------------------------
     # Document uploads

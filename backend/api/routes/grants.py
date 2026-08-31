@@ -24,21 +24,6 @@ document_service = DocumentService()
 
 
 @router.post(
-    "/search",
-    response_model=GrantSearchResponse,
-    summary="Search grants",
-    description=("Search grant opportunities by passing the organization profile to the local agent layer. Results are recorded in the database when linked to a conversation."),
-    response_description="Agent-shaped grant search results for frontend rendering.",
-)
-async def search_grants(payload: GrantSearchRequest, current_user: dict[str, str] | None = Depends(get_current_user)) -> GrantSearchResponse:
-    try:
-        user_id = current_user["id"] if current_user else None
-        return await asyncio.to_thread(grant_search_service.search, payload, user_id=user_id)
-    except AgentUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-
-@router.post(
     "/search/stream",
     summary="Stream grant search thinking events and results",
     description=("Stream real-time thinking events and final grant search results as Server-Sent Events (SSE). Results are recorded in the database when linked to a conversation."),
@@ -58,6 +43,21 @@ async def search_grants_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post(
+    "/search",
+    response_model=GrantSearchResponse,
+    summary="Search grants",
+    description=("Search grant opportunities by passing the organization profile to the local agent layer. Results are recorded in the database when linked to a conversation."),
+    response_description="Agent-shaped grant search results for frontend rendering.",
+)
+async def search_grants(payload: GrantSearchRequest, current_user: dict[str, str] | None = Depends(get_current_user)) -> GrantSearchResponse:
+    try:
+        user_id = current_user["id"] if current_user else None
+        return await asyncio.to_thread(grant_search_service.search, payload, user_id=user_id)
+    except AgentUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.get(

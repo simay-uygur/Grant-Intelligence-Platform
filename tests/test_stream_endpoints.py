@@ -11,7 +11,7 @@ def _install_fake_streaming_agent():
     agent_package = types.ModuleType("agent")
     service_module = types.ModuleType("agent.service")
 
-    def search_grants(profile: dict, max_grants: int = 3, excluded_grant_ids: list[str] | None = None) -> list[dict]:
+    def search_grants(profile: dict, excluded_grant_ids: list[str] | None = None) -> list[dict]:
         return [
             {
                 "id": "HORIZON-FAKE-001",
@@ -20,7 +20,7 @@ def _install_fake_streaming_agent():
             }
         ]
 
-    def search_grants_stream(profile: dict, max_grants: int = 3, excluded_grant_ids: list[str] | None = None):
+    def search_grants_stream(profile: dict, excluded_grant_ids: list[str] | None = None):
         yield {
             "event": "thinking",
             "stage": "keywords",
@@ -37,7 +37,7 @@ def _install_fake_streaming_agent():
             "stage": "select",
             "message": "Selected 1 grant",
             "data": {
-                "grants": search_grants(profile, max_grants, excluded_grant_ids),
+                "grants": search_grants(profile, excluded_grant_ids),
                 "all_candidates": [
                     {
                         "id": "HORIZON-FAKE-001",

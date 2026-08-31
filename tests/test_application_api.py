@@ -69,6 +69,7 @@ def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
         }
 
     service.agent_service.rewrite_section_stream = rewrite_section_stream
+
     service.agent_service.document_qa = lambda question, document, grant=None, profile=None, section_id=None, attachments="": {
         "answer": f"Evaluator advice for '{question}'.",
         "section_id": section_id,

@@ -11,7 +11,7 @@ def run_profile(label, profile):
 
     # --- 1. SEARCH ---
     print("\n----- SEARCH -----")
-    grants = search_grants(profile, max_grants=3)
+    grants = search_grants(profile)
     if not grants:
         print("  No grants found — skipping draft/rewrite for this profile.")
         return

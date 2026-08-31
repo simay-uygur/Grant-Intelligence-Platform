@@ -25,11 +25,25 @@ export const grantSearchRequestSchema = z.object({
 const grantResultDtoSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
-  source: z.string().min(1).nullable().optional(),
+  source: z.string().nullable().optional(),
   summary: z.string().nullable().optional(),
   programme: z.string().nullable().optional(),
-  matchPercentage: z.number().nullable().optional(),
-  fundingAmount: z.string().nullable().optional(),
+  matchPercentage: z
+    .union([z.number(), z.string()])
+    .transform((v) =>
+      typeof v === "string"
+        ? Number.isNaN(Number(v.replace("%", "").trim()))
+          ? null
+          : Number(v.replace("%", "").trim())
+        : v,
+    )
+    .nullable()
+    .optional(),
+  fundingAmount: z
+    .union([z.string(), z.number()])
+    .transform((v) => (typeof v === "number" ? String(v) : v))
+    .nullable()
+    .optional(),
   eligibleCountries: z.array(z.string()).optional(),
   organisationEligibility: z
     .union([z.string(), z.array(z.string())])
@@ -42,7 +56,11 @@ const grantResultDtoSchema = z.object({
   requirements: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   sourceUrl: z.string().nullable().optional(),
-  amount: z.string().nullable().optional(),
+  amount: z
+    .union([z.string(), z.number()])
+    .transform((v) => (typeof v === "number" ? String(v) : v))
+    .nullable()
+    .optional(),
   deadline: z.string().nullable().optional(),
   match_explanation: z.string().nullable().optional(),
   url: z.string().nullable().optional(),

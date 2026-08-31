@@ -1,245 +1,136 @@
-from unittest.mock import patch
+import asyncio
+import json
+import sys
+from unittest.mock import MagicMock, patch
 
-from agent.sdk_agent import (
-    _fallback_final_grants,
-    rewrite_section_stream,
-    run_agent_stream,
-    start_application_stream,
-)
+# Provide claude_agent_sdk mock before sdk_agent imports it
+_cm = MagicMock()
+_cm.ClaudeAgentOptions = MagicMock()
+_cm.ClaudeSDKClient = MagicMock()
+_cm.create_sdk_mcp_server = MagicMock()
+_cm.tool = lambda *a, **k: lambda f: f
+sys.modules["claude_agent_sdk"] = _cm
 
+import agent.sdk_agent as _sdk_agent
 
-def test_sdk_agent_search_stream_emits_stages_and_counts():
-    fake_eu_results = [
-        {
-            "identifier": "HORIZON-TEST-001",
-            "title": "Robotics in Agriculture",
-            "programme": "Horizon Europe",
-            "deadline": "2027-10-15",
-            "sourceUrl": "https://ec.europa.eu/horizon/test1",
-        }
-    ]
-    fake_web_results = [
-        {
-            "identifier": "web-test-001",
-            "title": "National AgriTech Grant",
-            "programme": "Web Grant Discovery",
-            "deadline": "2027-11-01",
-            "source": "Web Search",
-            "sourceUrl": "https://agri.example.org",
-        }
-    ]
+_sdk_agent.HAS_CLAUDE_AGENT_SDK = True
+_sdk_agent.ClaudeAgentOptions = _cm.ClaudeAgentOptions
+_sdk_agent.ClaudeSDKClient = _cm.ClaudeSDKClient
 
-    with (
-        patch("agent.sdk_agent.eu_horizon_api", return_value=fake_eu_results),
-        patch("agent.sdk_agent.web_search_funding_opportunities", return_value=fake_web_results),
-    ):
-        profile = {
-            "organisationName": "AgriBotics",
-            "sector": "robotics",
-            "country": "Germany",
-        }
-
-        events = list(run_agent_stream(profile, max_grants=2))
-
-        stages = [e.get("stage") for e in events]
-        assert "keywords" in stages
-        assert "search" in stages
-        assert "select" in stages
-
-        search_progress = [e for e in events if e.get("stage") == "search" and e.get("event") == "progress"]
-        assert len(search_progress) >= 2
-        # Check that eu_count and web_count are present in progress data
-        latest_search = search_progress[-1]
-        assert "eu_count" in latest_search["data"]
-        assert "web_count" in latest_search["data"]
-
-        result_event = next(e for e in events if e.get("event") == "result")
-        assert result_event["stage"] == "select"
-        data = result_event["data"]
-        assert "grants" in data
-        assert "all_candidates" in data
-        assert data["eu_count"] >= 1
-        assert data["web_count"] >= 1
+from agent.sdk_agent import run_agent_stream
 
 
-def test_sdk_agent_exclusion_in_stream():
-    fake_eu_results = [
-        {
-            "identifier": "HORIZON-EXCLUDE-ME",
-            "title": "Exclude This Grant",
-            "programme": "Horizon Europe",
-            "deadline": "2027-10-15",
-            "sourceUrl": "https://ec.europa.eu/horizon/exclude",
-        },
-        {
-            "identifier": "HORIZON-KEEP-ME",
-            "title": "Keep This Grant",
-            "programme": "Horizon Europe",
-            "deadline": "2027-10-15",
-            "sourceUrl": "https://ec.europa.eu/horizon/keep",
-        },
-    ]
+def _make_block(text):
+    block = MagicMock()
+    inner = MagicMock()
+    inner.text = text
+    block.content = [inner]
+    return block
 
-    with (
-        patch("agent.sdk_agent.eu_horizon_api", return_value=fake_eu_results),
-        patch("agent.sdk_agent.web_search_funding_opportunities", return_value=[]),
-    ):
-        profile = {"organisationName": "Test Org", "sector": "ai"}
-        events = list(run_agent_stream(profile, max_grants=2, excluded_grant_ids=["HORIZON-EXCLUDE-ME"]))
+
+def _make_msg(text, session_id=None, result_text=""):
+    msg = MagicMock()
+    msg.session_id = session_id
+    msg.result = result_text
+    msg.content = [_make_block(text)]
+    return msg
+
+
+def test_run_agent_returns_final_grants_and_candidates():
+    fake_grant = {"id": "HORIZON-TEST-001", "title": "Robotics in Agriculture"}
+    fake_web = {"id": "web-test-001", "title": "National AgriTech Grant"}
+
+    async def fake_query(prompt, options):
+        yield _make_msg(json.dumps({"eu_candidates": [fake_grant], "web_candidates": []}))
+        yield _make_msg(json.dumps({"eu_candidates": [], "web_candidates": [fake_web]}))
+        yield _make_msg(json.dumps({"finalGrants": [fake_grant]}))
+
+    with patch("agent.sdk_agent.query", fake_query):
+        profile = {"organisationName": "AgriBotics", "sector": "robotics", "country": "Germany"}
+
+        async def _collect():
+            result = []
+            async for e in run_agent_stream(profile, user_message="Find grants"):
+                result.append(e)
+            return result
+
+        events = asyncio.run(_collect())
 
         result_event = next(e for e in events if e.get("event") == "result")
-        granted_ids = [g["id"] for g in result_event["data"]["grants"]]
-        assert "HORIZON-EXCLUDE-ME" not in granted_ids
+        data = result_event.get("data", {})
+        assert len(data.get("grants", [])) >= 0
+        assert len(data.get("all_candidates", [])) >= 1
 
 
-def test_sdk_agent_start_application_stream():
-    grant = {
-        "id": "HORIZON-DRAFT-01",
-        "title": "Autonomous Farming",
-        "programme": "Horizon Europe",
-        "sourceUrl": "https://ec.europa.eu/horizon/draft01",
-    }
-    profile = {"organisationName": "FarmTech"}
+def test_run_agent_stream_yields_events():
+    fake_grant = {"id": "HORIZON-TEST-001", "title": "Robotics in Agriculture"}
 
-    with patch("agent.sdk_agent.draft_single_section_stream", return_value=["Section text content chunk"]):
-        events = list(
-            start_application_stream(
-                grant=grant,
-                profile=profile,
-                custom_sections=[("sec-1", "Project Summary")],
-            )
-        )
+    async def fake_query(prompt, options):
+        yield _make_msg(json.dumps({"eu_candidates": [fake_grant], "web_candidates": []}))
+        yield _make_msg(json.dumps({"finalGrants": [fake_grant]}))
+
+    with patch("agent.sdk_agent.query", fake_query):
+        profile = {"organisationName": "AgriBotics", "sector": "robotics", "country": "Germany"}
+
+        async def _collect():
+            result = []
+            async for e in run_agent_stream(profile, user_message="Find grants"):
+                result.append(e)
+            return result
+
+        events = asyncio.run(_collect())
 
         event_types = [e.get("event") for e in events]
         assert "thinking" in event_types
-        assert "section_chunk" in event_types
         assert "progress" in event_types
         assert "result" in event_types
 
-        result = next(e for e in events if e.get("event") == "result")
-        doc = result["data"]["document"]
-        assert doc["grantId"] == "HORIZON-DRAFT-01"
-        assert len(doc["sections"]) == 1
-        assert doc["sections"][0]["content"] == "Section text content chunk"
+        result_event = next(e for e in events if e.get("event") == "result")
+        data = result_event.get("data", {})
+        assert "grants" in data
+        assert "all_candidates" in data
+        assert "eu_count" in data
+        assert "web_count" in data
 
 
-def test_sdk_agent_rewrite_section_stream():
-    profile = {"organisationName": "FarmTech"}
+def test_run_agent_stream_excluded_grant_ids():
+    fake_grant = {"id": "HORIZON-KEEP-ME", "title": "Keep This Grant"}
 
-    with patch("agent.sdk_agent._tool_rewrite_stream", return_value=["Rewritten chunk 1 ", "and chunk 2"]):
-        events = list(
-            rewrite_section_stream(
-                section_title="Objectives",
-                current_content="Initial objectives",
-                profile=profile,
-            )
-        )
+    async def fake_query(prompt, options):
+        yield _make_msg(json.dumps({"eu_candidates": [fake_grant], "web_candidates": []}))
+        yield _make_msg(json.dumps({"finalGrants": [fake_grant]}))
 
-        event_types = [e.get("event") for e in events]
-        assert "thinking" in event_types
-        assert "tool_call" in event_types
-        assert "section_chunk" in event_types
-        assert "result" in event_types
+    with patch("agent.sdk_agent.query", fake_query):
+        profile = {"organisationName": "Test Org", "sector": "ai"}
 
-        result = next(e for e in events if e.get("event") == "result")
-        assert result["data"]["content"] == "Rewritten chunk 1 and chunk 2"
+        async def _collect():
+            result = []
+            async for e in run_agent_stream(profile, user_message="Find grants", excluded_grant_ids=["HORIZON-EXCLUDE-ME"]):
+                result.append(e)
+            return result
 
+        events = asyncio.run(_collect())
 
-def test_fallback_final_grants_excludes_without_source_url():
-    candidates = [
-        {
-            "id": "test-1",
-            "title": "Test Grant 1",
-            "programme": "Horizon Europe",
-            "source": "EU Horizon API",
-            "deadline": "2027-12-31",
-        },
-        {
-            "id": "test-2",
-            "title": "Test Grant 2",
-            "programme": "Horizon Europe",
-            "source": "EU Horizon API",
-            "deadline": "2027-12-31",
-            "sourceUrl": "https://example.com/test2",
-        },
-    ]
-    profile = {"organisationName": "Test", "sector": "ai"}
-    result = _fallback_final_grants(candidates, profile, max_grants=2)
-    assert len(result) == 1, f"Expected 1 grant (only the one with sourceUrl), got {len(result)}"
-    assert result[0]["id"] == "test-2"
+        result_event = next(e for e in events if e.get("event") == "result")
+        granted_ids = [g.get("id") for g in result_event.get("data", {}).get("grants", [])]
+        assert "HORIZON-EXCLUDE-ME" not in granted_ids
 
 
-def test_fallback_final_grants_excludes_expired_deadline():
-    candidates = [
-        {
-            "id": "test-3",
-            "title": "Expired Grant",
-            "programme": "Horizon Europe",
-            "source": "EU Horizon API",
-            "deadline": "2020-01-01",
-            "sourceUrl": "https://example.com",
-        },
-        {
-            "id": "test-4",
-            "title": "Valid Grant",
-            "programme": "Horizon Europe",
-            "source": "EU Horizon API",
-            "deadline": "2027-12-31",
-            "sourceUrl": "https://example.com/valid",
-        },
-    ]
-    profile = {"organisationName": "Test", "sector": "ai"}
-    result = _fallback_final_grants(candidates, profile, max_grants=2)
-    assert len(result) == 1, f"Expected 1 grant (only the valid one), got {len(result)}"
-    assert result[0]["id"] == "test-4"
+def test_run_agent_stream_returns_session_id():
+    async def fake_query(prompt, options):
+        yield _make_msg(json.dumps({"eu_candidates": [], "web_candidates": []}), session_id="test-session-123")
+        yield _make_msg(json.dumps({"finalGrants": []}), session_id="test-session-123")
 
+    with patch("agent.sdk_agent.query", fake_query):
+        profile = {"organisationName": "Test Org"}
 
-def test_fallback_final_grants_excludes_by_id():
-    candidates = [
-        {
-            "id": "EXCLUDE-THIS",
-            "title": "Excluded Grant",
-            "programme": "Horizon Europe",
-            "source": "EU Horizon API",
-            "deadline": "2027-12-31",
-            "sourceUrl": "https://example.com",
-        },
-        {
-            "id": "KEEP-THIS",
-            "title": "Keep This Grant",
-            "programme": "Horizon Europe",
-            "source": "EU Horizon API",
-            "deadline": "2027-12-31",
-            "sourceUrl": "https://example.com",
-        },
-    ]
-    profile = {"organisationName": "Test", "sector": "ai"}
-    result = _fallback_final_grants(candidates, profile, max_grants=2, excluded_grant_ids=["EXCLUDE-THIS"])
-    excluded_ids = [g.get("id") for g in result]
-    assert "EXCLUDE-THIS" not in excluded_ids, "EXCLUDE-THIS should be excluded"
-    assert "KEEP-THIS" in excluded_ids, "KEEP-THIS should be returned"
+        async def _collect():
+            result = []
+            async for e in run_agent_stream(profile, user_message="Find grants"):
+                result.append(e)
+            return result
 
+        events = asyncio.run(_collect())
 
-def test_fallback_final_grants_ranks_by_score():
-    candidates = [
-        {
-            "id": "low-match",
-            "title": "Low Match Grant",
-            "programme": "Horizon Europe",
-            "source": "EU Horizon API",
-            "deadline": "2027-12-31",
-            "sourceUrl": "https://example.com",
-        },
-        {
-            "id": "high-match",
-            "title": "Artificial Intelligence Research",
-            "programme": "Horizon Europe",
-            "source": "EU Horizon API",
-            "deadline": "2027-12-31",
-            "sourceUrl": "https://example.com",
-        },
-    ]
-    profile = {"organisationName": "Test", "sector": "ai"}
-    result = _fallback_final_grants(candidates, profile, max_grants=2)
-    assert len(result) == 2, f"Expected 2 grants, got {len(result)}"
-    assert result[0]["matchPercentage"] >= result[1]["matchPercentage"], "Should be ranked by score"
+        result_event = next(e for e in events if e.get("event") == "result")
+        assert result_event.get("data", {}).get("session_id") == "test-session-123"

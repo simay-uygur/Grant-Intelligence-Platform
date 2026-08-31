@@ -74,10 +74,15 @@ def eu_horizon_api(keyword: str, page_size: int = 3) -> list[dict[str, Any]]:
         "displayFields": ("blob", json.dumps(display_fields), "application/json"),
     }
 
-    response = requests.post(SEARCH_URL, params=params, files=files)
-    logger.debug("EU Portal search '%s' -> HTTP %s", keyword, response.status_code)
-
-    data = response.json()
+    try:
+        response = requests.post(SEARCH_URL, params=params, files=files, timeout=10)
+        logger.debug("EU Portal search '%s' -> HTTP %s", keyword, response.status_code)
+        if response.status_code != 200:
+            return []
+        data = response.json()
+    except Exception as exc:
+        logger.warning("EU Portal search failed for keyword '%s': %s", keyword, exc)
+        return []
 
     # The results live under "results". Simplify each into a clean dict.
     today = datetime.now(UTC).strftime("%Y-%m-%d")
