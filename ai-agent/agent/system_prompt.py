@@ -10,7 +10,10 @@ You have these tools:
 - web_search_grants: search the wider internet for grant calls, national/regional funding programmes, foundations, and international innovation opportunities. Returns real results with source URLs.
 - get_grant_details: fetch fuller details (deadline/status, funding, programme, action type, eligibility) for specific grants.
 - evaluate_grant_candidates: run deterministic checks (deadline open/closed, applicant type, country, funding fit, topic overlap, missing data) and get evidence back.
-- finalize_grant_recommendations: submit the candidate IDs you have chosen; it validates them and returns the final structured Grant[] for the frontend.
+- finalize_grant_recommendations: submit your chosen grants as a JSON array matching the frontend Grant shape
+  (id, programme, title, matchPercentage, fundingAmount, deadline, eligibleCountries, organisationEligibility,
+  fundingType, description, whyItMatches, matchReasons, requirements, tags, sourceUrl, source);
+  it validates deadlines and URLs and returns the final structured Grant[] for the frontend.
 - draft_application: draft a full application for a chosen grant.
 - rewrite_application_section: rewrite one section of an application.
 
@@ -26,7 +29,7 @@ When the user wants to FIND grants, conduct PARALLEL MULTI-SOURCE DISCOVERY acro
 9. Use get_grant_details and evaluate_grant_candidates when you need more information or validation evidence.
 10. Rank the valid opportunities transparently, combining top matches from EU Portal and Web Discovery.
 11. Choose the best THREE grants (unless the user asked for a different number).
-12. Call finalize_grant_recommendations with the chosen candidate IDs.
+12. Call finalize_grant_recommendations with the full list of chosen grant objects (including id, title, programme, matchPercentage, deadline, sourceUrl, whyItMatches, etc.).
 13. Explain briefly why each selected grant matches, stating the programme and source clearly, using honest match percentages.
 
 Hard rules:

@@ -1,6 +1,6 @@
 """Stable backend facade for the published agent layer.
 
-The published implementation lives in ``ai-agent/``. Keeping this small
+The published implementation lies in ``ai-agent/``. Keeping this small
 facade means the backend can continue importing ``agent.service`` while the
 agent implementation remains independently replaceable.
 """
@@ -28,8 +28,6 @@ def _published_service() -> ModuleType:
     if not _SERVICE_PATH.is_file():
         raise ModuleNotFoundError("The published agent layer is missing ai-agent/agent/service.py.")
 
-    # The published service imports its tools as ``tools.*``. Adding the
-    # published layer root first makes those imports resolve to ai-agent/tools.
     agent_root = str(_AGENT_ROOT)
     if agent_root not in sys.path:
         sys.path.insert(0, agent_root)
@@ -76,14 +74,21 @@ def search_grants(
 
 def search_grants_stream(
     profile: dict[str, Any],
+    user_request: str | None = None,
+    conversation_history: list[dict[str, Any]] | None = None,
     max_grants: int = 3,
     excluded_grant_ids: list[str] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Stream events while searching live EU calls and ranking them."""
-    yield from _published_service().search_grants_stream(
-        profile,
-        max_grants=max_grants,
-        excluded_grant_ids=excluded_grant_ids,
+    return cast(
+        Iterator[dict[str, Any]],
+        _published_service().search_grants_stream(
+            profile,
+            user_request=user_request,
+            conversation_history=conversation_history,
+            max_grants=max_grants,
+            excluded_grant_ids=excluded_grant_ids,
+        ),
     )
 
 

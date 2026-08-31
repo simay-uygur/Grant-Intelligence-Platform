@@ -18,13 +18,36 @@ export class MockGrantService implements GrantService {
       stage: "keywords",
       message: "Analyzing organization profile and generating search keywords...",
     });
+    await wait(250);
+    onProgress?.({
+      event: "progress",
+      stage: "keywords",
+      message: "Generated 3 targeted search keywords",
+      data: { keywords: ["digital innovation", "sustainable agriculture", "robotics"] },
+    });
     await wait(200);
     onProgress?.({
       event: "thinking",
       stage: "search",
-      message: "Searching live EU Funding & Tenders Portal...",
+      message: "Executing parallel multi-source search across EU Portal & Web Discovery...",
     });
-    await wait(200);
+    await wait(250);
+    onProgress?.({
+      event: "progress",
+      stage: "search",
+      message:
+        "[EU Portal] Searched 'sustainable agriculture' (+6 candidates) — 6 EU, 0 Web discovered",
+      data: { eu_count: 6, web_count: 0 },
+    });
+    await wait(300);
+    onProgress?.({
+      event: "progress",
+      stage: "search",
+      message:
+        "[Web Discovery] Searched 'robotics agritech grants' (+4 candidates) — 6 EU, 4 Web discovered",
+      data: { eu_count: 6, web_count: 4 },
+    });
+    await wait(250);
 
     if (isMockScenario("search-error")) {
       onProgress?.({

@@ -62,6 +62,19 @@ An intelligent grant discovery, matchmaking, and application-drafting platform d
 └── docker-compose.yml    # Local multi-container development configuration
 ```
 
+### Sample Upload Documents
+
+The `examples/uploads/` folder contains ready-to-use sample files for demonstrating chat document upload and application drafting context:
+
+* `annual-report-2025.pdf`
+* `capability-statement.docx`
+* `company-profile.txt`
+* `project-summary.md`
+* `budget-breakdown.csv`
+* `team-and-partners.json`
+
+Upload these from the normal chat paperclip in API mode. The backend extracts text from supported files (`.pdf`, `.docx`, `.txt`, `.md`, `.csv`, `.json`) and makes that context available to chat answers, outline generation, application drafting, and document Q&A.
+
 ---
 
 ## Prerequisites

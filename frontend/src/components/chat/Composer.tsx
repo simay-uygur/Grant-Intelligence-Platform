@@ -5,6 +5,7 @@ import {
   MessageCircleQuestion,
   Mic,
   Paperclip,
+  RotateCcw,
   Send,
   X,
 } from "lucide-react";
@@ -28,21 +29,20 @@ interface Props {
   conversationId?: string | null;
   /** Uploads the file's text to the backend so AI drafting and Q&A can use it. Absent in demo mode. */
   uploadDocument?: (file: File, conversationId: string | null) => Promise<void>;
+  /** Searches for alternative grants matching the current profile. */
+  onFindAlternatives?: () => void;
 }
 
 const ACCEPTED_FILE_TYPES =
-  ".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,image/png,image/jpeg";
+  ".pdf,.docx,.txt,.md,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/json";
 
 // The `accept` attribute above is only a hint to the OS file picker — most
 // pickers still let the user choose "All files", so this is genuinely
 // reachable and worth validating rather than trusting the browser alone.
-const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt", ".md", ".png", ".jpg", ".jpeg"];
+const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv", ".json"];
 
 // Matches the textarea's max-h-40 (10rem) Tailwind class below.
 const MAX_TEXTAREA_HEIGHT = 160;
-
-// Extensions the backend can extract text from (POST /api/v1/documents/upload).
-const BACKEND_SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv", ".json"];
 
 interface PendingAttachment {
   file: File;
@@ -100,6 +100,7 @@ export function Composer({
   onClearGrantContext,
   conversationId,
   uploadDocument,
+  onFindAlternatives,
 }: Props) {
   const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -151,13 +152,13 @@ export function Composer({
     if (!ACCEPTED_EXTENSIONS.includes(extension)) {
       setAttachment(null);
       setAttachmentError(
-        `"${file.name}" isn't a supported file type. Choose a PDF, Word, text, or image file instead.`,
+        `"${file.name}" isn't a supported file type. Choose PDF, DOCX, TXT, MD, CSV, or JSON instead.`,
       );
       return;
     }
     setAttachmentError(null);
 
-    if (!uploadDocument || !BACKEND_SUPPORTED_EXTENSIONS.includes(extension)) {
+    if (!uploadDocument) {
       setAttachment({ file, status: "local" });
       return;
     }
@@ -207,7 +208,22 @@ export function Composer({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur">
+      <div className="relative shrink-0 border-t border-border bg-background/80 backdrop-blur">
+        {onFindAlternatives && (
+          <div className="pointer-events-none absolute -top-3.5 inset-x-0 flex justify-center -translate-y-full z-20">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onFindAlternatives}
+              disabled={disabled}
+              className="pointer-events-auto h-7 gap-1.5 rounded-full border border-border/80 bg-card/95 px-3.5 text-xs font-semibold text-foreground shadow-md backdrop-blur-md transition-all hover:border-brand/40 hover:bg-muted"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-brand" />
+              <span>Find alternative grants</span>
+            </Button>
+          </div>
+        )}
         <div className="mx-auto w-full max-w-3xl px-4 py-4">
           {grantContext && (
             <div className="mb-2 space-y-2">
@@ -315,7 +331,7 @@ export function Composer({
                   {attachment.status === "uploaded" &&
                     "Uploaded — the AI will use this document when drafting and answering questions."}
                   {attachment.status === "local" &&
-                    "Preview only — this file type can't be analysed automatically."}
+                    "Selected locally — backend upload is not available in this mode."}
                   {attachment.status === "failed" &&
                     (attachment.error ?? "Upload failed. Please try again.")}
                 </p>

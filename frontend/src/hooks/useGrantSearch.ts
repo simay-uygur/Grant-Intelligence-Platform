@@ -1,25 +1,173 @@
 import { useCallback, useRef, useState } from "react";
-import { grantService, isMockMode } from "@/services";
+import { grantService } from "@/services";
 import type { SseEvent } from "@/services/apiClient";
-import type { ChatBlock, Grant, OrganisationProfile, ResearchState } from "@/types";
+import type {
+  ChatBlock,
+  Grant,
+  OrganisationProfile,
+  ResearchSourceId,
+  ResearchState,
+  ResearchStep,
+} from "@/types";
 
-/** Steps shown while streaming live results from the backend agent. */
+/** Steps shown while streaming results from the agent. */
 const LIVE_RESEARCH_STEPS = [
-  "Generating search keywords",
-  "Parallel multi-source search (EU Portal & Web Discovery)",
-  "Filtering & ranking best matches",
+  "Analysing profile & generating keywords",
+  "Discovering opportunities in parallel",
+  "Evaluating & ranking best matches",
 ];
 
-/** Steps shown in mock / local mode. */
-const MOCK_RESEARCH_STEPS = [
-  "Understanding organisation profile",
-  "Analysing funding requirements",
-  "Checking geographical eligibility",
-  "Searching European grant programmes",
-  "Comparing funding amounts",
-  "Reviewing deadlines",
-  "Ranking the strongest matches",
-];
+const INITIAL_SOURCES: NonNullable<ResearchState["sources"]> = {
+  eu_portal: {
+    id: "eu_portal",
+    label: "EU Portal",
+    detail: "Horizon Europe / SEDIA",
+    status: "pending",
+  },
+  web_discovery: {
+    id: "web_discovery",
+    label: "Web Discovery",
+    detail: "National & regional funding sources",
+    status: "pending",
+  },
+};
+
+const statusRank: Record<ResearchStep["status"], number> = {
+  pending: 0,
+  active: 1,
+  done: 2,
+};
+
+function advanceStatus(
+  current: ResearchStep["status"],
+  next: ResearchStep["status"],
+): ResearchStep["status"] {
+  return statusRank[next] > statusRank[current] ? next : current;
+}
+
+function sourceIdFor(data: Record<string, unknown> | undefined): ResearchSourceId | undefined {
+  const tool = typeof data?.tool === "string" ? data.tool.toLowerCase() : "";
+  const source = typeof data?.source === "string" ? data.source.toLowerCase() : "";
+  if (tool.includes("web") || source === "web_search") return "web_discovery";
+  if (tool.includes("eu") || source === "eu_portal") return "eu_portal";
+  return undefined;
+}
+
+function detailForStep(event: SseEvent, finalCount: number | undefined): string | undefined {
+  if (event.stage === "search") return "Searching EU Portal and Web Discovery in parallel.";
+  if (event.stage === "select") {
+    return finalCount !== undefined
+      ? `${finalCount} strong recommendation${finalCount === 1 ? "" : "s"} selected.`
+      : "Evaluating discovered opportunities against your profile.";
+  }
+  return event.message;
+}
+
+export function createInitialResearchState(): ResearchState {
+  return {
+    steps: LIVE_RESEARCH_STEPS.map((label, i) => ({
+      label,
+      status: i === 0 ? ("active" as const) : ("pending" as const),
+    })),
+    sources: {
+      eu_portal: { ...INITIAL_SOURCES.eu_portal },
+      web_discovery: { ...INITIAL_SOURCES.web_discovery },
+    },
+  };
+}
+
+export function applyResearchProgressEvent(state: ResearchState, event: SseEvent): ResearchState {
+  if (!event.stage) return state;
+  const data = event.data as Record<string, unknown> | undefined;
+  const euCount = typeof data?.eu_count === "number" ? data.eu_count : undefined;
+  const webCount = typeof data?.web_count === "number" ? data.web_count : undefined;
+  const candidateCount =
+    typeof data?.candidate_count === "number" ? data.candidate_count : undefined;
+  const finalCount = typeof data?.final_count === "number" ? data.final_count : undefined;
+  const sourceId = sourceIdFor(data);
+  const stepDetail = detailForStep(event, finalCount);
+  const sourceFailed =
+    event.event === "error" || (event.message ? /\bfailed\b/i.test(event.message) : false);
+
+  const activeIndex = event.stage === "keywords" ? 0 : event.stage === "search" ? 1 : 2;
+  const steps = state.steps.map((step, idx) => {
+    if (idx < activeIndex) return { ...step, status: "done" as const };
+    if (idx === activeIndex) {
+      return {
+        ...step,
+        status: advanceStatus(step.status, "active"),
+        detail: stepDetail || step.detail,
+        euCount: euCount ?? step.euCount,
+        webCount: webCount ?? step.webCount,
+        candidateCount: candidateCount ?? step.candidateCount,
+        selectedCount: finalCount ?? step.selectedCount,
+      };
+    }
+    return step;
+  });
+
+  const currentSources = state.sources ?? INITIAL_SOURCES;
+  const sources = {
+    eu_portal: { ...currentSources.eu_portal },
+    web_discovery: { ...currentSources.web_discovery },
+  };
+
+  if (event.stage === "search") {
+    if (sourceId) {
+      const current = sources[sourceId];
+      sources[sourceId] = {
+        ...current,
+        status: sourceFailed ? "error" : current.status === "done" ? "done" : "active",
+        candidateCount:
+          sourceId === "eu_portal"
+            ? (euCount ?? current.candidateCount)
+            : (webCount ?? current.candidateCount),
+        error: sourceFailed ? event.message : current.error,
+      };
+    } else {
+      sources.eu_portal.status = sources.eu_portal.status === "done" ? "done" : "active";
+      sources.web_discovery.status = sources.web_discovery.status === "done" ? "done" : "active";
+    }
+  } else if (activeIndex >= 2) {
+    sources.eu_portal = {
+      ...sources.eu_portal,
+      status: sources.eu_portal.status === "error" ? "error" : "done",
+      candidateCount: euCount ?? sources.eu_portal.candidateCount,
+    };
+    sources.web_discovery = {
+      ...sources.web_discovery,
+      status: sources.web_discovery.status === "error" ? "error" : "done",
+      candidateCount: webCount ?? sources.web_discovery.candidateCount,
+    };
+  }
+
+  return {
+    ...state,
+    steps,
+    euCount: euCount ?? state.euCount,
+    webCount: webCount ?? state.webCount,
+    sources,
+  };
+}
+
+function completeResearchState(state: ResearchState): ResearchState {
+  return {
+    ...state,
+    steps: state.steps.map((step) => ({ ...step, status: "done" as const })),
+    sources: state.sources
+      ? {
+          eu_portal: {
+            ...state.sources.eu_portal,
+            status: state.sources.eu_portal.status === "error" ? "error" : "done",
+          },
+          web_discovery: {
+            ...state.sources.web_discovery,
+            status: state.sources.web_discovery.status === "error" ? "error" : "done",
+          },
+        }
+      : undefined,
+  };
+}
 
 interface UseGrantSearchOptions {
   /** Called when a research run starts — used to post the research_status block. */
@@ -82,53 +230,20 @@ export function useGrantSearch({
       setStage("researching");
       setLastProfile(profile);
 
-      const researchSteps = isMockMode ? MOCK_RESEARCH_STEPS : LIVE_RESEARCH_STEPS;
-      const initialState: ResearchState = {
-        steps: researchSteps.map((label, i) => ({
-          label,
-          status: i === 0 ? ("active" as const) : ("pending" as const),
-        })),
-      };
+      const initialState = createInitialResearchState();
       const messageId = onResearchStart(initialState);
 
       try {
         const handleProgress = (event: SseEvent) => {
-          if (!event.stage) return;
-          const stageIndexMap: Record<string, number> = {
-            keywords: 0,
-            search: 1,
-            select: 2,
-          };
-          const activeIndex = stageIndexMap[event.stage] ?? 0;
-          const data = event.data as Record<string, unknown> | undefined;
-          const euCount = typeof data?.eu_count === "number" ? data.eu_count : undefined;
-          const webCount = typeof data?.web_count === "number" ? data.web_count : undefined;
-
           onResearchProgress(messageId, (blocks) =>
-            blocks.map((block) => {
-              if (block.type !== "research_status") return block;
-              const steps = block.state.steps.map((step, idx) => {
-                if (idx < activeIndex) return { ...step, status: "done" as const };
-                if (idx === activeIndex) {
-                  return {
-                    ...step,
-                    status: "active" as const,
-                    detail: event.message || step.detail,
-                    euCount: euCount ?? step.euCount,
-                    webCount: webCount ?? step.webCount,
-                  };
-                }
-                return { ...step, status: "pending" as const };
-              });
-              return {
-                type: "research_status" as const,
-                state: {
-                  steps,
-                  euCount: euCount ?? block.state.euCount,
-                  webCount: webCount ?? block.state.webCount,
-                },
-              };
-            }),
+            blocks.map((block) =>
+              block.type === "research_status"
+                ? {
+                    type: "research_status" as const,
+                    state: applyResearchProgressEvent(block.state, event),
+                  }
+                : block,
+            ),
           );
         };
 
@@ -148,9 +263,7 @@ export function useGrantSearch({
             block.type === "research_status"
               ? {
                   type: "research_status" as const,
-                  state: {
-                    steps: block.state.steps.map((step) => ({ ...step, status: "done" as const })),
-                  },
+                  state: completeResearchState(block.state),
                 }
               : block,
           ),

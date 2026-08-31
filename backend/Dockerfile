@@ -6,7 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY ai-agent/requirements.txt ./ai-agent-requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -r ai-agent-requirements.txt
 COPY . .
 
 RUN mkdir -p /app/storage

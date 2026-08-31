@@ -54,7 +54,10 @@ export function ChatMessageItem({ message, callbacks }: Props) {
   };
 
   return (
-    <li className={cn("flex flex-col gap-1.5", isUser && "items-end")}>
+    <li
+      id={`chat-message-${message.id}`}
+      className={cn("flex flex-col gap-1.5 scroll-mt-6", isUser && "items-end")}
+    >
       {/* Slack/Discord-style header row above the bubble, identical for both
           speakers on every screen size. DOM order is always [avatar, name,
           time] so screen readers read the name then the time; the user side

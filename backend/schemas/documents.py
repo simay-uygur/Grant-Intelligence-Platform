@@ -11,6 +11,7 @@ class DocumentSection(BaseModel):
     id: str = Field(description="Stable section identifier.")
     title: str = Field(description="Human-readable section title.")
     content: str = Field(description="Generated section body.")
+    revision: int = Field(default=1, ge=1, description="Monotonic section revision used to prevent stale overwrites.")
 
 
 class ApplicationDocument(BaseModel):
@@ -106,6 +107,14 @@ class UpdateApplicationStatusRequest(BaseModel):
 
 class UpdateApplicationSectionRequest(BaseModel):
     content: str = Field(description="Complete replacement content for the stored section.")
+    baseRevision: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("baseRevision", "base_revision"),
+        serialization_alias="baseRevision",
+        description="Revision the edit was based on. If stale, the backend rejects the overwrite.",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class StartApplicationRequest(BaseModel):
@@ -143,12 +152,26 @@ class RewriteSectionRequest(BaseModel):
     profile: AgentProfile = Field(description="Organization profile collected by the frontend.")
     grant: GrantResult | dict | None = Field(default=None)
     instruction: str | None = Field(default=None, description="Optional rewrite instruction.")
+    baseRevision: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("baseRevision", "base_revision"),
+        serialization_alias="baseRevision",
+        description="Revision the rewrite was based on. If stale, the backend rejects persisted rewrites.",
+    )
+    persist: bool = Field(
+        default=True,
+        description="Whether to immediately save the rewritten content. Review mode sets this false.",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RewriteSectionResponse(BaseModel):
     sectionId: str = Field(description="Path section identifier.")
     title: str = Field(description="Section title used for the rewrite.")
     content: str = Field(description="Rewritten section content.")
+    revision: int | None = Field(default=None, description="New saved revision when the rewrite was persisted.")
+    baseRevision: int | None = Field(default=None, description="Revision used as the basis for this rewrite.")
 
 
 class DocumentQARequest(BaseModel):

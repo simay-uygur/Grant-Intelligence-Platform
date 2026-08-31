@@ -200,13 +200,14 @@ test("saves edited application sections through the backend endpoint", async () 
     new ApiClient("http://localhost:8000/", fetchImpl),
   );
 
-  await service.saveSection("doc-1", "executive-summary", "Edited");
+  const document = await service.saveSection("doc-1", "executive-summary", "Edited", 1);
 
   expect(requestedUrl).toBe(
     "http://localhost:8000/api/v1/applications/doc-1/sections/executive-summary",
   );
   expect(requestedInit?.method).toBe("PUT");
-  expect(JSON.parse(String(requestedInit?.body))).toEqual({ content: "Edited" });
+  expect(JSON.parse(String(requestedInit?.body))).toEqual({ content: "Edited", baseRevision: 1 });
+  expect(document.sections[0]?.revision).toBe(1);
 });
 
 test("returns no saved application when the grant lookup is not found", async () => {
@@ -285,12 +286,15 @@ test("rewrites a section through the backend document stream endpoint", async ()
     new ApiClient("http://localhost:8000/", fetchImpl),
   );
 
-  const content = await service.rewriteSection(
+  const rewrite = await service.rewriteSection(
     "Executive Summary",
     "Draft",
     profile,
     grant,
     "doc-1",
+    undefined,
+    undefined,
+    { baseRevision: 1, persist: false },
   );
 
   expect(requestedUrl).toBe(
@@ -302,8 +306,50 @@ test("rewrites a section through the backend document stream endpoint", async ()
     currentContent: "Draft",
     profile,
     grant,
+    baseRevision: 1,
+    persist: false,
   });
-  expect(content).toBe("Rewritten by backend mock");
+  expect(rewrite.content).toBe("Rewritten by backend mock");
+  expect(rewrite.baseRevision).toBeUndefined();
+});
+
+test("rewrites a section using the stored section id when provided", async () => {
+  let requestedUrl = "";
+  const fetchImpl: typeof fetch = async (input) => {
+    requestedUrl = String(input);
+    const sseBody = `data: ${JSON.stringify({
+      event: "result",
+      stage: "rewrite",
+      data: {
+        sectionId: "kpi-framework",
+        title: "7. Evaluation Framework & Key Performance Indicators",
+        content: "Rewritten by backend mock",
+      },
+    })}\n\n`;
+    return new Response(sseBody, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  };
+  const service = new ApiApplicationService(
+    undefined,
+    new ApiClient("http://localhost:8000/", fetchImpl),
+  );
+
+  await service.rewriteSection(
+    "7. Evaluation Framework & Key Performance Indicators",
+    "Draft",
+    profile,
+    grant,
+    "doc-1",
+    undefined,
+    "shorten the last section",
+    { sectionId: "kpi-framework", baseRevision: 3, persist: true },
+  );
+
+  expect(requestedUrl).toBe(
+    "http://localhost:8000/api/v1/documents/doc-1/sections/kpi-framework/stream",
+  );
 });
 
 test("generates tailored outline through the backend outline endpoint", async () => {
