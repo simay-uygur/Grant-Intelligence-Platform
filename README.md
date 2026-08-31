@@ -74,156 +74,78 @@ An intelligent grant discovery, matchmaking, and application-drafting platform d
 
 ---
 
-## Quick Start & Environment Configuration
+## 🚀 Quick Start (Zero Config)
 
-### 1. Install Dependencies
+> **Zero Database Setup Required:** Local SQLite database tables and schema bootstrap automatically on first launch. No manual database setup or migrations are needed for local development.
+
+### 1. Install Dependencies & Configure Environment
 
 ```bash
-# Frontend
-cd frontend
-bun install
-cd ..
-
-# Backend
+# 1. Setup Backend (Python 3.11+)
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install --upgrade pip
-python3 -m pip install -r requirements.txt
-```
+pip install --upgrade pip
+pip install -r requirements.txt
 
-### 2. Configure Environment Variables
+# 2. Setup Frontend (Node.js 20+)
+cd frontend
+bun install   # or npm install
+cd ..
 
-Copy the example files and adjust as needed:
-
-```bash
+# 3. Environment configuration
 cp .env.example .env
 ```
 
-Key variables:
+#### Key Environment Variables
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `VITE_API_MODE` | `api` (live backend) or `mock` (frontend-only demo) | `api` |
 | `VITE_API_URL` | Backend origin for the frontend client | `http://127.0.0.1:8000` |
-| `DEBUG` | FastAPI debug mode (keep `false` outside development) | `false` |
-| `SESSION_STORAGE_TYPE` | `local` (SQLite) or `hosted` (AWS LightSail Database) | `local` |
-| `AUTH_REQUIRED` | Enable JWT authentication (`true` in production) | `false` |
-| `AUTH_SECRET_KEY` | JWT signing secret — **required when auth is enabled** (min 32 chars) | dev placeholder |
-| `USE_MOCK_BEDROCK` | Bypass Bedrock calls for offline testing | `false` |
+| `SESSION_STORAGE_TYPE` | `local` (SQLite) or `hosted` (AWS Lightsail Database) | `local` |
+| `USE_MOCK_BEDROCK` | Bypass Bedrock calls for offline testing without AWS keys | `false` |
 
-AWS credentials are resolved through your AWS profile / environment (`AWS_PROFILE`, `AWS_REGION`) or the Lightsail container role in production.
-
-### 3. Configure Environment Mode (Local vs. Deployed)
-
-Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`) and Backend (`SESSION_STORAGE_TYPE`):
-
-```bash
-# Option A: Both Local (Frontend Mock + Backend SQLite)
-./scripts/set_env_mode.sh --both-local
-
-# Option B: Frontend Connected to Local Backend API (Recommended for local dev)
-./scripts/set_env_mode.sh --fe-deployed-db-local
-
-# Option C: Both Deployed / Hosted (Frontend API + AWS  LightSail Database)
-./scripts/set_env_mode.sh --both-deployed
-```
+*(Optional)* Use `./scripts/set_env_mode.sh` to switch between modes (e.g. `./scripts/set_env_mode.sh --both-local` for mock demo or `./scripts/set_env_mode.sh --fe-deployed-db-local` for full-stack local dev).
 
 ---
 
-## Running Locally
+### 2. Choose How to Run
 
-> **Recommended:** run the backend and frontend directly with the commands below.
-> No Docker is needed for day-to-day development.
+#### 💻 Method A: Two-Terminal Workflow (Recommended for Dev)
 
-### Method 1: Single Command (Recommended)
-
-Run both backend and frontend dev servers together:
-
-```bash
-./scripts/run_dev.sh
-```
-
-### Method 2: Two-Terminal Workflow
-
-**Terminal 1 — Backend:**
-
+**Terminal 1 — Backend (FastAPI):**
 ```bash
 source .venv/bin/activate
 
-# Configure AWS profile and Bedrock environment
+# (Optional) AWS Bedrock environment
 export AWS_PROFILE=grant-platform
 export AWS_REGION=us-east-1
-export CLAUDE_CODE_USE_BEDROCK=1
 
-# Start FastAPI server on port 8000 (--host 127.0.0.1 = local access only)
+# Start backend server
 uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+* Backend API: `http://127.0.0.1:8000`
+* Interactive API Documentation (Swagger): `http://127.0.0.1:8000/docs`
 
-The backend server starts on `http://127.0.0.1:8000` — open `http://127.0.0.1:8000/docs`
-for the interactive API docs. (Note: always browse to `127.0.0.1` or `localhost`;
-`0.0.0.0` is a server bind address, not a clickable URL.)
-
-**Terminal 2 — Frontend:**
-
+**Terminal 2 — Frontend (Vite + React):**
 ```bash
 cd frontend
-bun run dev
+bun run dev   # or npm run dev
 ```
+* Web Application: `http://localhost:8080`
 
-The frontend development server starts on `http://localhost:8080`.
+---
 
-### Docker (Optional)
+#### 🐳 Method B: Docker Workflow (All-in-One)
 
-Docker Compose is only needed to mirror the production Lightsail setup locally
-(nginx reverse proxy in front of both services).
-
-**Prerequisite — AWS profile:** the backend container needs Amazon Bedrock access.
-It mounts your local `~/.aws` directory read-only and uses the `grant-platform`
-profile (override with `AWS_PROFILE=<name>`). Create it once if you don't have it:
-
-```bash
-# Option A: long-lived access keys
-aws configure --profile grant-platform
-# Enter your AWS Access Key ID, Secret Access Key, and region (us-east-1)
-
-# Option B: SSO (if your organisation uses AWS IAM Identity Center)
-aws configure sso --profile grant-platform
-aws sso login --profile grant-platform   # refresh before each dev session
-
-# Verify it works:
-aws sts get-caller-identity --profile grant-platform
-```
-
-> **Troubleshooting:**
-> - **No `~/.aws` directory?** The container still starts, but Bedrock calls run in
->   degraded mode (fallback keywords/scores) until a profile is created.
-> - **`Unable to locate credentials` after a break?** Your SSO token likely expired —
->   run `aws sso login --profile grant-platform`, then restart the backend container
->   (`docker compose -f deploy/lightsail/docker-compose.local.yml restart backend`).
-
-Then run:
+Runs the complete containerized stack (Frontend, Backend, and Nginx reverse proxy):
 
 ```bash
 docker compose -f deploy/lightsail/docker-compose.local.yml up --build
 ```
 
-Once all containers are up, open:
-
-> **http://localhost:8080**
-
-That is the only public address — nginx (host port `8080`) proxies `/` to the
-frontend container and `/api/*` to the backend container. The individual
-frontend (`3000`) and backend (`8000`) ports are internal to Docker's network
-and are **not** reachable from your browser by design.
-
-Useful commands while it runs:
-
-```bash
-docker ps                                            # verify the 8080->80 port mapping
-docker compose -f deploy/lightsail/docker-compose.local.yml logs -f   # follow logs
-# Ctrl+C to stop, then:
-docker compose -f deploy/lightsail/docker-compose.local.yml down      # remove containers
-```
+* Web Application: `http://localhost:8080`
+* Stop containers: `Ctrl+C` then `docker compose -f deploy/lightsail/docker-compose.local.yml down`
 
 ---
 
