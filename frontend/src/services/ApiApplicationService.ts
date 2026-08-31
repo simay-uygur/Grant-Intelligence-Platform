@@ -1,5 +1,11 @@
 import { z } from "zod";
-import type { ApplicationDocument, Attachment, Grant, OrganisationProfile } from "@/types";
+import type {
+  ApplicationDocument,
+  Attachment,
+  Grant,
+  OrganisationProfile,
+  OutlineSection,
+} from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
 import type {
   ApplicationService,
@@ -19,9 +25,26 @@ const applicationDocumentSchema = z.object({
   id: z.string().min(1),
   grantId: z.string().min(1),
   grantTitle: z.string().min(1),
+  sourceUrl: z.string().optional().nullable(),
+  programme: z.string().optional().nullable(),
   sections: z.array(documentSectionSchema),
   createdAt: z.string().optional(),
   updatedAt: z.string(),
+});
+
+const outlineSectionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional().nullable(),
+  targetWords: z.number().optional().nullable(),
+});
+
+const generateOutlineResponseSchema = z.object({
+  grantId: z.string().min(1),
+  grantTitle: z.string().min(1),
+  sourceUrl: z.string().optional().nullable(),
+  programme: z.string().optional().nullable(),
+  sections: z.array(outlineSectionSchema),
 });
 
 const organisationProfileSchema = z.object({
@@ -227,6 +250,36 @@ export class ApiApplicationService implements ApplicationService {
     };
   }
 
+  async generateOutline(
+    grant: Grant,
+    profile: OrganisationProfile,
+    options?: StartApplicationOptions,
+  ): Promise<OutlineSection[]> {
+    const payload = await this.client.request<unknown>(
+      `/api/v1/grants/${encodeURIComponent(grant.id)}/outline`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          grant,
+          profile,
+          ...(options?.conversationId ? { conversationId: options.conversationId } : {}),
+          ...(options?.customInstructions
+            ? { customInstructions: options.customInstructions }
+            : {}),
+          ...(options?.templateType ? { templateType: options.templateType } : {}),
+        }),
+      },
+    );
+    const result = generateOutlineResponseSchema.safeParse(payload);
+    if (!result.success) throw new ApplicationApiContractError();
+    return result.data.sections.map((s) => ({
+      id: s.id,
+      title: s.title,
+      description: s.description ?? undefined,
+      targetWords: s.targetWords ?? undefined,
+    }));
+  }
+
   async startApplication(
     grant: Grant,
     profile: OrganisationProfile,
@@ -241,6 +294,11 @@ export class ApiApplicationService implements ApplicationService {
           grant,
           profile,
           ...(options?.conversationId ? { conversationId: options.conversationId } : {}),
+          ...(options?.customInstructions
+            ? { customInstructions: options.customInstructions }
+            : {}),
+          ...(options?.templateType ? { templateType: options.templateType } : {}),
+          ...(options?.sections ? { sections: options.sections } : {}),
         }),
       },
       onProgress,
@@ -261,6 +319,7 @@ export class ApiApplicationService implements ApplicationService {
     grant: Grant | undefined,
     documentId?: string,
     onProgress?: (event: SseEvent) => void,
+    instruction?: string,
   ): Promise<string> {
     const sectionId = sectionTitle.toLowerCase().replace(/\s+/g, "-");
     const storedDocumentId = documentId ?? grant?.id ?? "active-document";
@@ -273,6 +332,7 @@ export class ApiApplicationService implements ApplicationService {
           currentContent,
           profile,
           grant,
+          instruction,
         }),
       },
       onProgress,
@@ -290,6 +350,8 @@ function toApplicationDocument(
     id: application.id,
     grantId: application.grantId,
     grantTitle: application.grantTitle,
+    sourceUrl: application.sourceUrl ?? undefined,
+    programme: application.programme ?? undefined,
     sections: application.sections,
     ...(application.createdAt ? { createdAt: application.createdAt } : {}),
     updatedAt: application.updatedAt,

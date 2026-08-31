@@ -4,6 +4,8 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from backend.schemas.grants import AgentProfile, GrantResult
 
+TemplateType = Literal["DEFAULT_COMPREHENSIVE", "HORIZON_STANDARD", "EIC_ACCELERATOR"]
+
 
 class DocumentSection(BaseModel):
     id: str = Field(description="Stable section identifier.")
@@ -15,8 +17,47 @@ class ApplicationDocument(BaseModel):
     id: str = Field(description="Generated document identifier.")
     grantId: str = Field(description="Grant identifier used to draft the application.")
     grantTitle: str = Field(description="Grant title used to draft the application.")
+    sourceUrl: str | None = Field(default=None, description="Official grant call or portal link.")
+    programme: str | None = Field(default=None, description="Funder programme name.")
     sections: list[DocumentSection] = Field(default_factory=list)
     updatedAt: str = Field(description="Last update timestamp returned by the agent.")
+
+
+class OutlineSection(BaseModel):
+    id: str = Field(description="Stable section identifier slug.")
+    title: str = Field(description="Human-readable section title.")
+    description: str | None = Field(default=None, description="Guidance or coverage notes for this section.")
+    targetWords: int | None = Field(default=None, description="Target word count for this section.")
+
+
+class GenerateOutlineRequest(BaseModel):
+    grant: GrantResult | dict = Field(description="Grant selected by the frontend.")
+    profile: AgentProfile = Field(description="Organization profile.")
+    templateType: TemplateType | None = Field(
+        default=None,
+        validation_alias=AliasChoices("templateType", "template_type"),
+        serialization_alias="templateType",
+    )
+    customInstructions: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("customInstructions", "custom_instructions"),
+        serialization_alias="customInstructions",
+    )
+    conversationId: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("conversationId", "conversation_id"),
+        serialization_alias="conversationId",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class GenerateOutlineResponse(BaseModel):
+    grantId: str = Field(description="Grant identifier.")
+    grantTitle: str = Field(description="Grant title.")
+    sourceUrl: str | None = Field(default=None, description="Official grant call or portal link.")
+    programme: str | None = Field(default=None, description="Funder programme name.")
+    sections: list[OutlineSection] = Field(default_factory=list)
 
 
 ApplicationStatus = Literal[
@@ -67,9 +108,6 @@ class UpdateApplicationSectionRequest(BaseModel):
     content: str = Field(description="Complete replacement content for the stored section.")
 
 
-TemplateType = Literal["DEFAULT_COMPREHENSIVE", "HORIZON_STANDARD", "EIC_ACCELERATOR"]
-
-
 class StartApplicationRequest(BaseModel):
     grant: GrantResult | dict = Field(description="Grant selected by the frontend.")
     profile: AgentProfile = Field(description="Organization profile collected by the frontend.")
@@ -83,13 +121,17 @@ class StartApplicationRequest(BaseModel):
         default=None,
         validation_alias=AliasChoices("templateType", "template_type"),
         serialization_alias="templateType",
-        description="Call-tailored guidance template applied on top of the 12 canonical sections.",
+        description="Call-tailored guidance template applied on top of the canonical sections.",
     )
     conversationId: str | None = Field(
         default=None,
         validation_alias=AliasChoices("conversationId", "conversation_id"),
         serialization_alias="conversationId",
         description="Chat conversation whose uploaded attachments should inform the draft.",
+    )
+    sections: list[OutlineSection] | None = Field(
+        default=None,
+        description="Optional custom or pre-approved sections for the application.",
     )
 
     model_config = ConfigDict(populate_by_name=True)

@@ -1,11 +1,13 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from backend.api.dependencies import get_current_user
 from backend.core.sse import sse_generator_bridge
 from backend.schemas.grants import (
+    GrantSearchBatchesResponse,
+    GrantSearchBatchItem,
     GrantSearchRequest,
     GrantSearchResponse,
     SavedGrantItem,
@@ -25,12 +27,13 @@ document_service = DocumentService()
     "/search",
     response_model=GrantSearchResponse,
     summary="Search grants",
-    description=("Search grant opportunities by passing the organization profile to the local agent layer."),
+    description=("Search grant opportunities by passing the organization profile to the local agent layer. Results are recorded in the database when linked to a conversation."),
     response_description="Agent-shaped grant search results for frontend rendering.",
 )
-async def search_grants(payload: GrantSearchRequest, _current_user: dict[str, str] | None = Depends(get_current_user)) -> GrantSearchResponse:
+async def search_grants(payload: GrantSearchRequest, current_user: dict[str, str] | None = Depends(get_current_user)) -> GrantSearchResponse:
     try:
-        return await asyncio.to_thread(grant_search_service.search, payload)
+        user_id = current_user["id"] if current_user else None
+        return await asyncio.to_thread(grant_search_service.search, payload, user_id=user_id)
     except AgentUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -38,15 +41,16 @@ async def search_grants(payload: GrantSearchRequest, _current_user: dict[str, st
 @router.post(
     "/search/stream",
     summary="Stream grant search thinking events and results",
-    description=("Stream real-time thinking events and final grant search results as Server-Sent Events (SSE)."),
+    description=("Stream real-time thinking events and final grant search results as Server-Sent Events (SSE). Results are recorded in the database when linked to a conversation."),
     response_class=StreamingResponse,
 )
 async def search_grants_stream(
     payload: GrantSearchRequest,
-    _current_user: dict[str, str] | None = Depends(get_current_user),
+    current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> StreamingResponse:
+    user_id = current_user["id"] if current_user else None
     return StreamingResponse(
-        sse_generator_bridge(grant_search_service.search_stream, payload),
+        sse_generator_bridge(lambda p: grant_search_service.search_stream(p, user_id=user_id), payload),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -54,6 +58,44 @@ async def search_grants_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get(
+    "/batches",
+    response_model=GrantSearchBatchesResponse,
+    summary="List grant search batches",
+    description="Fetch recorded batches of offered grants, optionally filtered by conversation ID.",
+    response_description="List of search batches with full offered grant structures.",
+)
+def list_search_batches(
+    conversation_id: str | None = Query(default=None, description="Optional conversation ID to filter batches."),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> GrantSearchBatchesResponse:
+    store = document_service.application_store
+    user_id = current_user["id"] if current_user else None
+    batches = store.list_search_batches(conversation_id=conversation_id, user_id=user_id, limit=limit, offset=offset)
+    return GrantSearchBatchesResponse(batches=[GrantSearchBatchItem.model_validate(b) for b in batches])
+
+
+@router.get(
+    "/batches/{batch_id}",
+    response_model=GrantSearchBatchItem,
+    summary="Get a grant search batch",
+    description="Retrieve one specific search batch and its offered grants by ID.",
+    response_description="Full batch record including profile and offered grants.",
+)
+def get_search_batch(
+    batch_id: str,
+    current_user: dict[str, str] | None = Depends(get_current_user),
+) -> GrantSearchBatchItem:
+    store = document_service.application_store
+    user_id = current_user["id"] if current_user else None
+    batch = store.get_search_batch(batch_id, user_id=user_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail=f"Grant search batch '{batch_id}' not found.")
+    return GrantSearchBatchItem.model_validate(batch)
 
 
 @router.get(

@@ -13,6 +13,7 @@ os.environ["AWS_REGION"] = "us-east-1"
 
 from tools.document_qa import document_qa as _document_qa
 from tools.document_qa import document_qa_stream as _document_qa_stream
+from tools.generate_outline import generate_outline as _generate_outline
 from tools.rewrite_section import rewrite_section as _rewrite_section
 from tools.start_application import start_application as _start_application
 
@@ -144,7 +145,24 @@ def search_grants_stream(profile, max_grants=3, excluded_grant_ids=None):
     yield from run_agent_stream(profile, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids)
 
 
-def start_application(grant, profile, custom_instructions=None, template_type=None, attachments=""):
+def generate_outline(grant, profile, template_type=None, custom_instructions=None, attachments=""):
+    """generateOutline(grant, profile) -> OutlineSection[]"""
+    try:
+        return _generate_outline(
+            grant,
+            profile,
+            template_type=template_type,
+            custom_instructions=custom_instructions,
+            attachments=attachments,
+        )
+    except Exception as e:
+        logger.error("[service] generate_outline failed: %s", e)
+        from tools.generate_outline import DEFAULT_CORE_OUTLINE
+
+        return [dict(s) for s in DEFAULT_CORE_OUTLINE]
+
+
+def start_application(grant, profile, custom_instructions=None, template_type=None, attachments="", custom_sections=None):
     """startApplication(grant, profile) -> ApplicationDocument"""
     try:
         return _start_application(
@@ -153,13 +171,18 @@ def start_application(grant, profile, custom_instructions=None, template_type=No
             custom_instructions=custom_instructions,
             template_type=template_type,
             attachments=attachments,
+            custom_sections=custom_sections,
         )
     except Exception as e:
-        print(f"[service] start_application failed: {e}")
+        logger.error("[service] start_application failed: %s", e)
+        source_url = str(grant.get("sourceUrl") or grant.get("url") or "") if isinstance(grant, dict) else ""
+        programme = str(grant.get("programme") or "") if isinstance(grant, dict) else ""
         return {
             "id": "error",
-            "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
-            "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
+            "grantId": str(grant.get("id") or grant.get("identifier") or "") if isinstance(grant, dict) else "",
+            "grantTitle": str(grant.get("title") or "") if isinstance(grant, dict) else "",
+            "sourceUrl": source_url if source_url else None,
+            "programme": programme if programme else None,
             "sections": [],
             "updatedAt": "",
             "error": "Could not draft the application. Please try again.",
@@ -182,18 +205,30 @@ SECTIONS_LIST = [
 ]
 
 
-def start_application_stream(grant, profile, custom_instructions=None, template_type=None, attachments=""):
+def start_application_stream(grant, profile, custom_instructions=None, template_type=None, attachments="", custom_sections=None):
     """Generator streaming real-time events & token chunks for drafting a full application document."""
     import time
 
     from tools.start_application import SECTIONS, draft_single_section_stream
 
-    total = len(SECTIONS)
+    active_sections = []
+    if custom_sections:
+        for s in custom_sections:
+            if isinstance(s, (list, tuple)) and len(s) >= 2:
+                active_sections.append((str(s[0]), str(s[1])))
+            elif isinstance(s, dict) and s.get("id") and s.get("title"):
+                active_sections.append((str(s["id"]), str(s["title"])))
+    if not active_sections:
+        active_sections = list(SECTIONS)
+
+    total = len(active_sections)
     doc_id = f"doc-{grant.get('id', 'unknown')}-{int(time.time())}"
     sections = []
 
     org_name = profile.get("organisationName", "Applicant Organisation")
     grant_title = grant.get("title", "Grant Opportunity")
+    source_url = str(grant.get("sourceUrl") or grant.get("url") or "")
+    programme = str(grant.get("programme") or "")
     has_call_text = bool((grant.get("summary") or "").strip())
     focus_line = "Extracting call objectives, scope, and funder priorities from the official call text..." if has_call_text else "Extracting eligibility rules and funder priorities from the grant programme context..."
 
@@ -210,7 +245,7 @@ def start_application_stream(grant, profile, custom_instructions=None, template_
     }
 
     try:
-        for i, (section_id, section_title) in enumerate(SECTIONS, 1):
+        for i, (section_id, section_title) in enumerate(active_sections, 1):
             percent = int(((i - 1) / total) * 100)
 
             # Emit a rich sub-phase thought before drafting the section
@@ -262,8 +297,10 @@ def start_application_stream(grant, profile, custom_instructions=None, template_
             percent = int((i / total) * 100)
             current_doc = {
                 "id": doc_id,
-                "grantId": grant.get("id", ""),
+                "grantId": str(grant.get("id") or grant.get("identifier") or ""),
                 "grantTitle": grant_title,
+                "sourceUrl": source_url if source_url else None,
+                "programme": programme if programme else None,
                 "sections": list(sections),
                 "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
@@ -283,8 +320,10 @@ def start_application_stream(grant, profile, custom_instructions=None, template_
 
         doc = {
             "id": doc_id,
-            "grantId": grant.get("id", ""),
-            "grantTitle": grant.get("title", ""),
+            "grantId": str(grant.get("id") or grant.get("identifier") or ""),
+            "grantTitle": str(grant.get("title") or ""),
+            "sourceUrl": source_url if source_url else None,
+            "programme": programme if programme else None,
             "sections": sections,
             "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
@@ -321,8 +360,10 @@ def start_application_stream(grant, profile, custom_instructions=None, template_
         logger.error("start_application_stream failed: %s", e)
         error_doc: dict[str, Any] = {
             "id": "error",
-            "grantId": grant.get("id", "") if isinstance(grant, dict) else "",
-            "grantTitle": grant.get("title", "") if isinstance(grant, dict) else "",
+            "grantId": str(grant.get("id") or grant.get("identifier") or "") if isinstance(grant, dict) else "",
+            "grantTitle": str(grant.get("title") or "") if isinstance(grant, dict) else "",
+            "sourceUrl": source_url if source_url else None,
+            "programme": programme if programme else None,
             "sections": [],
             "updatedAt": "",
             "error": str(e),

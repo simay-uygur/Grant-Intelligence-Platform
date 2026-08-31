@@ -1,6 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import {
   Bookmark,
+  FileText,
   KanbanSquare,
   Landmark,
   LogOut,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
+import { isMockMode } from "@/services";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,86 +27,30 @@ import {
 } from "@/components/ui/sheet";
 
 /** Which main view the app is showing. Local UI state only — never persisted. */
-export type MainView = "chat" | "pipeline" | "saved";
+export type MainView = "chat" | "pipeline" | "saved" | "workspace";
 
-interface SidebarProps {
+export interface SidebarProps {
   conversations: Conversation[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
-  isMockMode: boolean;
   mainView: MainView;
   onSelectView: (view: MainView) => void;
+  /** Bookmark count shown beside the Saved item; live via useShortlist. */
+  savedCount?: number;
+  /** Clears the mock auth flag (see useAuth) and returns to the login screen. */
   onSignOut?: () => void;
-  onOpenAccount?: () => void;
+  isMockMode?: boolean;
 }
 
 const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare },
+  { id: "workspace", label: "Workspace", icon: FileText },
   { id: "pipeline", label: "Pipeline", icon: KanbanSquare },
   { id: "saved", label: "Saved", icon: Bookmark },
 ];
-
-function getUserEmail(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem("gi.auth.email");
-  } catch {
-    return null;
-  }
-}
-
-function RenameInput({
-  id,
-  value,
-  onChange,
-  onCommit,
-  onCancel,
-}: {
-  id: string;
-  value: string;
-  onChange: (val: string) => void;
-  onCommit: () => void;
-  onCancel: () => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const cancelledRef = useRef(false);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
-
-  return (
-    <Input
-      id={id}
-      ref={inputRef}
-      value={value}
-      maxLength={200}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onCommit();
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          cancelledRef.current = true;
-          onCancel();
-        }
-      }}
-      onBlur={() => {
-        if (cancelledRef.current) {
-          cancelledRef.current = false;
-          return;
-        }
-        onCommit();
-      }}
-      className="border-sidebar-border bg-sidebar-accent/30 text-sm placeholder:text-sidebar-foreground/40 focus-visible:ring-sidebar-ring"
-    />
-  );
-}
 
 function SidebarContent({
   conversations,
@@ -113,11 +59,10 @@ function SidebarContent({
   onNew,
   onRename,
   onDelete,
-  isMockMode: _isMockMode,
   mainView,
   onSelectView,
+  savedCount,
   onSignOut,
-  onOpenAccount,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   const searchId = useId();
@@ -125,12 +70,6 @@ function SidebarContent({
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  useEffect(() => {
-    setUserEmail(getUserEmail());
-  }, []);
-  const userInitial = (userEmail ? userEmail[0] : "U").toUpperCase();
-  const userLabel = userEmail || "My Account";
   // Set on Escape so the blur that follows the input unmounting doesn't
   // commit the very edit the user just cancelled.
   const cancelledRef = useRef(false);
@@ -176,12 +115,14 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
           <Landmark className="h-5 w-5" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">Grant Intelligence</div>
-          <div className="truncate text-xs text-sidebar-foreground/60">AI Grant Workspace</div>
+          <div className="truncate text-xs text-sidebar-foreground/60">
+            Research &amp; application workspace
+          </div>
         </div>
       </div>
 
@@ -192,7 +133,7 @@ function SidebarContent({
             onNew();
             onNavigate?.();
           }}
-          className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand/50"
+          className="w-full rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm hover:bg-sidebar-primary/90 focus:outline-none focus:ring-2 focus:ring-sidebar-ring"
         >
           <Plus className="h-4 w-4" />
           New conversation
@@ -202,6 +143,8 @@ function SidebarContent({
       {/* Switches the main area between the chat and the global pipeline
           dashboard. Purely a view switch — it doesn't touch conversations. */}
       <nav aria-label="Views" className="px-2 pb-3">
+        {/* Explicit role: Tailwind's preflight sets list-style:none, which
+            drops list semantics in Safari/VoiceOver. */}
         <ul role="list" className="space-y-1">
           {VIEWS.map(({ id, label, icon: Icon }) => {
             const current = mainView === id;
@@ -223,6 +166,14 @@ function SidebarContent({
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   {label}
+                  {id === "saved" && (savedCount ?? 0) > 0 && (
+                    <span
+                      className="ml-auto rounded-full bg-sidebar-accent/70 px-2 py-0.5 text-[11px] font-medium text-sidebar-foreground/90"
+                      aria-label={`${savedCount} saved ${savedCount === 1 ? "grant" : "grants"}`}
+                    >
+                      {savedCount}
+                    </span>
+                  )}
                 </button>
               </li>
             );
@@ -276,7 +227,7 @@ function SidebarContent({
       )}
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-2">
-        <ul className="space-y-1">
+        <ul role="list" className="space-y-1">
           {visible.map((c) => {
             const active = c.id === activeId;
             const editing = editingId === c.id;
@@ -287,12 +238,33 @@ function SidebarContent({
                   <label htmlFor={`${renameId}-${c.id}`} className="sr-only">
                     Rename conversation
                   </label>
-                  <RenameInput
+                  <Input
                     id={`${renameId}-${c.id}`}
+                    // Focus and select on mount, so typing replaces the old
+                    // title immediately and Escape is always one key away.
+                    ref={(el) => {
+                      el?.select();
+                    }}
                     value={draftTitle}
-                    onChange={setDraftTitle}
-                    onCommit={() => commitRename(c.id)}
-                    onCancel={() => cancelRename(c.id)}
+                    maxLength={200}
+                    onChange={(e) => setDraftTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        commitRename(c.id);
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        cancelRename(c.id);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (cancelledRef.current) {
+                        cancelledRef.current = false;
+                        return;
+                      }
+                      commitRename(c.id);
+                    }}
+                    className="border-sidebar-border bg-sidebar-accent/30 text-sm placeholder:text-sidebar-foreground/40 focus-visible:ring-sidebar-ring"
                   />
                 </li>
               );
@@ -351,7 +323,10 @@ function SidebarContent({
                       e.stopPropagation();
                       onDelete(c.id);
                     }}
-                    aria-label="Delete conversation"
+                    // Named per row: a screen reader listing the page's
+                    // buttons would otherwise read "Delete conversation" once
+                    // per conversation with no way to tell them apart.
+                    aria-label={`Delete conversation: ${c.title}`}
                     className="h-auto w-auto rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-white/10 hover:text-white"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -375,36 +350,24 @@ function SidebarContent({
         </ul>
       </nav>
 
-      {onSignOut && (
-        <div className="mt-auto border-t border-sidebar-border/60 px-3 py-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={onOpenAccount}
-              className="flex min-w-0 items-center gap-2 rounded-lg p-1 text-xs text-sidebar-foreground/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-              title="View Account Profile"
-            >
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand/20 text-xs font-semibold uppercase text-brand">
-                {userInitial}
-              </div>
-              <span className="truncate font-medium text-sidebar-foreground" title={userLabel}>
-                {userLabel}
-              </span>
-            </button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onSignOut}
-              aria-label="Sign out"
-              className="h-8 gap-1.5 rounded-lg px-2 text-xs text-sidebar-foreground/80 hover:bg-white/10 hover:text-white"
-            >
-              <LogOut className="h-3.5 w-3.5 shrink-0" />
-              <span>Sign out</span>
-            </Button>
-          </div>
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-sidebar-border/60 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2 text-[11px] text-sidebar-foreground/50">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" />
+          <span className="truncate">
+            {isMockMode === false ? "Connected · API mode" : "Demo mode — local data only"}
+          </span>
         </div>
-      )}
+        {onSignOut && (
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-sidebar-foreground/60 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          >
+            <LogOut className="h-3 w-3" />
+            Sign out
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -412,7 +375,7 @@ function SidebarContent({
 /** Desktop sidebar: always in the layout at md+ widths, hidden below that. */
 export function Sidebar(props: SidebarProps) {
   return (
-    <aside className="hidden h-full w-72 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:block">
+    <aside className="hidden h-screen w-72 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:block">
       <SidebarContent {...props} />
     </aside>
   );
@@ -428,7 +391,7 @@ export function MobileSidebar({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="left"
-        className="w-72 max-w-[85vw] border-sidebar-border bg-sidebar p-0 text-sidebar-foreground [&>button]:text-sidebar-foreground/70 [&>button]:hover:bg-white/10 [&>button]:hover:text-white [&>button]:focus:ring-brand md:hidden"
+        className="w-72 max-w-[85vw] border-sidebar-border bg-sidebar p-0 text-sidebar-foreground [&>button]:text-sidebar-foreground/70 [&>button]:hover:bg-white/10 [&>button]:hover:text-white [&>button]:focus:ring-sidebar-ring md:hidden"
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Conversations</SheetTitle>

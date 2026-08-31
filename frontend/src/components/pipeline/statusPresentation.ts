@@ -56,16 +56,13 @@ export const STATUS_EMPTY: Record<ApplicationStatus, string> = {
  * Semantic tints built from the design tokens (never raw palette literals),
  * so each status keeps its meaning and its contrast in both light and dark
  * mode: neutral = not out the door yet, brand = in flight, warning = waiting
- * on someone else, success = funded, destructive = declined.
- *
- * `submitted` is the one exception to "same classes in both themes": --brand
- * has no .dark override (it stays a dark blue), so `text-brand` on a dark
- * card falls to roughly 1.9:1. The blue signal moves to the fill and border
- * there, and the label switches to --foreground, which does flip.
+ * on someone else, success = funded, destructive = declined. `--brand` has
+ * a proper `.dark` override (see styles.css), so the same classes hold
+ * contrast in both themes without a per-usage workaround.
  */
 export const STATUS_BADGE: Record<ApplicationStatus, string> = {
   drafting: "border-border bg-muted text-muted-foreground",
-  submitted: "border-brand/40 bg-brand/15 text-brand dark:text-foreground",
+  submitted: "border-brand/40 bg-brand/15 text-brand",
   under_review: "border-warning/40 bg-warning/10 text-warning",
   approved: "border-success/30 bg-success/10 text-success",
   rejected: "border-destructive/30 bg-destructive/10 text-destructive",
@@ -90,4 +87,20 @@ export const STATUS_ACCENT: Record<ApplicationStatus, string> = {
   under_review: "border-l-warning/60",
   approved: "border-l-success/60",
   rejected: "border-l-destructive/60",
+};
+
+/**
+ * A barely-there background wash for a stage group's header — deliberately
+ * separate from STATUS_BADGE (which is a solid-ish chip meant to stand out)
+ * and STATUS_ACCENT (a border, immune to contrast concerns). This is a
+ * background only, so it's safe to use even for `submitted`, where --brand
+ * has no .dark override for TEXT — a 5% wash never has a text-contrast
+ * problem, only a color sitting on top of it would.
+ */
+export const STATUS_GROUP_TINT: Record<ApplicationStatus, string> = {
+  drafting: "bg-muted/50",
+  submitted: "bg-brand/5",
+  under_review: "bg-warning/5",
+  approved: "bg-success/5",
+  rejected: "bg-destructive/5",
 };

@@ -1,13 +1,10 @@
-import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { App } from "@/components/App";
-import { AuthScreen } from "@/components/AuthScreen";
-import { AUTH_TOKEN_KEY, AUTH_UNAUTHORIZED_EVENT } from "@/services/apiClient";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Grant Navigator — European grant discovery, intelligently matched" },
+      { title: "Grant Intelligence — European grant discovery, intelligently matched" },
       {
         name: "description",
         content:
@@ -15,7 +12,7 @@ export const Route = createFileRoute("/")({
       },
       {
         property: "og:title",
-        content: "Grant Navigator — European grant discovery",
+        content: "Grant Intelligence — European grant discovery",
       },
       {
         property: "og:description",
@@ -26,42 +23,5 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: ProtectedApp,
+  component: App,
 });
-
-function ProtectedApp() {
-  const authRequired = import.meta.env.VITE_AUTH_REQUIRED !== "false";
-
-  return authRequired ? <AuthenticatedApp /> : <App />;
-}
-
-function AuthenticatedApp() {
-  const [hasToken, setHasToken] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    setHasToken(
-      typeof window !== "undefined" && Boolean(window.localStorage.getItem(AUTH_TOKEN_KEY)),
-    );
-
-    const handleAuthChange = () => {
-      const tokenExists =
-        typeof window !== "undefined" && Boolean(window.localStorage.getItem(AUTH_TOKEN_KEY));
-      setHasToken(tokenExists);
-    };
-
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleAuthChange);
-    window.addEventListener("storage", handleAuthChange);
-    return () => {
-      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleAuthChange);
-      window.removeEventListener("storage", handleAuthChange);
-    };
-  }, []);
-
-  if (!mounted) {
-    return <AuthScreen />;
-  }
-
-  return hasToken ? <App /> : <AuthScreen />;
-}

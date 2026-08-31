@@ -138,6 +138,32 @@ saved_grants_table = Table(
     Column("saved_at", String(40), nullable=False),
 )
 
+# --- Grant search batches (offered grants history) --------------------------
+grant_search_batches_table = Table(
+    "grant_search_batches",
+    metadata,
+    Column("id", String(64), primary_key=True),
+    Column("conversation_id", String(64), nullable=True),
+    Column("user_id", String(64), nullable=True),
+    Column("batch_index", Integer, nullable=False, server_default="1"),
+    Column("query", Text, nullable=True),
+    Column("profile_json", Text, nullable=False),
+    Column("grants_json", Text, nullable=False),
+    Column("source_summary", Text, nullable=True),
+    Column("created_at", String(40), nullable=False),
+)
+
+Index(
+    "idx_search_batches_conversation",
+    grant_search_batches_table.c.conversation_id,
+    grant_search_batches_table.c.created_at.desc(),
+)
+Index(
+    "idx_search_batches_user",
+    grant_search_batches_table.c.user_id,
+    grant_search_batches_table.c.created_at.desc(),
+)
+
 
 def build_upsert(
     engine: Engine,

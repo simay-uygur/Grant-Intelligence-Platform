@@ -24,10 +24,9 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onAsk: (grant: Grant) => void;
   onStart: (grant: Grant) => void;
-  hasDraft?: boolean;
 }
 
-export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, hasDraft }: Props) {
+export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -60,73 +59,49 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
           <>
             <SheetHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
               <div className="text-[11px] font-medium uppercase tracking-wider text-brand">
-                {grant.programme || grant.source || "Grant opportunity"}
+                {grant.programme}
               </div>
               <SheetTitle className="text-base leading-snug">{grant.title}</SheetTitle>
               <SheetDescription>
-                {grant.provenance === "live"
-                  ? "Details returned by the live backend. Missing source fields are not inferred."
-                  : "Full details available in the local demo catalogue."}
+                Full details for this grant, limited to what this demo has available.
               </SheetDescription>
             </SheetHeader>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <div className="space-y-5 text-sm">
                 <Section title="Overview">
-                  {grant.matchPercentage !== undefined && (
-                    <MatchScoreRow percentage={grant.matchPercentage} />
-                  )}
+                  <MatchScoreRow percentage={grant.matchPercentage} />
                   <Field label="Description" value={grant.description} />
-                  {grant.source && <Field label="Source" value={grant.source} />}
                 </Section>
 
-                {(grant.fundingAmount || grant.fundingType) && (
-                  <Section title="Funding">
-                    {grant.fundingAmount && <Field label="Amount" value={grant.fundingAmount} />}
-                    {grant.fundingType && <Field label="Type" value={grant.fundingType} />}
-                  </Section>
-                )}
+                <Section title="Funding">
+                  <Field label="Amount" value={grant.fundingAmount} />
+                  <Field label="Type" value={grant.fundingType} />
+                </Section>
 
-                {grant.deadline && (
-                  <Section title="Deadline">
-                    <DeadlineRow deadline={grant.deadline} />
-                  </Section>
-                )}
+                <Section title="Deadline">
+                  <DeadlineRow deadline={grant.deadline} />
+                </Section>
 
-                {(grant.organisationEligibility?.length || grant.requirements?.length) && (
-                  <Section title="Eligibility">
-                    {grant.organisationEligibility?.length ? (
-                      <ListField
-                        label="Organisation eligibility"
-                        items={grant.organisationEligibility}
-                      />
-                    ) : null}
-                    {grant.requirements?.length ? (
-                      <ListField label="Requirements" items={grant.requirements} />
-                    ) : null}
-                  </Section>
-                )}
+                <Section title="Eligibility">
+                  <ListField
+                    label="Organisation eligibility"
+                    items={grant.organisationEligibility}
+                  />
+                  <ListField label="Requirements" items={grant.requirements} />
+                </Section>
 
-                {grant.eligibleCountries?.length ? (
-                  <Section title="Geographic scope">
-                    <ListField
-                      label="Eligible countries / regions"
-                      items={grant.eligibleCountries}
-                    />
-                  </Section>
-                ) : null}
+                <Section title="Geographic scope">
+                  <ListField label="Eligible countries / regions" items={grant.eligibleCountries} />
+                </Section>
 
-                {(grant.whyItMatches || grant.matchReasons?.length) && (
-                  <Section title="Why it was returned">
-                    {grant.whyItMatches && <Field label="Summary" value={grant.whyItMatches} />}
-                    {grant.matchReasons?.length ? (
-                      <ListField label="Match reasons" items={grant.matchReasons} />
-                    ) : null}
-                  </Section>
-                )}
+                <Section title="Why it matches">
+                  <Field label="Summary" value={grant.whyItMatches} />
+                  <ListField label="Match reasons" items={grant.matchReasons} />
+                </Section>
 
-                {grant.sourceUrl && (
-                  <Section title="Official source">
+                <Section title="Source">
+                  {grant.sourceUrl?.trim() ? (
                     <a
                       href={grant.sourceUrl}
                       target="_blank"
@@ -136,18 +111,22 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
                       <ExternalLink className="h-3.5 w-3.5" />
                       Open official source
                     </a>
-                  </Section>
-                )}
+                  ) : (
+                    <p className="text-xs italic text-muted-foreground">
+                      Not available in demo data.
+                    </p>
+                  )}
+                </Section>
 
-                {grant.tags?.length ? (
+                {Boolean(grant.tags && grant.tags.length > 0) && (
                   <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
-                    {grant.tags.map((t) => (
+                    {grant.tags?.map((t) => (
                       <Badge key={t} variant="secondary" className="font-normal">
                         {t}
                       </Badge>
                     ))}
                   </div>
-                ) : null}
+                )}
               </div>
             </div>
 
@@ -170,9 +149,9 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart, h
                   onStart(grant);
                   onOpenChange(false);
                 }}
-                className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 sm:w-auto"
+                className="w-full rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 sm:w-auto"
               >
-                {hasDraft ? "Open saved application" : "Start application"}
+                Start application
               </Button>
               <SheetClose asChild>
                 <Button
@@ -202,8 +181,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
-  const available = value.trim().length > 0;
+function Field({ label, value }: { label: string; value?: string }) {
+  const available = Boolean(value && value.trim().length > 0);
   return (
     <div>
       <div className="text-[11px] font-medium text-muted-foreground">{label}</div>
@@ -218,13 +197,14 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ListField({ label, items }: { label: string; items: string[] }) {
+function ListField({ label, items }: { label: string; items?: string[] }) {
+  const list = items ?? [];
   return (
     <div>
       <div className="text-[11px] font-medium text-muted-foreground">{label}</div>
-      {items.length > 0 ? (
+      {list.length > 0 ? (
         <ul className="mt-1 space-y-1">
-          {items.map((item, i) => (
+          {list.map((item, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-foreground">
               <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand" />
               <span className="min-w-0 break-words [overflow-wrap:anywhere]">{item}</span>
@@ -238,28 +218,64 @@ function ListField({ label, items }: { label: string; items: string[] }) {
   );
 }
 
-function MatchScoreRow({ percentage }: { percentage: number }) {
+/** Same ring meter as the grant card (see GrantResults.tsx's MatchRing), so the
+ * match score reads identically whether it's seen on the card or in here. */
+function MatchScoreRow({ percentage = 0 }: { percentage?: number }) {
   const tier = matchTierFor(percentage);
   const cls = MATCH_TIER_CLASSES[tier];
   const clamped = Math.min(100, Math.max(0, percentage));
+  const size = 52;
+  const stroke = 4;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - clamped / 100);
+
   return (
     <div className="flex items-center gap-3">
-      <div className="shrink-0 text-right leading-none">
-        <span className={cn("text-lg font-medium tabular-nums", cls.text)}>{percentage}%</span>
-        <div className="mt-0.5 text-[10px] text-muted-foreground">match</div>
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={stroke}
+            className="stroke-muted"
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            className={cn(
+              "motion-safe:transition-[stroke-dashoffset] motion-safe:duration-700",
+              cls.stroke,
+            )}
+          />
+        </svg>
+        <span
+          role="img"
+          aria-label={`${percentage}% match`}
+          className="absolute inset-0 flex items-center justify-center text-xs font-bold tabular-nums text-foreground"
+        >
+          {percentage}%
+        </span>
       </div>
-      <div
-        role="img"
-        aria-label={`${percentage}% match`}
-        className="h-1 flex-1 overflow-hidden rounded-full bg-muted"
-      >
-        <div className={cn("h-full rounded-full", cls.bar)} style={{ width: `${clamped}%` }} />
-      </div>
+      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Match score
+      </span>
     </div>
   );
 }
 
-function DeadlineRow({ deadline }: { deadline: string }) {
+function DeadlineRow({ deadline }: { deadline?: string }) {
+  if (!deadline) {
+    return <p className="text-xs italic text-muted-foreground">Deadline unavailable.</p>;
+  }
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-medium text-foreground">{formatDeadline(deadline)}</span>

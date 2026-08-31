@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Grant, OrganisationProfile } from "@/types";
+import type { Grant, GrantSearchBatch, OrganisationProfile } from "@/types";
 
 export const grantSearchRequestSchema = z.object({
   query: z.string().min(1),
@@ -19,6 +19,7 @@ export const grantSearchRequestSchema = z.object({
   only_open: z.boolean(),
   limit: z.number().int().min(1).max(25),
   excluded_grant_ids: z.array(z.string()).optional().default([]),
+  conversation_id: z.string().optional(),
 });
 
 const grantResultDtoSchema = z.object({
@@ -49,6 +50,7 @@ const grantResultDtoSchema = z.object({
 
 export const grantSearchResponseSchema = z.object({
   grants: z.array(grantResultDtoSchema),
+  all_candidates: z.array(grantResultDtoSchema).optional().nullable(),
   source_summary: z
     .string()
     .optional()
@@ -57,11 +59,31 @@ export const grantSearchResponseSchema = z.object({
     .record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]))
     .optional()
     .default({}),
+  batch_id: z.string().nullable().optional(),
+  batch_index: z.number().nullable().optional(),
+});
+
+export const grantSearchBatchDtoSchema = z.object({
+  id: z.string().min(1),
+  conversationId: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  batchIndex: z.number().int().default(1),
+  query: z.string().nullable().optional(),
+  profile: z.record(z.unknown()).default({}),
+  grants: z.array(grantResultDtoSchema).default([]),
+  sourceSummary: z.string().nullable().optional(),
+  createdAt: z.string(),
+});
+
+export const grantSearchBatchesResponseSchema = z.object({
+  batches: z.array(grantSearchBatchDtoSchema).default([]),
 });
 
 export type GrantSearchRequestDto = z.infer<typeof grantSearchRequestSchema>;
 export type GrantSearchResponseDto = z.infer<typeof grantSearchResponseSchema>;
 export type GrantResultDto = z.infer<typeof grantResultDtoSchema>;
+export type GrantSearchBatchDto = z.infer<typeof grantSearchBatchDtoSchema>;
+export type GrantSearchBatchesResponseDto = z.infer<typeof grantSearchBatchesResponseSchema>;
 
 export class GrantApiContractError extends Error {
   constructor() {
@@ -78,6 +100,7 @@ const clean = (value: string | undefined): string | undefined => {
 export function buildGrantSearchRequest(
   profile: OrganisationProfile,
   excludedGrantIds?: string[],
+  conversationId?: string,
 ): GrantSearchRequestDto {
   const primaryQuery = [clean(profile.projectTitle), clean(profile.sector)]
     .filter((value): value is string => Boolean(value))
@@ -107,6 +130,7 @@ export function buildGrantSearchRequest(
     only_open: true,
     limit: 3,
     excluded_grant_ids: excludedGrantIds ?? [],
+    conversation_id: clean(conversationId),
   });
 }
 
@@ -129,20 +153,44 @@ export function mapGrantResult(dto: GrantResultDto): Grant {
     programme: clean(dto.programme ?? undefined),
     matchPercentage: dto.matchPercentage ?? undefined,
     fundingAmount: clean(dto.fundingAmount ?? dto.amount ?? undefined),
-    deadline: clean(dto.deadline ?? undefined),
+    deadline:
+      dto.deadline && dto.deadline.trim().length >= 8 && !/^\d{1,4}$/.test(dto.deadline.trim())
+        ? clean(dto.deadline)
+        : undefined,
     eligibleCountries: dto.eligibleCountries,
     organisationEligibility,
-    fundingType: clean(dto.fundingType ?? undefined),
+    fundingType:
+      dto.fundingType && !/^\d+$/.test(dto.fundingType.trim()) ? clean(dto.fundingType) : undefined,
     whyItMatches: clean(dto.whyItMatches ?? dto.match_explanation ?? undefined),
     matchReasons: dto.matchReasons,
     requirements: dto.requirements,
-    tags: dto.tags,
+    tags: dto.tags?.filter((t) => t && t.trim().length >= 2 && !/^\d+$/.test(t.trim())),
     sourceUrl: clean(dto.sourceUrl ?? dto.url ?? undefined),
+  };
+}
+
+export function mapGrantSearchBatch(dto: GrantSearchBatchDto): GrantSearchBatch {
+  return {
+    id: dto.id,
+    conversationId: clean(dto.conversationId ?? undefined),
+    userId: clean(dto.userId ?? undefined),
+    batchIndex: dto.batchIndex,
+    query: clean(dto.query ?? undefined),
+    profile: dto.profile as unknown as OrganisationProfile,
+    grants: dto.grants.map(mapGrantResult),
+    sourceSummary: clean(dto.sourceSummary ?? undefined),
+    createdAt: dto.createdAt,
   };
 }
 
 export function parseGrantSearchResponse(input: unknown): GrantSearchResponseDto {
   const result = grantSearchResponseSchema.safeParse(input);
+  if (!result.success) throw new GrantApiContractError();
+  return result.data;
+}
+
+export function parseGrantSearchBatchesResponse(input: unknown): GrantSearchBatchesResponseDto {
+  const result = grantSearchBatchesResponseSchema.safeParse(input);
   if (!result.success) throw new GrantApiContractError();
   return result.data;
 }

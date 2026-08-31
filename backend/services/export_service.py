@@ -53,7 +53,9 @@ def _build_html(application: dict[str, Any], sheets: dict[str, Any] | None) -> s
         "th{background:#eef2f8}.meta{color:#555}.empty{color:#777;font-style:italic}",
         "</style></head><body>",
         f"<h1>{_escape(application.get('grantTitle', 'Grant Application'))}</h1>",
-        f'<p class="meta">Applicant: {_escape(application["profile"].get("organisationName", ""))} &middot; Grant ID: {_escape(application.get("grantId", ""))}</p>',
+        f'<p class="meta">Applicant: {_escape(application["profile"].get("organisationName", ""))} &middot; Grant ID: {_escape(application.get("grantId", ""))}'
+        + (f' &middot; <a href="{_escape(application["sourceUrl"])}" target="_blank" rel="noopener noreferrer">Official Call Link</a>' if application.get("sourceUrl") else "")
+        + "</p>",
     ]
     for section in _sections(application):
         parts.append(f"<h2>{_escape(section['title'])}</h2>")
@@ -110,7 +112,11 @@ def _md_table(headers: list[str], rows: list[list[Any]]) -> str:
 
 
 def _build_markdown(application: dict[str, Any], sheets: dict[str, Any] | None) -> str:
-    parts = [f"# {application.get('grantTitle', 'Grant Application')}", "", f"*Applicant: {application['profile'].get('organisationName', '')} — Grant ID: {application.get('grantId', '')}*", ""]
+    meta = f"*Applicant: {application['profile'].get('organisationName', '')} — Grant ID: {application.get('grantId', '')}"
+    if application.get("sourceUrl"):
+        meta += f" — [Official Call Link]({application['sourceUrl']})"
+    meta += "*"
+    parts = [f"# {application.get('grantTitle', 'Grant Application')}", "", meta, ""]
     for section in _sections(application):
         parts.append(f"## {section['title']}")
         content = section.get("content", "").strip()
@@ -179,7 +185,10 @@ def _build_text(application: dict[str, Any], sheets: dict[str, Any] | None) -> s
     divider = "=" * 72
     thin = "-" * 72
     parts = [divider, application.get("grantTitle", "Grant Application").upper(), divider]
-    parts.append(f"Applicant: {application['profile'].get('organisationName', '')}   Grant ID: {application.get('grantId', '')}")
+    meta_line = f"Applicant: {application['profile'].get('organisationName', '')}   Grant ID: {application.get('grantId', '')}"
+    if application.get("sourceUrl"):
+        meta_line += f"   Official Call: {application['sourceUrl']}"
+    parts.append(meta_line)
     parts.append("")
     for section in _sections(application):
         parts += [section["title"].upper(), thin]

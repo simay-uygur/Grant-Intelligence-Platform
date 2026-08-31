@@ -9,6 +9,9 @@ from backend.schemas.documents import (
     ApplicationSummary,
     DocumentQARequest,
     DocumentQAResponse,
+    GenerateOutlineRequest,
+    GenerateOutlineResponse,
+    OutlineSection,
     RewriteSectionRequest,
     RewriteSectionResponse,
     StartApplicationRequest,
@@ -42,13 +45,18 @@ class ApplicationSectionNotFoundError(ValueError):
     pass
 
 
-def _grant_to_dict(grant: GrantResult | dict[str, Any] | None) -> dict[str, Any]:
+def _grant_to_dict(grant: Any) -> dict[str, Any]:
     """Normalize the grant payload (Pydantic model, raw dict, or absent) to a plain dict."""
-    if isinstance(grant, GrantResult):
-        return grant.model_dump(exclude_none=True, exclude_defaults=True)
     if grant is None:
         return {}
-    return grant
+    if isinstance(grant, GrantResult):
+        return grant.model_dump(exclude_none=True, exclude_defaults=True)
+    if hasattr(grant, "model_dump"):
+        res: dict[str, Any] = grant.model_dump(exclude_none=True, exclude_defaults=True)
+        return res
+    if isinstance(grant, dict):
+        return grant
+    return {}
 
 
 def _profile_to_dict(profile: Any) -> dict[str, Any] | None:
@@ -71,17 +79,55 @@ class DocumentService:
         self.agent_service = AgentService()
         self.application_store = ApplicationStore(database_path=database_path)
 
+    def generate_outline(self, payload: GenerateOutlineRequest, user_id: str | None = None) -> GenerateOutlineResponse:
+        logger.info("Generating adaptive section outline (user_id=%s)", user_id)
+        grant = _grant_to_dict(payload.grant)
+        attachments = self._conversation_attachments(payload.conversationId, user_id)
+        raw_sections = self.agent_service.generate_outline(
+            grant,
+            payload.profile.to_agent_profile(),
+            template_type=payload.templateType,
+            custom_instructions=payload.customInstructions,
+            attachments=attachments,
+        )
+        sections = [OutlineSection.model_validate(s) for s in raw_sections]
+        return GenerateOutlineResponse(
+            grantId=str(grant.get("id") or grant.get("identifier") or ""),
+            grantTitle=str(grant.get("title") or ""),
+            sourceUrl=str(grant.get("sourceUrl") or grant.get("url") or "") or None,
+            programme=str(grant.get("programme") or "") or None,
+            sections=sections,
+        )
+
     def start_application(self, payload: StartApplicationRequest, user_id: str | None = None) -> ApplicationDocument:
         logger.info("Starting application drafting (user_id=%s)", user_id)
         grant = _grant_to_dict(payload.grant)
         attachments = self._conversation_attachments(payload.conversationId, user_id)
-        document = self.agent_service.start_application(
-            grant,
-            payload.profile.to_agent_profile(),
-            custom_instructions=payload.customInstructions,
-            template_type=payload.templateType,
-            attachments=attachments,
-        )
+        custom_sections = [s.model_dump(exclude_none=True) for s in payload.sections] if payload.sections else None
+
+        start_kwargs: dict[str, Any] = {
+            "custom_instructions": payload.customInstructions,
+            "template_type": payload.templateType,
+            "attachments": attachments,
+        }
+        if custom_sections is not None:
+            start_kwargs["custom_sections"] = custom_sections
+
+        try:
+            document = self.agent_service.start_application(
+                grant,
+                payload.profile.to_agent_profile(),
+                **start_kwargs,
+            )
+        except TypeError:
+            document = self.agent_service.start_application(
+                grant,
+                payload.profile.to_agent_profile(),
+                custom_instructions=payload.customInstructions,
+                template_type=payload.templateType,
+                attachments=attachments,
+            )
+
         application_document = ApplicationDocument.model_validate(document)
         self.application_store.save_application(
             application_document,
@@ -96,13 +142,32 @@ class DocumentService:
     def start_application_stream(self, payload: StartApplicationRequest, user_id: str | None = None) -> Iterator[dict[str, Any]]:
         grant = _grant_to_dict(payload.grant)
         attachments = self._conversation_attachments(payload.conversationId, user_id)
-        for event in self.agent_service.start_application_stream(
-            grant,
-            payload.profile.to_agent_profile(),
-            custom_instructions=payload.customInstructions,
-            template_type=payload.templateType,
-            attachments=attachments,
-        ):
+        custom_sections = [s.model_dump(exclude_none=True) for s in payload.sections] if payload.sections else None
+
+        stream_kwargs: dict[str, Any] = {
+            "custom_instructions": payload.customInstructions,
+            "template_type": payload.templateType,
+            "attachments": attachments,
+        }
+        if custom_sections is not None:
+            stream_kwargs["custom_sections"] = custom_sections
+
+        try:
+            stream_gen = self.agent_service.start_application_stream(
+                grant,
+                payload.profile.to_agent_profile(),
+                **stream_kwargs,
+            )
+        except TypeError:
+            stream_gen = self.agent_service.start_application_stream(
+                grant,
+                payload.profile.to_agent_profile(),
+                custom_instructions=payload.customInstructions,
+                template_type=payload.templateType,
+                attachments=attachments,
+            )
+
+        for event in stream_gen:
             if event.get("event") == "result" and "document" in event.get("data", {}):
                 document = event["data"]["document"]
                 if not document.get("error"):

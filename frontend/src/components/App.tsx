@@ -1,36 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { ArrowDown, Menu, MessageSquarePlus, Play, RefreshCw } from "lucide-react";
+import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
+import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/hooks/useAuth";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
-import { useGrantSearch } from "@/hooks/useGrantSearch";
-import { applicationService, backendService, chatService, isMockMode } from "@/services";
-import { logout } from "@/services/apiClient";
-import type { SseEvent } from "@/services/apiClient";
+import { LoginPage } from "@/components/auth/LoginPage";
+import { applicationService, grantService, isMockMode } from "@/services";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
-  ApplicationDocument,
   ApplicationStage,
   ChatBlock,
   ChatMessage,
   Grant,
   OrganisationProfile,
+  ResearchState,
 } from "@/types";
-import { AccountModal } from "@/components/AccountModal";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
 import { SavedGrants } from "@/components/SavedGrants";
+import {
+  DocumentWorkspace,
+  WorkspaceExportControl,
+} from "@/components/documents/DocumentWorkspace";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
-import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { Button } from "@/components/ui/button";
 import type { BlockCallbacks } from "@/components/chat/BlockRenderer";
-import { applicationWrittenLabel } from "@/utils/applicationDates";
 
 const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   welcome: "Describe your organisation and funding needs…",
@@ -40,91 +40,92 @@ const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   application: "Ask to revise, expand, or improve this application…",
 };
 
-type BackendConnection =
-  | { status: "local" }
-  | { status: "checking" }
-  | { status: "connected"; appName: string; version: string }
-  | { status: "unavailable" };
-
-type BackendHistorySync =
-  | { status: "idle" }
-  | { status: "syncing"; conversationId: string }
-  | { status: "synced"; conversationId: string }
-  | { status: "error"; conversationId: string; message: string };
-
-const missingGrantFact = (grant: Grant, label: string): ChatBlock[] => [
-  {
-    type: "text",
-    text: `${label} was not supplied by ${grant.source || "this grant's source"} for this result. Open the official source when available for the authoritative call details.`,
-  },
+const RESEARCH_STEPS = [
+  "Understanding organisation profile",
+  "Analysing funding requirements",
+  "Checking geographical eligibility",
+  "Searching European grant programmes",
+  "Comparing funding amounts",
+  "Reviewing deadlines",
+  "Ranking the strongest matches",
 ];
 
-// Grant Q&A remains local and only reports fields present on the record.
+// Grant Q&A is answered locally by matching simple keywords against the
+// question and quoting the matching Grant field(s) — never invented, never
+// a real AI call. "Fact" answers quote structured fields verbatim; the
+// "why it matches" answer is explicitly labelled as the mock assistant's
+// canned explanation, since it's interpretive rather than a raw field.
 function answerAboutGrant(question: string, grant: Grant): ChatBlock[] {
   const q = question.toLowerCase();
 
   if (/eligib/.test(q)) {
-    const organisation = grant.organisationEligibility?.join(", ");
-    const countries = grant.eligibleCountries?.join(", ");
-    if (!organisation && !countries) return missingGrantFact(grant, "Eligibility information");
+    const org = (grant.organisationEligibility || []).join(", ");
+    const countries = (grant.eligibleCountries || []).join(", ");
     return [
       {
         type: "text",
-        text: `From this grant's record — ${organisation ? `organisation eligibility: ${organisation}. ` : ""}${countries ? `Eligible countries / regions: ${countries}.` : ""}`.trim(),
+        text: `From this grant's record — ${org ? `organisation eligibility: ${org}. ` : ""}${countries ? `Eligible countries / regions: ${countries}.` : ""}`.trim(),
       },
     ];
   }
   if (/fund|amount|budget|money|€|much/.test(q)) {
-    if (!grant.fundingAmount && !grant.fundingType) {
-      return missingGrantFact(grant, "Funding information");
-    }
     return [
       {
         type: "text",
-        text: `From this grant's record — funding: ${[grant.fundingAmount, grant.fundingType].filter(Boolean).join(" · ")}.`,
+        text: `From this grant's record — funding: ${grant.fundingAmount || "Not specified"}${grant.fundingType ? ` (${grant.fundingType})` : ""}.`,
       },
     ];
   }
   if (/deadline|when|due|close|date/.test(q)) {
-    if (!grant.deadline) return missingGrantFact(grant, "The deadline");
     return [
       {
         type: "text",
-        text: `From this grant's record — deadline: ${grant.deadline}.`,
+        text: `From this grant's record — deadline: ${grant.deadline || "Not specified"}.`,
       },
     ];
   }
   if (/match|why|fit|suit|align/.test(q)) {
-    if (!grant.whyItMatches) return missingGrantFact(grant, "A match explanation");
     return [
       {
         type: "text",
-        text:
-          grant.provenance === "live"
-            ? `Source match explanation — ${grant.whyItMatches}`
-            : `Demo match explanation — ${grant.whyItMatches}`,
+        text: `Sample result — ${grant.whyItMatches || "Matched based on organisational profile criteria."}`,
       },
     ];
   }
 
-  const availableTopics = [
-    (grant.organisationEligibility?.length || grant.eligibleCountries?.length) && "eligibility",
-    (grant.fundingAmount || grant.fundingType) && "funding",
-    grant.deadline && "the deadline",
-    grant.whyItMatches && "why it was returned",
-  ].filter(Boolean);
   return [
     {
       type: "text",
-      text: availableTopics.length
-        ? `From this grant's record, I can answer questions about ${availableTopics.join(", ")}.`
-        : `This result includes a title and summary for ${grant.title}, but its source did not provide detailed eligibility, funding, deadline, or match fields.`,
+      text: `From this grant's record, I can answer questions about eligibility, funding amount, the deadline, or why ${grant.title} matches your project.`,
     },
     {
       type: "text",
-      text: "This is a local, rule-based answer using only the grant fields shown here—not a live AI response.",
+      text: "Sample result — this is a simulated response using only the demo data shown for this grant, not a live AI model. Try one of the suggested questions below, or start the application when you're ready.",
     },
   ];
+}
+
+// Same idea as answerAboutGrant: a few keyword checks against what the
+// user actually typed, never a real intent model. The NEXT step is always
+// the same profile form regardless — this only changes the sentence that
+// leads into it, so an opener isn't met with a reply that ignores it.
+const DEFAULT_WELCOME_REPLY =
+  "Great — to match you to the strongest calls, please complete this short profile.";
+
+function openingAcknowledgement(text: string): string {
+  const q = text.toLowerCase();
+
+  if (/compar|funding opportunit/.test(q)) {
+    return "Happy to help you compare funding options — first, a quick profile so I can match the strongest calls:";
+  }
+  if (/draft|application|write/.test(q)) {
+    return "Let's get your application started — first, a short profile so the draft fits the right grant:";
+  }
+  if (/eligib|check/.test(q)) {
+    return "I can check what you're eligible for — first, a quick profile so I can match you accurately:";
+  }
+
+  return DEFAULT_WELCOME_REPLY;
 }
 
 const DEMO_PROFILE: OrganisationProfile = {
@@ -144,61 +145,56 @@ const DEMO_PROFILE: OrganisationProfile = {
   eligibilityConstraints: "SME status must be maintained throughout the project.",
 };
 
+/**
+ * The single-route app's auth gate — no router route added (see the
+ * inspection note before this round's diff): a small wrapper around the
+ * existing single-page shell, mirroring how useConversations already gates
+ * its own hydration. AppShell's hooks (conversations, applications, etc.)
+ * only start running once actually authed, so nothing behind the login
+ * screen is doing work before it's reached.
+ */
 export function App() {
+  const auth = useAuth();
+
+  if (!auth.hydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Loading Grant Intelligence…
+      </div>
+    );
+  }
+
+  if (!auth.authed) {
+    return <LoginPage onSignIn={auth.signIn} />;
+  }
+
+  return <AppShell onSignOut={auth.signOut} />;
+}
+
+function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const c = useConversations();
-  const { synchronizeBackendMessages } = c;
+  // The single useApplications instance for the whole app. Both writers live
+  // here — the chat (starting an application) and the pipeline (changing a
+  // status) — so neither can overwrite the other with a stale array.
   const apps = useApplications();
   const addApplication = apps.addApplication;
+  const applications = apps.applications;
+  const updateApplicationStatus = apps.updateStatus;
+  // Only for the sidebar's saved count. Safe alongside the instances in
+  // GrantResults and SavedGrants: useShortlist writes on mutation and
+  // broadcasts, so every instance stays in step.
+  const shortlist = useShortlist();
   const [busy, setBusy] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [accountModalOpen, setAccountModalOpen] = useState(false);
   // Which main view is showing. Local, non-persisted UI state: the pipeline
   // dashboard is global across conversations, so it's a sibling view of the
   // chat rather than a block inside one — the app still has a single route.
   const [mainView, setMainView] = useState<MainView>("chat");
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
-  const [startingGrantId, setStartingGrantId] = useState<string | null>(null);
-  const [backendConnection, setBackendConnection] = useState<BackendConnection>(
-    isMockMode ? { status: "local" } : { status: "checking" },
-  );
-  const [backendHistorySync, setBackendHistorySync] = useState<BackendHistorySync>({
-    status: "idle",
-  });
-  const historySyncRequest = useRef(0);
+  const researchInFlight = useRef(false);
   const isMobile = useIsMobile();
-  const [highlightApplicationId, setHighlightApplicationId] = useState<string | null>(null);
-
-  const handleSignOut = useCallback(() => {
-    void logout();
-  }, []);
-
-  useEffect(() => {
-    if (!backendService) {
-      setBackendConnection({ status: "local" });
-      return;
-    }
-    let cancelled = false;
-    setBackendConnection({ status: "checking" });
-    backendService
-      .getInfo()
-      .then((info) => {
-        if (!cancelled) {
-          setBackendConnection({
-            status: "connected",
-            appName: info.appName,
-            version: info.version,
-          });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setBackendConnection({ status: "unavailable" });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // If the viewport grows past the mobile breakpoint while the sheet is open
   // (resize/rotate), close it so it can't sit open over the now-visible desktop sidebar.
@@ -247,111 +243,79 @@ export function App() {
     [appendMessage, uid],
   );
 
-  const synchronizeBackendHistory = useCallback(
-    async (conversationId: string, backendConversationId: string) => {
-      if (!chatService) return;
-      const requestId = ++historySyncRequest.current;
-      setBackendHistorySync({ status: "syncing", conversationId });
+  const runResearch = useCallback(
+    async (profile: OrganisationProfile, initialError?: boolean) => {
+      if (researchInFlight.current) return;
+      researchInFlight.current = true;
+      setBusy(true);
+      c.setStage("researching");
+
+      const state: ResearchState = {
+        steps: RESEARCH_STEPS.map((label, i) => ({
+          label,
+          status: i === 0 ? "active" : "pending",
+        })),
+      };
+      const messageId = askAssistant([{ type: "research_status", state }]);
+
       try {
-        const messages = await chatService.getMessages(backendConversationId);
-        if (historySyncRequest.current !== requestId) return;
-        synchronizeBackendMessages(conversationId, messages);
-        setBackendHistorySync({ status: "synced", conversationId });
-      } catch (error) {
-        if (historySyncRequest.current !== requestId) return;
-        setBackendHistorySync({
-          status: "error",
-          conversationId,
-          message:
-            error instanceof Error
-              ? error.message
-              : "The backend conversation history could not be loaded.",
-        });
+        for (let i = 0; i < RESEARCH_STEPS.length; i++) {
+          await new Promise((r) => setTimeout(r, 450));
+          setBlocks(messageId, (blocks) =>
+            blocks.map((b) => {
+              if (b.type !== "research_status") return b;
+              const steps = b.state.steps.map((s, idx) => {
+                if (idx < i + 1) return { ...s, status: "done" as const };
+                if (idx === i + 1) return { ...s, status: "active" as const };
+                return { ...s, status: "pending" as const };
+              });
+              return { type: "research_status", state: { steps } };
+            }),
+          );
+        }
+
+        if (initialError) throw new Error("Simulated network error");
+
+        const searchResult = await grantService.searchGrants(profile);
+        const grants = searchResult.grants;
+        c.setGrants(grants);
+        c.setStage("results");
+        askAssistant([
+          {
+            type: "text",
+            text:
+              grants.length === 0
+                ? `I couldn't find anything matching ${profile.organisationName || "your organisation"} on every criterion. Here's what usually helps:`
+                : `I found ${grants.length} strong matches for ${profile.organisationName || "your organisation"}. Here are the top three, ranked by fit:`,
+          },
+          // Sent even when empty: GrantResults owns the no-match state and
+          // the "search again" action, so the answer isn't a dead end.
+          {
+            type: "grant_results",
+            grants,
+            allCandidates: searchResult.allCandidates,
+            sourceSummary: searchResult.sourceSummary,
+          },
+        ]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Research failed";
+        setBlocks(messageId, (blocks) =>
+          blocks.map((b) =>
+            b.type === "research_status"
+              ? {
+                  type: "research_status",
+                  state: { ...b.state, error: message },
+                }
+              : b,
+          ),
+        );
+      } finally {
+        researchInFlight.current = false;
+        setBusy(false);
       }
     },
-    [synchronizeBackendMessages],
+    [askAssistant, c, setBlocks],
   );
-
-  useEffect(() => {
-    const conversationId = c.activeConversation?.id;
-    const backendConversationId = c.activeConversation?.backendConversationId;
-    if (!chatService || !conversationId || !backendConversationId) {
-      historySyncRequest.current += 1;
-      setBackendHistorySync({ status: "idle" });
-      return;
-    }
-    void synchronizeBackendHistory(conversationId, backendConversationId);
-  }, [
-    c.activeConversation?.backendConversationId,
-    c.activeConversation?.id,
-    synchronizeBackendHistory,
-  ]);
-
-  const getExcludedGrantIds = useCallback(() => {
-    const msgs = c.activeConversation?.messages ?? [];
-    return Array.from(
-      new Set(
-        msgs
-          .flatMap((m) => m.blocks)
-          .filter(
-            (b): b is Extract<ChatBlock, { type: "grant_results" }> => b.type === "grant_results",
-          )
-          .flatMap((b) => b.grants.map((g) => g.id)),
-      ),
-    );
-  }, [c.activeConversation?.messages]);
-
-  // ---------------------------------------------------------------------------
-  // Grant search — delegated to useGrantSearch.
-  // App supplies the UI callbacks; the hook owns the research state machine,
-  // in-flight guard, and progress event fan-out.
-  // ---------------------------------------------------------------------------
-  const { runResearch } = useGrantSearch({
-    setBusy,
-    setStage: c.setStage,
-    setGrants: c.setGrants,
-    getExcludedGrantIds,
-    onResearchStart: (initialState) =>
-      askAssistant([{ type: "research_status", state: initialState }]),
-    onResearchProgress: (messageId, updater) => setBlocks(messageId, updater),
-    onResearchComplete: (grants, sourceSummary, profile) => {
-      askAssistant([
-        {
-          type: "text",
-          text:
-            grants.length === 0
-              ? `I couldn't find any additional ${isMockMode ? "demo matches" : "live opportunities"} for ${profile.organisationName}. Try widening the funding amount or sector scope.`
-              : isMockMode
-                ? `I found ${grants.length} alternative demo matches for ${profile.organisationName}. Here are the strongest simulated results, ranked by fit:`
-                : `I found ${grants.length} alternative live ${grants.length === 1 ? "opportunity" : "opportunities"} for ${profile.organisationName} (excluding previously shown calls).`,
-        },
-        { type: "grant_results", grants, sourceSummary },
-      ]);
-    },
-    onResearchError: (messageId, message) => {
-      setBlocks(messageId, (blocks) =>
-        blocks.map((b) =>
-          b.type === "research_status"
-            ? { type: "research_status", state: { ...b.state, error: message } }
-            : b,
-        ),
-      );
-    },
-  });
-
-  const handleRetryResearch = useCallback(() => {
-    const profile = c.activeConversation?.profile;
-    if (!profile) return;
-    const excludedIds = getExcludedGrantIds?.() ?? [];
-    askUser([{ type: "text", text: "Find alternative matching EU grants." }]);
-    askAssistant([
-      {
-        type: "text",
-        text: "Searching for alternative grant opportunities and excluding previously displayed results...",
-      },
-    ]);
-    void runResearch(profile, { excludedGrantIds: excludedIds });
-  }, [askAssistant, askUser, c.activeConversation?.profile, getExcludedGrantIds, runResearch]);
 
   const handleSubmitProfile = useCallback(
     (profile: OrganisationProfile) => {
@@ -365,9 +329,7 @@ export function App() {
       askAssistant([
         {
           type: "text",
-          text: isMockMode
-            ? "Thanks — that's enough to start. Let me research the best demo matches across European programmes."
-            : "Thanks — that's enough to start. I'll search the live Horizon opportunities available through the backend.",
+          text: "Thanks — that's enough to start. Let me research the best matches across European programmes.",
         },
       ]);
       void runResearch(profile);
@@ -375,24 +337,22 @@ export function App() {
     [askAssistant, askUser, c, runResearch],
   );
 
+  const handleRetryResearch = useCallback(() => {
+    if (c.activeConversation?.profile) {
+      void runResearch(c.activeConversation.profile);
+    }
+  }, [c.activeConversation, runResearch]);
+
   const handleAskGrant = useCallback(
     (grant: Grant) => {
       setAskingAboutGrant(grant);
       askUser([{ type: "text", text: `Tell me more about ${grant.title}.` }]);
-      const facts = [
-        grant.programme && `Programme: ${grant.programme}`,
-        !grant.programme && grant.source && `Source: ${grant.source}`,
-        grant.fundingAmount && `Funding: ${grant.fundingAmount}`,
-        grant.fundingType && `Funding type: ${grant.fundingType}`,
-        grant.deadline && `Deadline: ${grant.deadline}`,
-      ].filter((fact): fact is string => Boolean(fact));
-      const requirements = grant.requirements?.length
-        ? `\n\nKey requirements:\n${grant.requirements.map((requirement) => `• ${requirement}`).join("\n")}`
-        : "";
+      const reqList = (grant.requirements || []).map((r) => `• ${r}`).join("\n");
+      const reqText = reqList ? `\n\nKey requirements:\n${reqList}` : "";
       askAssistant([
         {
           type: "text",
-          text: `${grant.title}\n\n${grant.description}${facts.length ? `\n\n${facts.join("\n")}` : ""}${requirements}\n\nOpen the official source when available, or start a local application draft here.`,
+          text: `${grant.title} is part of the ${grant.programme || "target programme"}. It offers ${grant.fundingAmount || "funding"} as ${(grant.fundingType || "grant").toLowerCase()}, with a deadline on ${grant.deadline || "the stated date"}.${reqText}\n\nOpen the source link on the card for the official call text, or start an application to draft your proposal here.`,
         },
       ]);
     },
@@ -403,145 +363,33 @@ export function App() {
     async (grant: Grant) => {
       if (!c.activeConversation?.profile) return;
       setAskingAboutGrant(null);
-      setStartingGrantId(grant.id);
       setBusy(true);
       const profile = c.activeConversation.profile;
       try {
-        const currentDocument = c.activeConversation.document;
-        let doc =
-          currentDocument?.grantId === grant.id
-            ? currentDocument
-            : await applicationService.findSavedApplication(grant.id);
-        const reopened = Boolean(doc);
-        if (!doc) {
-          const statusMessageId = askAssistant([
-            {
-              type: "draft_progress",
-              state: {
-                grantTitle: grant.title,
-                percent: 0,
-                currentSectionTitle: "Analyzing requirements...",
-              },
-            },
-          ]);
-          const handleDraftProgress = (event: SseEvent) => {
-            if (statusMessageId) {
-              const data = event.data as Record<string, unknown> | undefined;
-              const sectionIdx = (data?.section_index as number | undefined) ?? 0;
-              const total = (data?.total_sections as number | undefined) ?? 12;
-              const thought = (data?.thought as string | undefined) ?? undefined;
-              const wordCount = (data?.word_count as number | undefined) ?? undefined;
-              let percent =
-                (data?.progress_percent as number | undefined) ??
-                (sectionIdx ? Math.round((sectionIdx / total) * 100) : 0);
-
-              if (event.event === "result") {
-                percent = 100;
-              }
-
-              let sectionTitle = "Preparing sections...";
-              if (event.event === "result") {
-                sectionTitle = "Application draft completed!";
-              } else if (event.message) {
-                const match = event.message.match(/Section \d+\/\d+: (.*?)(?: \([0-9]+%|\.\.\.|$)/);
-                if (match && match[1]) {
-                  sectionTitle = match[1];
-                } else if (event.message.includes("Analyzing")) {
-                  sectionTitle = "Analyzing grant requirements...";
-                }
-              }
-
-              let liveTextChunk: string | undefined = undefined;
-
-              // Real-time token streaming: update single section content live as text chunks arrive
-              if (
-                event.event === "section_chunk" &&
-                typeof data?.section_id === "string" &&
-                typeof data?.accumulated_content === "string"
-              ) {
-                liveTextChunk = data.accumulated_content;
-                c.updateDocumentSection(data.section_id, data.accumulated_content);
-                if (c.activeConversation?.stage !== "application") {
-                  c.setStage("application");
-                }
-              }
-
-              // Full document snapshot update on section completion
-              if (event.data?.document && typeof event.data.document === "object") {
-                const liveDoc = event.data.document as ApplicationDocument;
-                if (liveDoc.sections && liveDoc.sections.length > 0) {
-                  c.setDocument(liveDoc, grant.id);
-                  if (c.activeConversation?.stage !== "application") {
-                    c.setStage("application");
-                  }
-                }
-              }
-
-              setBlocks(statusMessageId, (existingBlocks) => {
-                const firstBlock = existingBlocks[0] as
-                  { state?: { liveTextChunk?: string } } | undefined;
-                const prevChunk = firstBlock?.state?.liveTextChunk;
-                return [
-                  {
-                    type: "draft_progress",
-                    state: {
-                      grantTitle: grant.title,
-                      currentSectionTitle: sectionTitle,
-                      thought,
-                      wordCount,
-                      liveTextChunk: liveTextChunk ?? prevChunk,
-                      sectionIndex: event.event === "result" ? total : sectionIdx || 1,
-                      totalSections: total,
-                      percent,
-                    },
-                  },
-                ];
-              });
-            }
-          };
-          doc = await applicationService.startApplication(grant, profile, handleDraftProgress, {
-            conversationId: c.activeConversation?.backendConversationId,
-          });
-          if (statusMessageId) {
-            setBlocks(statusMessageId, () => [
-              {
-                type: "draft_progress",
-                state: {
-                  grantTitle: grant.title,
-                  currentSectionTitle: "Application draft completed!",
-                  sectionIndex: 12,
-                  totalSections: 12,
-                  percent: 100,
-                },
-              },
-            ]);
-          }
-        }
+        const doc = await applicationService.startApplication(grant, profile);
         c.setDocument(doc, grant.id);
         c.setStage("application");
+        // The pipeline row is a SUMMARY: the draft body stays in
+        // conversation.document, and only what the board displays is mirrored
+        // into gi.applications.v1. Upserted on grantId, so a repeat start
+        // refreshes this row rather than adding a second one.
         addApplication({
-          id: doc.id,
+          id: `app-${doc.id}`,
           grantId: grant.id,
           grantTitle: grant.title,
-          grantOrganisation: grant.programme ?? grant.source ?? "Unknown funder",
-          applicantOrganisation: profile.organisationName || "Unknown applicant",
+          grantOrganisation: grant.programme || "European Grant",
+          applicantOrganisation: profile.organisationName || "Applicant",
           status: "drafting",
-          fundingAmount: grant.fundingAmount ?? profile.fundingAmount ?? "Not specified",
-          deadline: grant.deadline ?? "",
-          updatedAt: doc.updatedAt || new Date().toISOString(),
+          fundingAmount: grant.fundingAmount || "—",
+          deadline: grant.deadline || "—",
+          updatedAt: new Date().toISOString(),
         });
-        const writtenLabel = reopened ? applicationWrittenLabel(doc) : null;
-        // Collapse any previous document cards in this conversation before
-        // adding the new one — each card is now scoped to its own generation.
-        c.supersedePreviousDocumentBlocks();
         askAssistant([
           {
             type: "success",
-            message: reopened
-              ? `Saved application reopened for ${grant.title}. ${writtenLabel ? `${writtenLabel} ` : ""}Continue editing, try a rewrite, or export it.`
-              : `${isMockMode ? "Local" : "AI-generated"} application draft created and saved for ${grant.title}. Edit any section, try a rewrite, or export it.`,
+            message: `Application draft created for ${grant.title}. Edit any section, or use Rewrite with AI.`,
           },
-          { type: "document", documentId: doc.id, grantTitle: doc.grantTitle },
+          { type: "document", documentId: doc.id },
         ]);
       } catch (err) {
         // Previously uncaught: a rejection here left the UI sitting on the
@@ -555,102 +403,9 @@ export function App() {
         ]);
       } finally {
         setBusy(false);
-        setStartingGrantId(null);
       }
     },
-    [addApplication, askAssistant, c, setBlocks],
-  );
-
-  const handleDeleteApplication = useCallback(
-    (applicationId: string) => {
-      apps.deleteApplication(applicationId);
-      if (
-        c.activeConversation?.document &&
-        (c.activeConversation.document.id === applicationId ||
-          `app-${c.activeConversation.document.id}` === applicationId ||
-          c.activeConversation.document.grantId === applicationId)
-      ) {
-        c.setDocument(undefined);
-      }
-    },
-    [apps, c],
-  );
-
-  const handleOpenApplication = useCallback(
-    async (applicationId: string) => {
-      setBusy(true);
-      try {
-        const opened = await applicationService.getApplication(applicationId);
-        c.createConversationForDocument(opened.document, opened.profile, opened.grant);
-        setMainView("chat");
-      } catch (error) {
-        setMainView("chat");
-        askAssistant([
-          {
-            type: "error",
-            message:
-              error instanceof Error ? error.message : "The saved application could not be opened.",
-          },
-        ]);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [askAssistant, c],
-  );
-
-  const sendBackendChatMessage = useCallback(
-    async (text: string) => {
-      const activeConversation = c.activeConversation;
-      if (!chatService || !activeConversation) return;
-      setBusy(true);
-      try {
-        let backendConversationId = activeConversation.backendConversationId;
-        if (!backendConversationId) {
-          const backendConversation = await chatService.createConversation();
-          backendConversationId = backendConversation.conversationId;
-          c.setBackendConversationId(backendConversationId);
-        }
-
-        const reply = await chatService.sendMessage({
-          conversationId: backendConversationId,
-          sessionId: activeConversation.id,
-          userMessage: text,
-          profile: activeConversation.profile,
-        });
-        if (reply.conversationId !== backendConversationId) {
-          c.setBackendConversationId(reply.conversationId);
-        }
-        askAssistant(chatReplyBlocks(reply));
-        void synchronizeBackendHistory(activeConversation.id, reply.conversationId);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "The backend chat request failed.";
-        askAssistant([{ type: "error", message }]);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [askAssistant, c, synchronizeBackendHistory],
-  );
-
-  const ensureBackendConversation = useCallback(async (): Promise<string | null> => {
-    if (!chatService) return null;
-    const existing = c.activeConversation?.backendConversationId;
-    if (existing) return existing;
-    const backendConversation = await chatService.createConversation();
-    c.setBackendConversationId(backendConversation.conversationId);
-    return backendConversation.conversationId;
-  }, [c]);
-
-  const handleUploadDocument = useCallback(
-    async (file: File, conversationId: string | null) => {
-      if (!applicationService.uploadDocument) return;
-      const resolvedConversationId = conversationId ?? (await ensureBackendConversation());
-      await applicationService.uploadDocument(file, {
-        conversationId: resolvedConversationId ?? undefined,
-      });
-    },
-    [ensureBackendConversation],
+    [addApplication, askAssistant, c],
   );
 
   const handleUserSend = useCallback(
@@ -661,16 +416,17 @@ export function App() {
         askAssistant(answerAboutGrant(text, askingAboutGrant));
       } else if (stage === "welcome") {
         c.setStage("collecting_information");
-        askAssistant([{ type: "structured_form" }]);
+        askAssistant([
+          { type: "text", text: openingAcknowledgement(text) },
+          { type: "structured_form" },
+        ]);
       } else if (stage === "application") {
         askAssistant([
           {
             type: "text",
-            text: "You can edit any section directly, try an AI rewrite, or export the whole document as PDF or Word.",
+            text: "You can edit any section directly, click Rewrite with AI to regenerate it, or export the whole document as PDF or Word.",
           },
         ]);
-      } else if (chatService) {
-        void sendBackendChatMessage(text);
       } else {
         askAssistant([
           {
@@ -680,7 +436,7 @@ export function App() {
         ]);
       }
     },
-    [askAssistant, askUser, askingAboutGrant, c, sendBackendChatMessage],
+    [askAssistant, askUser, askingAboutGrant, c],
   );
 
   const runDemo = useCallback(async () => {
@@ -762,38 +518,33 @@ export function App() {
       // that's no longer in this conversation's current grants (e.g. after
       // a second research pass replaced it). This lookup is synchronous
       // because it runs during render (BlockRenderer -> ApplicationDocumentView).
-      // TODO(api): once a grant-details endpoint exists, replace this fallback with
+      // TODO(api): once a real backend exists, replace this fallback with
       // GET /grants/{id} — that will require getGrantById to become async
       // and the render path here to move to a loading-aware pattern; not
       // done now since it's a real behavioural change, not just a data-source swap.
       getGrantById: (id) =>
         c.activeConversation?.grants?.find((g) => g.id === id) ??
         MOCK_GRANTS.find((g) => g.id === id),
+      // The editor's pipeline-status control, served off the SAME
+      // useApplications instance the board uses — one store, so a status
+      // changed in the draft moves the card and vice versa. A chat-created
+      // application's row id is `app-${doc.id}`; no match means no control.
+      getApplicationStatus: (documentId) =>
+        applications.find((a) => a.id === `app-${documentId}`)?.status,
+      onUpdateApplicationStatus: (documentId, status) =>
+        updateApplicationStatus(`app-${documentId}`, status),
+      onViewInPipeline: () => setMainView("pipeline"),
+      onOpenWorkspace: () => setMainView("workspace"),
       formDisabled: busy,
       // "Has the search finished", not "did it find anything" — a completed
       // search that matched nothing must still stop the research card's
       // preparing-results skeletons, or they'd spin forever above the
       // no-matches state.
       hasGrantResults: c.activeConversation?.grants !== undefined,
-      getApplicationStatus: (documentId) =>
-        apps.applications.find((a) => a.id === documentId || a.id === `app-${documentId}`)?.status,
-      onUpdateApplicationStatus: (documentId, status) =>
-        apps.updateStatus(documentId.startsWith("app-") ? documentId : `app-${documentId}`, status),
-      onViewInPipeline: (appId?: string) => {
-        if (appId) {
-          setHighlightApplicationId(appId);
-          setTimeout(() => setHighlightApplicationId(null), 4000);
-        }
-        setMainView("pipeline");
-      },
-      startingGrantId,
-      existingGrantIds: new Set([
-        ...apps.applications.filter((a) => !a.id.startsWith("app-demo-")).map((a) => a.grantId),
-        ...(c.activeConversation?.document?.grantId ? [c.activeConversation.document.grantId] : []),
-      ]),
     }),
     [
-      apps,
+      applications,
+      updateApplicationStatus,
       busy,
       c.activeConversation,
       c.updateDocumentSection,
@@ -801,29 +552,25 @@ export function App() {
       handleRetryResearch,
       handleStartApplication,
       handleSubmitProfile,
-      startingGrantId,
     ],
   );
 
   const active = c.activeConversation;
-  const connectionLabel =
-    backendConnection.status === "local"
-      ? "Connected · Mock mode"
-      : backendConnection.status === "checking"
-        ? "Checking backend… · API mode"
-        : backendConnection.status === "connected"
-          ? `Connected · Backend v${backendConnection.version}`
-          : "Backend unavailable · API mode";
-  const connectionDotClass =
-    backendConnection.status === "connected" || backendConnection.status === "local"
-      ? "bg-success"
-      : backendConnection.status === "checking"
-        ? "bg-warning"
-        : "bg-destructive";
-  const activeHistorySync =
-    backendHistorySync.status !== "idle" && backendHistorySync.conversationId === active?.id
-      ? backendHistorySync
-      : undefined;
+
+  // Same lookup as callbacks.getGrantById (falls back to the mock catalogue
+  // when the document's grant has fallen out of this conversation's current
+  // `grants` list) — computed directly here since the workspace is rendered
+  // outside BlockRenderer and doesn't go through `callbacks`.
+  const workspaceGrant = active?.document
+    ? (active.grants?.find((g) => g.id === active.document?.grantId) ??
+      MOCK_GRANTS.find((g) => g.id === active.document?.grantId))
+    : undefined;
+
+  // Same id scheme as callbacks.getApplicationStatus (app-${documentId}) —
+  // read-only display in the workspace header, so no new callback needed.
+  const workspacePipelineStatus = active?.document
+    ? applications.find((a) => a.id === `app-${active.document?.id}`)?.status
+    : undefined;
 
   // Show a lightweight "assistant is working" indicator for gaps where busy
   // work is happening but no research_status block (which has its own
@@ -837,9 +584,7 @@ export function App() {
     const hasGrantResults = Boolean(active.grants?.length);
     const researchCoveringIndicator =
       lastBlock?.type === "research_status" && !lastBlock.state.error && !hasGrantResults;
-    const draftingCoveringIndicator =
-      last?.role === "assistant" && lastBlock?.type === "draft_progress";
-    return !researchCoveringIndicator && !draftingCoveringIndicator;
+    return !researchCoveringIndicator;
   }, [active, busy]);
 
   const { scrollContainerRef, scrollBottomRef, showScrollButton, scrollToBottom } =
@@ -858,13 +603,19 @@ export function App() {
   );
 
   const headerTitle =
-    mainView === "pipeline" ? "Application pipeline" : (active?.title ?? "No conversation");
+    mainView === "pipeline"
+      ? "Application pipeline"
+      : mainView === "saved"
+        ? "Saved grants"
+        : mainView === "workspace"
+          ? (active?.document?.grantTitle ?? "Document workspace")
+          : (active?.title ?? "No conversation");
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
+    <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-brand-foreground"
       >
         Skip to conversation
       </a>
@@ -875,11 +626,10 @@ export function App() {
         onNew={newConversationInChat}
         onRename={c.renameConversation}
         onDelete={c.deleteConversation}
-        isMockMode={isMockMode}
         mainView={mainView}
         onSelectView={setMainView}
-        onSignOut={handleSignOut}
-        onOpenAccount={() => setAccountModalOpen(true)}
+        savedCount={shortlist.savedGrants.length}
+        onSignOut={onSignOut}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
@@ -887,19 +637,13 @@ export function App() {
         conversations={c.conversations}
         activeId={c.activeId}
         onSelect={selectConversationInChat}
-        isMockMode={isMockMode}
         onNew={newConversationInChat}
         onRename={c.renameConversation}
         onDelete={c.deleteConversation}
         mainView={mainView}
         onSelectView={setMainView}
-        onSignOut={handleSignOut}
-        onOpenAccount={() => setAccountModalOpen(true)}
-      />
-      <AccountModal
-        open={accountModalOpen}
-        onOpenChange={setAccountModalOpen}
-        onSignOut={handleSignOut}
+        savedCount={shortlist.savedGrants.length}
+        onSignOut={onSignOut}
       />
 
       <main
@@ -923,21 +667,19 @@ export function App() {
               <h1 className="truncate text-sm font-semibold text-foreground" title={headerTitle}>
                 {headerTitle}
               </h1>
-              {mainView === "chat" && active?.updatedAt && (
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Updated {formatDistanceToNow(new Date(active.updatedAt), { addSuffix: true })}
-                </p>
-              )}
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                  Connected · {isMockMode ? "Demo mode" : "API mode"}
+                </span>
+                {mainView === "chat" && active && (
+                  <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {!isMockMode && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">
-                <span className={cn("h-1.5 w-1.5 rounded-full", connectionDotClass)} />
-                {connectionLabel}
-              </span>
-            )}
-            {isMockMode && mainView === "chat" && active?.stage === "welcome" && (
+            {mainView === "chat" && active?.stage === "welcome" && (
               <button
                 type="button"
                 onClick={runDemo}
@@ -948,22 +690,12 @@ export function App() {
                 {demoRunning ? "Running demo…" : "Run demo"}
               </button>
             )}
+            {mainView === "workspace" && active?.document && (
+              <WorkspaceExportControl doc={active.document} />
+            )}
             <ThemeToggle />
           </div>
         </header>
-
-        {activeHistorySync && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="shrink-0 border-b border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground sm:px-6"
-          >
-            {activeHistorySync.status === "syncing" && "Syncing history…"}
-            {activeHistorySync.status === "synced" && "History synced"}
-            {activeHistorySync.status === "error" &&
-              `History sync failed: ${activeHistorySync.message}`}
-          </div>
-        )}
 
         {!c.persistenceOk && (
           <div
@@ -1010,7 +742,7 @@ export function App() {
                 <Button
                   type="button"
                   onClick={c.newConversation}
-                  className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+                  className="rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90"
                 >
                   <MessageSquarePlus className="h-4 w-4" />
                   New conversation
@@ -1021,20 +753,8 @@ export function App() {
             <div ref={scrollBottomRef} className="h-4" />
           </div>
 
-          {/* Floating actions container pinned above composer */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2">
-            {Boolean(active?.profile || active?.grants?.length) && !isFreshWelcome && !busy && (
-              <Button
-                type="button"
-                onClick={handleRetryResearch}
-                className="pointer-events-auto flex items-center gap-2 rounded-full border border-brand/30 bg-card/95 px-4 py-2 text-xs font-semibold text-brand shadow-lg shadow-brand/10 backdrop-blur hover:bg-brand hover:text-white hover:shadow-brand/20 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Find alternative grants
-              </Button>
-            )}
-
-            {showScrollButton && (
+          {showScrollButton && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
               <Button
                 type="button"
                 variant="outline"
@@ -1045,13 +765,26 @@ export function App() {
                 <ArrowDown className="h-3.5 w-3.5" />
                 Scroll to latest
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {mainView === "saved" && (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <SavedGrants onGoToChat={() => setMainView("chat")} />
+          </div>
+        )}
+
+        {mainView === "workspace" && (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <DocumentWorkspace
+              doc={active?.document}
+              profile={active?.profile}
+              grant={workspaceGrant}
+              pipelineStatus={workspacePipelineStatus}
+              onSectionChange={c.updateDocumentSection}
+              onGoToChat={() => setMainView("chat")}
+            />
           </div>
         )}
 
@@ -1061,15 +794,15 @@ export function App() {
                 reuses this same view toggle rather than adding a route. */}
             <PipelineDashboard
               onGoToChat={() => setMainView("chat")}
-              onOpenApplication={handleOpenApplication}
               applications={apps.applications}
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
-              deleteApplication={handleDeleteApplication}
+              // Read-only, for working out which conversation a card links
+              // back to; the open action reuses the same switch-to-chat +
+              // activate handler the sidebar already uses.
               conversations={c.conversations}
               onOpenConversation={selectConversationInChat}
-              highlightApplicationId={highlightApplicationId}
             />
           </div>
         )}
@@ -1083,10 +816,6 @@ export function App() {
             placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
             grantContext={askingAboutGrant}
             onClearGrantContext={() => setAskingAboutGrant(null)}
-            conversationId={c.activeConversation?.backendConversationId ?? null}
-            uploadDocument={
-              applicationService.uploadDocument && chatService ? handleUploadDocument : undefined
-            }
           />
         </div>
       </main>

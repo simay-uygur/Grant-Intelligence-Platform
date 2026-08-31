@@ -65,11 +65,123 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* One-shot "nice." beat for a card that just moved to Approved — a soft
      success-tinted ring that blooms and fades, paired with a barely-there
      scale settle. Always motion-safe:-gated at the call site. */
   --animate-approved-glow: approved-glow 900ms ease-out 1;
+}
+
+:root {
+  /*
+   * Warm, editorial, professional palette: a deep, muted navy-slate brand
+   * used only for primary actions, active navigation, in-progress states,
+   * and focus rings (never as decoration), on a neutral warm-grey canvas —
+   * just a hint of warmth (low chroma at a warm hue), not cream/beige and
+   * not cold/blue. A small ochre/gold
+   * `--highlight` token exists purely for sparing editorial touches (the
+   * grant match ring, a handful of active states) — it is never used for
+   * primary actions. Semantic status colours (success, warning,
+   * destructive) are separate tokens rather than raw Tailwind palette
+   * literals, so every "this succeeded / this needs attention / this
+   * failed" surface in the app stays visually consistent.
+   *
+   * `--brand` gets an explicit `.dark` override below (a lightened slate)
+   * so `text-brand` holds real contrast directly on dark surfaces — no
+   * component should need a `dark:text-foreground` workaround for it.
+   * Anywhere `bg-brand` is used as a button fill, pair it with
+   * `text-brand-foreground` (never a hardcoded `text-white`), since that
+   * pairing is what flips correctly between themes.
+   */
+  --radius: 0.5rem;
+  --background: oklch(0.98 0.004 70);
+  --foreground: oklch(0.22 0.02 50);
+  --card: oklch(0.995 0.002 70);
+  --card-foreground: oklch(0.22 0.02 50);
+  --popover: oklch(0.995 0.002 70);
+  --popover-foreground: oklch(0.22 0.02 50);
+  --primary: oklch(0.32 0.04 240);
+  --primary-foreground: oklch(0.99 0.003 70);
+  --secondary: oklch(0.95 0.005 65);
+  --secondary-foreground: oklch(0.28 0.02 55);
+  --muted: oklch(0.95 0.005 65);
+  --muted-foreground: oklch(0.48 0.018 55);
+  --accent: oklch(0.93 0.006 65);
+  --accent-foreground: oklch(0.28 0.02 55);
+  --destructive: oklch(0.58 0.19 27);
+  --destructive-foreground: oklch(0.99 0.003 70);
+  --success: oklch(0.48 0.09 150);
+  --success-foreground: oklch(0.99 0.003 70);
+  --warning: oklch(0.55 0.12 73);
+  --warning-foreground: oklch(0.99 0.003 70);
+  --border: oklch(0.9 0.005 65);
+  --input: oklch(0.9 0.005 65);
+  --ring: oklch(0.32 0.04 240);
+  --brand: oklch(0.32 0.04 240);
+  --brand-foreground: oklch(0.99 0.003 70);
+  --highlight: oklch(0.62 0.13 75);
+  --highlight-foreground: oklch(0.22 0.03 60);
+  --chart-1: oklch(0.5 0.18 265);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.2 0.003 260);
+  --sidebar-foreground: oklch(0.95 0.008 65);
+  --sidebar-primary: oklch(0.78 0.03 240);
+  --sidebar-primary-foreground: oklch(0.18 0.03 240);
+  --sidebar-accent: oklch(0.3 0.004 260);
+  --sidebar-accent-foreground: oklch(0.97 0.006 70);
+  --sidebar-border: oklch(0.32 0.003 260);
+  --sidebar-ring: oklch(0.78 0.03 240);
+}
+
+.dark {
+  --background: oklch(0.17 0.005 55);
+  --foreground: oklch(0.96 0.008 65);
+  --card: oklch(0.23 0.006 55);
+  --card-foreground: oklch(0.96 0.008 65);
+  --popover: oklch(0.23 0.006 55);
+  --popover-foreground: oklch(0.96 0.008 65);
+  --primary: oklch(0.92 0.012 65);
+  --primary-foreground: oklch(0.22 0.016 55);
+  --secondary: oklch(0.28 0.006 55);
+  --secondary-foreground: oklch(0.96 0.008 65);
+  --muted: oklch(0.28 0.006 55);
+  --muted-foreground: oklch(0.68 0.02 60);
+  --accent: oklch(0.28 0.006 55);
+  --accent-foreground: oklch(0.96 0.008 65);
+  --destructive: oklch(0.68 0.16 25);
+  --destructive-foreground: oklch(0.96 0.008 65);
+  --success: oklch(0.7 0.12 152);
+  --success-foreground: oklch(0.17 0.014 55);
+  --warning: oklch(0.76 0.13 78);
+  --warning-foreground: oklch(0.17 0.014 55);
+  --border: oklch(0.95 0.004 65 / 12%);
+  --input: oklch(0.95 0.004 65 / 15%);
+  --ring: oklch(0.58 0.02 60);
+  /* The dark-mode fix: a lightened slate that reads clearly as text
+     directly on the dark surfaces above, paired with a dark foreground for
+     when it's used as a button fill instead (see `.dark .bg-brand`). */
+  --brand: oklch(0.78 0.03 240);
+  --brand-foreground: oklch(0.18 0.03 240);
+  --highlight: oklch(0.72 0.13 75);
+  --highlight-foreground: oklch(0.18 0.025 60);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.16 0.003 260);
+  --sidebar-foreground: oklch(0.95 0.008 65);
+  --sidebar-primary: oklch(0.78 0.03 240);
+  --sidebar-primary-foreground: oklch(0.18 0.03 240);
+  --sidebar-accent: oklch(0.28 0.004 260);
+  --sidebar-accent-foreground: oklch(0.96 0.008 65);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.78 0.03 240);
 }
 
 @keyframes approved-glow {
@@ -87,108 +199,14 @@
   }
 }
 
-:root {
-  /*
-   * Restrained, institutional palette: a single lower-chroma brand blue used
-   * only for primary actions, active navigation, in-progress states, and
-   * focus rings (never as decoration). Semantic status colours (success,
-   * warning, destructive) are separate tokens rather than raw Tailwind
-   * palette literals, so every "this succeeded / this needs attention /
-   * this failed" surface in the backend stays visually consistent.
-   */
-  --radius: 0.5rem;
-  --background: oklch(0.985 0.005 250);
-  --foreground: oklch(0.2 0.03 260);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.03 260);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.03 260);
-  --primary: oklch(0.4 0.08 235);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.96 0.008 260);
-  --secondary-foreground: oklch(0.25 0.04 260);
-  --muted: oklch(0.96 0.008 260);
-  --muted-foreground: oklch(0.5 0.02 260);
-  --accent: oklch(0.94 0.02 260);
-  --accent-foreground: oklch(0.25 0.04 260);
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.99 0 0);
-  --success: oklch(0.48 0.1 155);
-  --success-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.55 0.13 75);
-  --warning-foreground: oklch(0.99 0 0);
-  --border: oklch(0.91 0.01 260);
-  --input: oklch(0.91 0.01 260);
-  --ring: oklch(0.4 0.08 235);
-  --brand: oklch(0.4 0.08 235);
-  --brand-foreground: oklch(0.99 0 0);
-  --chart-1: oklch(0.5 0.18 265);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.22 0.04 260);
-  --sidebar-foreground: oklch(0.96 0.008 260);
-  --sidebar-primary: oklch(0.4 0.08 235);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.3 0.05 235);
-  --sidebar-accent-foreground: oklch(0.99 0 0);
-  --sidebar-border: oklch(0.3 0.04 260);
-  --sidebar-ring: oklch(0.4 0.08 235);
-}
-
-.dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --success: oklch(0.72 0.13 155);
-  --success-foreground: oklch(0.129 0.042 264.695);
-  --warning: oklch(0.78 0.14 80);
-  --warning-foreground: oklch(0.129 0.042 264.695);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
-}
-
 @layer base {
   * {
     border-color: var(--color-border);
   }
 
   html,
-  body,
-  #root {
-    height: 100%;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
+  body {
+    overflow-x: hidden;
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
