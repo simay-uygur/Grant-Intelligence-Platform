@@ -937,7 +937,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     const researchCoveringIndicator =
       lastBlock?.type === "research_status" && !lastBlock.state.error && !hasGrantResults;
     const draftingCoveringIndicator =
-      lastBlock?.type === "draft_progress" && !lastBlock.state.error && lastBlock.state.percent < 100;
+      lastBlock?.type === "draft_progress" &&
+      !lastBlock.state.error &&
+      lastBlock.state.percent < 100;
     return !researchCoveringIndicator && !draftingCoveringIndicator;
   }, [active, busy]);
 
