@@ -81,7 +81,11 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                 </Section>
 
                 <Section title="Funding">
-                  <Field label="Amount" value={grant.fundingAmount} fallback="Horizon Europe standard funding rates apply." />
+                  <Field
+                    label="Amount"
+                    value={grant.fundingAmount}
+                    fallback="Horizon Europe standard funding rates apply."
+                  />
                   <Field label="Type" value={grant.fundingType} fallback="Grant" />
                 </Section>
 

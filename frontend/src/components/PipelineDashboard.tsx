@@ -172,7 +172,10 @@ function ApplicationRow({
       {/* z-10 lifts the status and delete controls above the title button's stretched
           overlay, and stopPropagation keeps a click on it from ever being
           read as "open the details sheet". */}
-      <div className="relative z-10 flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="relative z-10 flex items-center gap-1.5 shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="w-40 shrink-0">
           {ghost ? (
             // Stands in for the Select so the ghost keeps the row's exact

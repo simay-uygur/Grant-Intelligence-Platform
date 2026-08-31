@@ -417,8 +417,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
       // Check if there is an existing conversation that has this document
       const matchingConv = c.conversations.find(
         (conv) =>
-          conv.document?.grantId === app.grantId ||
-          conv.document?.grantTitle === app.grantTitle,
+          conv.document?.grantId === app.grantId || conv.document?.grantTitle === app.grantTitle,
       );
       if (matchingConv) {
         c.selectConversation(matchingConv.id);
@@ -427,24 +426,25 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
       }
 
       // If not, find the grant or synthesize one and start a new conversation with draft
-      const targetGrant =
-        MOCK_GRANTS.find((g) => g.id === app.grantId || g.title === app.grantTitle) ?? {
-          id: app.grantId || app.id,
-          programme: app.grantOrganisation,
-          title: app.grantTitle,
-          fundingAmount: app.fundingAmount,
-          deadline: app.deadline,
-          sourceUrl: "",
-          matchPercentage: 90,
-          eligibleCountries: ["EU Member States"],
-          organisationEligibility: ["SMEs", "Research"],
-          fundingType: "Grant",
-          description: `Application for ${app.grantTitle}`,
-          whyItMatches: "Pre-existing pipeline candidate",
-          matchReasons: [],
-          requirements: [],
-          tags: ["EU Funding"],
-        };
+      const targetGrant = MOCK_GRANTS.find(
+        (g) => g.id === app.grantId || g.title === app.grantTitle,
+      ) ?? {
+        id: app.grantId || app.id,
+        programme: app.grantOrganisation,
+        title: app.grantTitle,
+        fundingAmount: app.fundingAmount,
+        deadline: app.deadline,
+        sourceUrl: "",
+        matchPercentage: 90,
+        eligibleCountries: ["EU Member States"],
+        organisationEligibility: ["SMEs", "Research"],
+        fundingType: "Grant",
+        description: `Application for ${app.grantTitle}`,
+        whyItMatches: "Pre-existing pipeline candidate",
+        matchReasons: [],
+        requirements: [],
+        tags: ["EU Funding"],
+      };
 
       const defaultProfile: OrganisationProfile = {
         organisationName: app.applicantOrganisation || "Applicant",

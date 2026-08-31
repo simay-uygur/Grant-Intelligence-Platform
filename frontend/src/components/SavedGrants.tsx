@@ -29,10 +29,7 @@ function savedToFullGrant(saved: SavedGrant): Grant {
       saved.sourceUrl ||
       "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/programmes/horizon",
     matchPercentage: 90,
-    eligibleCountries: [
-      "EU Member States",
-      "Horizon Europe Associated Countries",
-    ],
+    eligibleCountries: ["EU Member States", "Horizon Europe Associated Countries"],
     organisationEligibility: [
       "SMEs and Startups",
       "Universities & Research Organisations",
@@ -167,7 +164,8 @@ export function SavedGrants({
           Saved grants
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Grants you&apos;ve bookmarked while researching, newest first. Click any grant title to view its full specification.
+          Grants you&apos;ve bookmarked while researching, newest first. Click any grant title to
+          view its full specification.
         </p>
       </header>
 

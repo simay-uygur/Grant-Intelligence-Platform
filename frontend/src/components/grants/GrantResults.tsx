@@ -68,7 +68,9 @@ export function GrantResults({
   const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [showAllCandidates, setShowAllCandidates] = useState(false);
-  const [candidateFilter, setCandidateFilter] = useState<"all" | "eu_portal" | "web_discovery">("all");
+  const [candidateFilter, setCandidateFilter] = useState<"all" | "eu_portal" | "web_discovery">(
+    "all",
+  );
   const [searchQuery, setSearchQuery] = useState("");
 
   const candidatePool = useMemo(() => {
@@ -203,9 +205,7 @@ export function GrantResults({
           {showAllCandidates && (
             <div className="border-t border-border px-4 py-3.5 space-y-3 bg-muted/10">
               {sourceSummary && (
-                <p className="text-[11px] text-muted-foreground">
-                  {sourceSummary}
-                </p>
+                <p className="text-[11px] text-muted-foreground">{sourceSummary}</p>
               )}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                 {/* Source Filter Tabs */}

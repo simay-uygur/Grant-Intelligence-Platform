@@ -53,7 +53,10 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
           setBusy(false);
           return;
         } else {
-          setError(payload.detail || (mode === "login" ? "Invalid email or password." : "Registration failed."));
+          setError(
+            payload.detail ||
+              (mode === "login" ? "Invalid email or password." : "Registration failed."),
+          );
           setBusy(false);
           return;
         }
