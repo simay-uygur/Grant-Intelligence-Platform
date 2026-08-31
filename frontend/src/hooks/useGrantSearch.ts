@@ -5,9 +5,10 @@ import type { ChatBlock, Grant, OrganisationProfile, ResearchState } from "@/typ
 
 /** Steps shown while streaming results from the agent. */
 const LIVE_RESEARCH_STEPS = [
-  "Generating search keywords",
-  "Parallel multi-source search (EU Portal & Web Discovery)",
-  "Filtering & ranking best matches",
+  "Analysing profile & generating keywords",
+  "Searching EU Portal (Horizon Europe / SEDIA)",
+  "Searching web funding sources",
+  "Evaluating & ranking best matches",
 ];
 
 interface UseGrantSearchOptions {
@@ -82,15 +83,27 @@ export function useGrantSearch({
       try {
         const handleProgress = (event: SseEvent) => {
           if (!event.stage) return;
-          const stageIndexMap: Record<string, number> = {
-            keywords: 0,
-            search: 1,
-            select: 2,
-          };
-          const activeIndex = stageIndexMap[event.stage] ?? 0;
           const data = event.data as Record<string, unknown> | undefined;
           const euCount = typeof data?.eu_count === "number" ? data.eu_count : undefined;
           const webCount = typeof data?.web_count === "number" ? data.web_count : undefined;
+          const candidateCount = typeof data?.candidate_count === "number" ? data.candidate_count : undefined;
+          const tool = typeof data?.tool === "string" ? data.tool : "";
+
+          // Map SSE stage + tool name → 4-step index
+          let activeIndex: number;
+          if (event.stage === "keywords") {
+            activeIndex = 0;
+          } else if (event.stage === "search") {
+            // EU Portal tool → step 1, web tool → step 2, generic search → step 1
+            if (tool.includes("web") || (data?.source as string | undefined) === "web_search") {
+              activeIndex = 2;
+            } else {
+              activeIndex = 1;
+            }
+          } else {
+            // select / evaluate / finalize
+            activeIndex = 3;
+          }
 
           onResearchProgress(messageId, (blocks) =>
             blocks.map((block) => {
@@ -104,6 +117,7 @@ export function useGrantSearch({
                     detail: event.message || step.detail,
                     euCount: euCount ?? step.euCount,
                     webCount: webCount ?? step.webCount,
+                    candidateCount: candidateCount ?? step.candidateCount,
                   };
                 }
                 return { ...step, status: "pending" as const };

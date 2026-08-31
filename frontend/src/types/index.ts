@@ -105,6 +105,7 @@ export interface ResearchStep {
   detail?: string;
   euCount?: number;
   webCount?: number;
+  candidateCount?: number;
 }
 
 /** Progress of the current research session (grant matching in progress for a profile). */

@@ -101,16 +101,11 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
       <CardContent className="p-0">
         <ol className="mt-3 space-y-2 sm:mt-4">
           {state.steps.map((step, i) => {
-            const isParallelSearchStep =
-              step.label.toLowerCase().includes("search") ||
-              step.label.toLowerCase().includes("parallel") ||
-              step.label.toLowerCase().includes("european") ||
-              step.euCount !== undefined ||
-              step.webCount !== undefined;
-            const showParallelPanel =
-              isParallelSearchStep && (step.status === "active" || step.status === "done");
-            const euCount = step.euCount ?? state.euCount;
-            const webCount = step.webCount ?? state.webCount;
+            const isEuStep = i === 1;
+            const isWebStep = i === 2;
+            const showEuPanel = isEuStep && (step.status === "active" || step.status === "done");
+            const showWebPanel = isWebStep && (step.status === "active" || step.status === "done");
+            const count = step.candidateCount ?? (isEuStep ? step.euCount : isWebStep ? step.webCount : undefined);
 
             return (
               <li
@@ -139,79 +134,86 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
                       </span>
                     )}
                   </div>
+                  {/* Live candidate count badge */}
+                  {count !== undefined && step.status !== "pending" && (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums transition-all",
+                        step.status === "active"
+                          ? "bg-brand/15 text-brand animate-pulse"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {count > 0 ? `+${count} found` : "Searching…"}
+                    </span>
+                  )}
                   <StepStatusIndicator status={step.status} />
                 </div>
 
-                {showParallelPanel && (
-                  <div className="mt-1 grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
-                    <div
-                      className={cn(
-                        "flex items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
-                        step.status === "active"
-                          ? "border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10"
-                          : "border-border/60 bg-muted/30",
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs">
-                          🇪🇺
-                        </span>
-                        <div className="min-w-0">
-                          <span className="font-medium text-foreground block truncate">
-                            EU Portal Calls
-                          </span>
-                          <span className="text-[10px] text-muted-foreground block truncate">
-                            Horizon Europe / SEDIA
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {euCount !== undefined && (
-                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
-                            +{euCount}
-                          </span>
-                        )}
-                        {step.status === "active" ? (
-                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                        ) : (
-                          <Check className="h-3 w-3 text-success" />
-                        )}
+                {/* EU Portal panel on EU step */}
+                {showEuPanel && (
+                  <div
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
+                      step.status === "active"
+                        ? "border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10"
+                        : "border-border/60 bg-muted/30",
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs">
+                        🇪🇺
+                      </span>
+                      <div className="min-w-0">
+                        <span className="font-medium text-foreground block truncate">EU Portal Calls</span>
+                        <span className="text-[10px] text-muted-foreground block truncate">Horizon Europe / SEDIA</span>
                       </div>
                     </div>
-
-                    <div
-                      className={cn(
-                        "flex items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
-                        step.status === "active"
-                          ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10"
-                          : "border-border/60 bg-muted/30",
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs">
-                          🌐
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {step.euCount !== undefined && (
+                        <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
+                          +{step.euCount}
                         </span>
-                        <div className="min-w-0">
-                          <span className="font-medium text-foreground block truncate">
-                            Web Grant Discovery
-                          </span>
-                          <span className="text-[10px] text-muted-foreground block truncate">
-                            National & Regional Funds
-                          </span>
-                        </div>
+                      )}
+                      {step.status === "active" ? (
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      ) : (
+                        <Check className="h-3 w-3 text-success" />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Web Discovery panel on web step */}
+                {showWebPanel && (
+                  <div
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
+                      step.status === "active"
+                        ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10"
+                        : "border-border/60 bg-muted/30",
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs">
+                        🌐
+                      </span>
+                      <div className="min-w-0">
+                        <span className="font-medium text-foreground block truncate">Web Grant Discovery</span>
+                        <span className="text-[10px] text-muted-foreground block truncate">National & Regional Funds</span>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {webCount !== undefined && (
-                          <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                            +{webCount}
-                          </span>
-                        )}
-                        {step.status === "active" ? (
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        ) : (
-                          <Check className="h-3 w-3 text-success" />
-                        )}
-                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {step.webCount !== undefined && (
+                        <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                          +{step.webCount}
+                        </span>
+                      )}
+                      {step.status === "active" ? (
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      ) : (
+                        <Check className="h-3 w-3 text-success" />
+                      )}
                     </div>
                   </div>
                 )}

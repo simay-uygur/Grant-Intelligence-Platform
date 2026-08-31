@@ -841,7 +841,27 @@ function matchTargetSections(
   const q = instruction.toLowerCase().trim();
   if (WHOLE_DOCUMENT_PATTERN.test(q)) return { kind: "all" };
 
-  // 1. Explicit section index/number references (e.g. "section 6", "part 6", "sec 6", "#6", "6.")
+  // 1a. Ordinal word references: "first", "second", "third", "last" section
+  const ORDINALS: Record<string, number> = {
+    first: 0, firs: 0, sifrst: 0, firsst: 0, frist: 0, // common typos for "first"
+    second: 1, secnd: 1, secon: 1,
+    third: 2, thrid: 2,
+    fourth: 3, forth: 3,
+    fifth: 4,
+    sixth: 5,
+    seventh: 6,
+    eighth: 7,
+    ninth: 8,
+    tenth: 9,
+    last: sections.length - 1,
+  };
+  for (const [word, idx] of Object.entries(ORDINALS)) {
+    if (q.includes(word) && idx >= 0 && idx < sections.length) {
+      return { kind: "sections", sections: [sections[idx]] };
+    }
+  }
+
+  // 1b. Explicit section index/number references (e.g. "section 6", "part 6", "sec 6", "#6", "6.")
   const numMatch =
     q.match(/\b(?:section|part|sec|#)\s*([0-9]+)\b/) ||
     q.match(/\b([0-9]+)(?:st|nd|rd|th)?\s+(?:section|part)\b/);
@@ -965,11 +985,6 @@ function AssistantPanel({
   const nextIdRef = useRef(0);
   const inputId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const pinnedSection = pinnedSectionId
-    ? doc.sections.find((s) => s.id === pinnedSectionId)
-    : undefined;
-  const pinnedIndex = pinnedSection ? doc.sections.indexOf(pinnedSection) : -1;
 
   // A section's "Ask assistant" button both pins the context chip and moves
   // focus here — this effect is the "moves focus" half of that.
@@ -1401,26 +1416,8 @@ function AssistantPanel({
         </div>
       )}
 
-      <div className="shrink-0 border-t border-border px-4 py-2">
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="font-medium uppercase tracking-wider">Context</span>
-          {pinnedSection ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand/10 px-2 py-0.5 font-medium text-brand">
-              {pinnedIndex + 1}. {pinnedSection.title}
-              <button
-                type="button"
-                onClick={onClearPinnedSection}
-                aria-label={`Remove ${pinnedSection.title} from context`}
-                className="rounded-full hover:text-destructive"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ) : (
-            <span className="rounded-full border border-border px-2 py-0.5">Whole document</span>
-          )}
-        </div>
-      </div>
+
+
 
       <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3">
         <div className="flex items-end gap-2">

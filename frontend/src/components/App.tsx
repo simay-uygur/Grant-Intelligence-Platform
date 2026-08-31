@@ -241,7 +241,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     [appendMessage, uid],
   );
 
-  const { runResearch, handleRetryResearch: executeRetryResearch } = useGrantSearch({
+  const { runResearch } = useGrantSearch({
     onResearchStart: (initialState) =>
       askAssistant([{ type: "research_status", state: initialState }]),
     onResearchProgress: (messageId, updater) => setBlocks(messageId, updater),
@@ -303,16 +303,20 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   );
 
   const handleRetryResearch = useCallback(() => {
-    if (c.activeConversation?.profile) {
-      askUser([
-        {
-          type: "text",
-          text: "Find alternative grants matching my organisation profile.",
-        },
-      ]);
-      executeRetryResearch();
-    }
-  }, [askUser, c.activeConversation, executeRetryResearch]);
+    const profile = c.activeConversation?.profile;
+    if (!profile) return;
+    askUser([
+      {
+        type: "text",
+        text: "Find alternative grants matching my organisation profile.",
+      },
+    ]);
+    const excludedIds = c.activeConversation?.grants?.map((g) => g.id) ?? [];
+    void runResearch(profile, {
+      excludedGrantIds: excludedIds,
+      userRequest: "Find alternative grants matching my organisation profile.",
+    });
+  }, [askUser, c.activeConversation, runResearch]);
 
   const handleAskGrant = useCallback(
     (grant: Grant) => {

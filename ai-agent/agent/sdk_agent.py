@@ -538,6 +538,207 @@ async def run_agent(
     }
 
 
+async def run_agent_stream_sdk(
+    profile: dict[str, Any],
+    user_message: str | None = None,
+    conversation_history: Any | None = None,
+    session_id: str | None = None,
+    max_turns: int = 8,
+    excluded_grant_ids: list[str] | None = None,
+) -> Any:
+    """
+    Async generator: yields real-time SSE events as Claude Agent SDK runs.
+    Streams tool-call progress (search → evaluate → finalize) as they happen.
+    Falls back to run_agent_stream if the SDK is not available.
+    """
+    import asyncio
+
+    if not HAS_CLAUDE_AGENT_SDK or query is None or ClaudeAgentOptions is None:
+        # SDK not available — yield from the sync fallback
+        for event in run_agent_stream(
+            profile,
+            user_message=user_message,
+            conversation_history=conversation_history,
+            session_id=session_id,
+            excluded_grant_ids=excluded_grant_ids,
+        ):
+            yield event
+        return
+
+    _result_holder_var.set(None)
+    stats = _init_search_stats()
+
+    # Bridge tool-call events into an asyncio Queue so we can yield them
+    # between SDK message iterations.
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    def _sink(ev: dict[str, Any]) -> None:
+        event_queue.put_nowait(ev)
+
+    stats["event_sink"] = _sink
+
+    # Drain everything currently in the queue without blocking
+    async def _drain() -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        while not event_queue.empty():
+            items.append(event_queue.get_nowait())
+        return items
+
+    yield {
+        "event": "thinking",
+        "stage": "keywords",
+        "message": "Claude Agent SDK starting — analysing your profile and planning grant search...",
+        "data": {"thought": "Initialising Claude Agent SDK agentic loop with MCP grant tools..."},
+    }
+
+    if session_id:
+        prompt = user_message or "Continue."
+    else:
+        prompt = _build_prompt(profile, user_message, conversation_history, excluded_grant_ids=excluded_grant_ids)
+
+    options_kwargs: dict[str, Any] = dict(
+        model=MODEL_ID,
+        system_prompt=GRANT_AGENT_SYSTEM_PROMPT,
+        mcp_servers={"grants": grant_server},
+        allowed_tools=ALLOWED_TOOLS,
+        max_turns=max_turns,
+    )
+    if session_id:
+        options_kwargs["resume"] = session_id
+
+    reply_text = ""
+    captured_session_id = session_id
+
+    try:
+        from claude_agent_sdk import (
+            AssistantMessage,
+            ResultMessage,
+            SystemMessage,
+            TaskProgressMessage,
+            TaskStartedMessage,
+            ThinkingBlock,
+            ToolResultBlock,
+            ToolUseBlock,
+        )
+
+        async for message in query(
+            prompt=prompt,
+            options=ClaudeAgentOptions(**options_kwargs),
+        ):
+            # --- Drain tool-call events emitted by MCP tools ---
+            for ev in await _drain():
+                yield ev
+
+            # --- SDK message → SSE event mapping ---
+            if isinstance(message, SystemMessage):
+                data = getattr(message, "data", {}) or {}
+                captured_session_id = data.get("session_id", captured_session_id)
+
+            elif isinstance(message, AssistantMessage):
+                captured_session_id = getattr(message, "session_id", None) or captured_session_id
+                content = getattr(message, "content", []) or []
+
+                for block in content:
+                    if isinstance(block, ThinkingBlock):
+                        thinking = (block.thinking or "")[:300]
+                        yield {
+                            "event": "thinking",
+                            "stage": "search",
+                            "message": "Claude is thinking...",
+                            "data": {"thought": thinking},
+                        }
+
+                    elif isinstance(block, ToolUseBlock):
+                        tool_label = {
+                            "mcp__grants__search_eu_grants": "Searching EU Portal",
+                            "mcp__grants__web_search_grants": "Searching the web",
+                            "mcp__grants__evaluate_grant_candidates": "Evaluating candidates",
+                            "mcp__grants__finalize_grant_recommendations": "Finalising recommendations",
+                            "mcp__grants__draft_application": "Drafting application",
+                            "mcp__grants__rewrite_application_section": "Rewriting section",
+                        }.get(block.name, f"Calling {block.name}")
+
+                        # Extract useful arg preview
+                        inp = block.input or {}
+                        detail = inp.get("keywords") or inp.get("query") or inp.get("section_title") or ""
+                        msg = f"{tool_label}" + (f": {detail}" if detail else "")
+
+                        yield {
+                            "event": "progress",
+                            "stage": "search" if "search" in block.name else "select",
+                            "message": msg,
+                            "data": {
+                                "tool": block.name,
+                                "input_preview": str(detail)[:120],
+                                "candidate_count": len(stats.get("candidates", {})),
+                                "eu_count": stats.get("eu_count", 0),
+                                "web_count": stats.get("web_count", 0),
+                            },
+                        }
+
+                    elif isinstance(block, ToolResultBlock):
+                        # Drain again — tool just finished, may have queued events
+                        for ev in await _drain():
+                            yield ev
+
+            elif isinstance(message, (TaskStartedMessage, TaskProgressMessage)):
+                last_tool = getattr(message, "last_tool_name", None)
+                desc = getattr(message, "description", None)
+                if last_tool or desc:
+                    yield {
+                        "event": "progress",
+                        "stage": "search",
+                        "message": desc or f"Running {last_tool}...",
+                        "data": {"tool": last_tool or ""},
+                    }
+
+            elif isinstance(message, ResultMessage):
+                captured_session_id = getattr(message, "session_id", None) or captured_session_id
+                reply_text = getattr(message, "result", "") or ""
+
+        # Final drain after loop ends
+        for ev in await _drain():
+            yield ev
+
+    except Exception as e:
+        logger.error("run_agent_stream_sdk error: %s", e)
+        yield {
+            "event": "progress",
+            "stage": "select",
+            "message": f"Agent error: {e}",
+            "data": {"error": str(e)},
+        }
+
+    final_grants = _result_holder_var.get() or []
+    all_cand_list = _format_candidate_records(list(stats["candidates"].values()), final_grants)
+
+    yield {
+        "event": "progress",
+        "stage": "select",
+        "message": f"Claude selected {len(final_grants)} grant(s) ({stats['eu_count']} EU, {stats['web_count']} Web discovered)",
+        "data": {
+            "final_count": len(final_grants),
+            "candidate_count": len(all_cand_list),
+            "eu_count": stats["eu_count"],
+            "web_count": stats["web_count"],
+        },
+    }
+
+    yield {
+        "event": "result",
+        "stage": "select",
+        "message": f"Selected {len(final_grants)} top grant recommendations",
+        "data": {
+            "grants": final_grants,
+            "all_candidates": all_cand_list,
+            "reply": reply_text,
+            "session_id": captured_session_id,
+            "eu_count": stats["eu_count"],
+            "web_count": stats["web_count"],
+        },
+    }
+
+
 def run_agent_stream(
     profile: dict[str, Any],
     user_message: str | None = None,

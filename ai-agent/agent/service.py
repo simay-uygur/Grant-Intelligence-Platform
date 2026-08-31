@@ -22,12 +22,7 @@ from tools.start_application import start_application as _start_application
 from agent.sdk_agent import (
     rewrite_section_stream as _sdk_rewrite_section_stream,
 )
-from agent.sdk_agent import (
-    run_agent,
-)
-from agent.sdk_agent import (
-    run_agent_stream as _sdk_run_agent_stream,
-)
+from agent.sdk_agent import run_agent  # Real Claude Agent SDK path
 from agent.sdk_agent import (
     start_application_stream as _sdk_start_application_stream,
 )
@@ -50,21 +45,11 @@ def search_grants(profile, user_request=None, conversation_history=None, max_gra
     """
     searchGrants(profile) -> Grant[]
 
-    Backward compatible: the backend can still call search_grants(profile).
-    Optional user_request lets the user steer the search in natural language.
-    conversation_history is optional prior context.
+    Uses the real Claude Agent SDK (run_agent) as the primary path.
     excluded_grant_ids prevents recommending already-offered grants.
     """
     if not isinstance(profile, dict):
         return []
-
-    try:
-        events = list(_sdk_run_agent_stream(profile, user_message=user_request, conversation_history=conversation_history, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids))
-        for event in reversed(events):
-            if event.get("event") == "result" and "grants" in event.get("data", {}):
-                return event["data"]["grants"]
-    except Exception as e:
-        logger.warning("Stream runner failed in search_grants (%s), attempting run_agent fallback", e)
 
     message = user_request or f"Find the best matching EU grants (up to {max_grants})."
     try:
@@ -78,7 +63,7 @@ def search_grants(profile, user_request=None, conversation_history=None, max_gra
         )
         return result.get("final_grants") or []
     except Exception as e:
-        logger.error("[service] agent run failed: %s", e)
+        logger.error("[service] search_grants failed: %s", e)
         traceback.print_exc()
         return []
 
@@ -140,10 +125,51 @@ def process_agent_message(profile, user_message, conversation_history=None):
 
 def search_grants_stream(profile, max_grants=3, excluded_grant_ids=None) -> Iterator[dict[str, Any]]:
     """
-    Generator streaming events through the agent system:
-    keywords -> live search -> evaluation & selection -> result
+    Streams real-time SSE events from the Claude Agent SDK agentic loop.
+    Uses a thread+queue bridge so each event is yielded immediately as
+    Claude calls MCP tools — true live streaming, no collect-then-dump.
     """
-    yield from _sdk_run_agent_stream(profile, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids)
+    import asyncio
+    import queue
+    import threading
+
+    from agent.sdk_agent import run_agent_stream_sdk
+
+    done_sentinel = object()
+    event_queue: queue.Queue[dict[str, Any] | Exception | object] = queue.Queue()
+
+    def _run_async() -> None:
+        async def _consume() -> None:
+            try:
+                async for ev in run_agent_stream_sdk(
+                    profile,
+                    excluded_grant_ids=excluded_grant_ids,
+                ):
+                    event_queue.put(ev)
+            except Exception as exc:
+                event_queue.put(exc)
+            finally:
+                event_queue.put(done_sentinel)
+
+        asyncio.run(_consume())
+
+    thread = threading.Thread(target=_run_async, daemon=True)
+    thread.start()
+
+    while True:
+        item = event_queue.get()
+        if item is done_sentinel:
+            break
+        if isinstance(item, Exception):
+            logger.error("[service] search_grants_stream error: %s", item)
+            yield {
+                "event": "result",
+                "stage": "select",
+                "message": "Agent error",
+                "data": {"grants": [], "all_candidates": [], "reply": f"Error: {item}", "eu_count": 0, "web_count": 0},
+            }
+            break
+        yield item
 
 
 def generate_outline(grant, profile, template_type=None, custom_instructions=None, attachments=""):
