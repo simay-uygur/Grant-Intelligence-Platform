@@ -1,11 +1,14 @@
-import { AlertCircle, Check, Search } from "lucide-react";
-import type { ResearchState, ResearchStep } from "@/types";
+import { AlertCircle, Check, Database, Globe2, Search } from "lucide-react";
+import type {
+  ResearchSourceProgress,
+  ResearchSourceStatus,
+  ResearchState,
+  ResearchStep,
+} from "@/types";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { DemoBadge } from "@/components/common/DemoBadge";
-import { isMockMode } from "@/services";
 
 interface Props {
   state: ResearchState;
@@ -21,6 +24,28 @@ const ROW_STATE_CLASSES: Record<ResearchStep["status"], string> = {
   active: "border-brand/30 bg-brand/5",
   pending: "border-border/40 bg-transparent",
 };
+
+const SOURCE_STATE_CLASSES: Record<ResearchSourceStatus, string> = {
+  done: "border-border/60 bg-card",
+  active: "border-brand/30 bg-brand/5",
+  pending: "border-border/50 bg-muted/20",
+  error: "border-warning/40 bg-warning/10",
+};
+
+const defaultSources: ResearchSourceProgress[] = [
+  {
+    id: "eu_portal",
+    label: "EU Portal",
+    detail: "Horizon Europe / SEDIA",
+    status: "pending",
+  },
+  {
+    id: "web_discovery",
+    label: "Web Discovery",
+    detail: "National & regional funding sources",
+    status: "pending",
+  },
+];
 
 export function ResearchStatus({ state, onRetry, hasResults }: Props) {
   const total = state.steps.length;
@@ -75,7 +100,6 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
               marker has to stay true of the finished result too. */}
           <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-foreground">
             {hasError ? "Research failed" : allDone ? "Research complete" : "Researching grants…"}
-            {isMockMode && <DemoBadge marker="demo-data" compact />}
           </h3>
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
             {hasError
@@ -104,11 +128,28 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
       <CardContent className="p-0">
         <ol className="mt-3 space-y-2 sm:mt-4">
           {state.steps.map((step, i) => {
-            const isParallelSearchStep =
-              step.label.toLowerCase().includes("parallel") ||
-              (step.label.toLowerCase().includes("search") && !isMockMode && i === 1);
-            const showParallelPanel =
-              isParallelSearchStep && (step.status === "active" || step.status === "done");
+            const isDiscoveryStep = i === 1;
+            const isRankingStep = i === 2;
+            const count = isRankingStep ? step.selectedCount : undefined;
+            const countLabel =
+              count !== undefined && step.status !== "pending"
+                ? isRankingStep
+                  ? `${count} selected`
+                  : `${count} candidates`
+                : undefined;
+            const sources = state.sources
+              ? [state.sources.eu_portal, state.sources.web_discovery]
+              : defaultSources.map((source) => ({
+                  ...source,
+                  candidateCount:
+                    source.id === "eu_portal"
+                      ? (state.euCount ?? step.euCount)
+                      : (state.webCount ?? step.webCount),
+                  status:
+                    isDiscoveryStep && (step.status === "active" || step.status === "done")
+                      ? step.status
+                      : source.status,
+                }));
 
             return (
               <li
@@ -137,88 +178,32 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
                       </span>
                     )}
                   </div>
+                  {countLabel && (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums transition-all",
+                        step.status === "active"
+                          ? "bg-brand/15 text-brand animate-pulse"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {countLabel}
+                    </span>
+                  )}
                   <StepStatusIndicator status={step.status} />
                 </div>
 
-                {showParallelPanel && (
-                  <div className="mt-1 grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
-                    <div
-                      className={cn(
-                        "flex items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
-                        step.status === "active"
-                          ? "border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10"
-                          : "border-border/60 bg-muted/30",
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs">
-                          🇪🇺
-                        </span>
-                        <div className="min-w-0">
-                          <span className="font-medium text-foreground block truncate">
-                            EU Portal Calls
-                          </span>
-                          <span className="text-[10px] text-muted-foreground block truncate">
-                            Horizon Europe / SEDIA
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {step.euCount !== undefined && (
-                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
-                            +{step.euCount}
-                          </span>
-                        )}
-                        {step.status === "active" ? (
-                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                        ) : (
-                          <Check className="h-3 w-3 text-success" />
-                        )}
-                      </div>
-                    </div>
-
-                    <div
-                      className={cn(
-                        "flex items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
-                        step.status === "active"
-                          ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10"
-                          : "border-border/60 bg-muted/30",
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs">
-                          🌐
-                        </span>
-                        <div className="min-w-0">
-                          <span className="font-medium text-foreground block truncate">
-                            Web Grant Discovery
-                          </span>
-                          <span className="text-[10px] text-muted-foreground block truncate">
-                            National & Regional Funds
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {step.webCount !== undefined && (
-                          <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                            +{step.webCount}
-                          </span>
-                        )}
-                        {step.status === "active" ? (
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        ) : (
-                          <Check className="h-3 w-3 text-success" />
-                        )}
-                      </div>
-                    </div>
+                {isDiscoveryStep && (step.status === "active" || step.status === "done") && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {sources.map((source) => (
+                      <SourceLane key={source.id} source={source} />
+                    ))}
                   </div>
                 )}
               </li>
             );
           })}
         </ol>
-
-        {preparingResults && <RecommendationSkeletons />}
 
         {state.error && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
@@ -243,6 +228,72 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function SourceLane({ source }: { source: ResearchSourceProgress }) {
+  const Icon = source.id === "eu_portal" ? Database : Globe2;
+  const statusText =
+    source.status === "done"
+      ? "Done"
+      : source.status === "active"
+        ? "Searching"
+        : source.status === "error"
+          ? "Issue"
+          : "Waiting";
+
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 items-center justify-between gap-2 rounded-md border p-2 text-xs transition-all",
+        SOURCE_STATE_CLASSES[source.status],
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand/10 text-brand">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0">
+          <span className="block truncate font-medium text-foreground">{source.label}</span>
+          <span className="block truncate text-[10px] text-muted-foreground">
+            {source.error ?? source.detail}
+          </span>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {source.candidateCount !== undefined && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
+            {source.candidateCount} candidates
+          </span>
+        )}
+        <SourceStatusIndicator status={source.status} label={statusText} />
+      </div>
+    </div>
+  );
+}
+
+function SourceStatusIndicator({ status, label }: { status: ResearchSourceStatus; label: string }) {
+  if (status === "done") {
+    return <Check className="h-3.5 w-3.5 text-success" aria-label={label} />;
+  }
+  if (status === "error") {
+    return <AlertCircle className="h-3.5 w-3.5 text-warning" aria-label={label} />;
+  }
+  if (status === "active") {
+    return (
+      <span
+        className="h-1.5 w-1.5 rounded-full bg-brand motion-safe:animate-pulse"
+        aria-label={label}
+        role="img"
+      />
+    );
+  }
+  return (
+    <span
+      className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30"
+      aria-label={label}
+      role="img"
+    />
   );
 }
 
@@ -286,23 +337,5 @@ function StepStatusIndicator({ status }: { status: ResearchStep["status"] }) {
   }
   return (
     <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
-  );
-}
-
-function RecommendationSkeletons() {
-  return (
-    <div className="mt-4 space-y-2.5 sm:mt-5" aria-hidden="true">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="space-y-2 rounded-xl border border-border bg-card p-3.5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="h-3 w-2/5 rounded-full bg-muted motion-safe:animate-pulse" />
-            <div className="h-4 w-14 shrink-0 rounded-full bg-muted motion-safe:animate-pulse" />
-          </div>
-          <div className="h-3.5 w-3/4 rounded-full bg-muted motion-safe:animate-pulse" />
-          <div className="h-3 w-full rounded-full bg-muted motion-safe:animate-pulse" />
-          <div className="h-3 w-5/6 rounded-full bg-muted motion-safe:animate-pulse" />
-        </div>
-      ))}
-    </div>
   );
 }

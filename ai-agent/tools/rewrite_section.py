@@ -57,14 +57,17 @@ def rewrite_section(section_title, current_content, profile, grant=None, instruc
 
 def rewrite_section_stream(section_title, current_content, profile, grant=None, instruction=None):
     """
-    Rewrite one section via Bedrock converse_stream, yielding partial text chunks.
-
-    Uses the same streaming pattern as draft_single_section_stream so the
-    caller receives real token-by-token output instead of one blocking result.
-    Yields plain string chunks (the accumulated text is tracked by the caller).
+    Rewrite one section via Bedrock converse_stream, yielding SSE event dicts.
+    Emits thinking, token_delta, and final result events.
     """
-    grant_context = json.dumps(grant, indent=2) if grant else "No specific grant selected."
+    yield {
+        "event": "thinking",
+        "stage": "rewrite",
+        "message": f"Rewriting section '{section_title}'...",
+        "data": {"thought": f"Revising {section_title} to align with grant requirements and instructions..."},
+    }
 
+    grant_context = json.dumps(grant, indent=2) if grant else "No specific grant selected."
     instruction_line = f"The user specifically asks: {instruction}\n\n" if instruction else "Improve this section: make it more specific, concrete, and persuasive.\n\n"
 
     prompt = (
@@ -80,6 +83,7 @@ def rewrite_section_stream(section_title, current_content, profile, grant=None, 
         "Respond ONLY with the rewritten section text. No preamble, no headings, no quotes."
     )
 
+    accumulated = ""
     try:
         client = get_bedrock_client()
         response = client.converse_stream(
@@ -93,9 +97,25 @@ def rewrite_section_stream(section_title, current_content, profile, grant=None, 
                 if "contentBlockDelta" in event:
                     delta = event["contentBlockDelta"].get("delta", {})
                     if "text" in delta:
-                        yield delta["text"]
+                        chunk = delta["text"]
+                        accumulated += chunk
+                        yield {
+                            "event": "token_delta",
+                            "stage": "rewrite",
+                            "data": {
+                                "delta": chunk,
+                                "accumulated": accumulated,
+                            },
+                        }
     except Exception as e:
-        print(f"[rewrite_section] Stream failed for '{section_title}': {e}")
-        # Fall back to the blocking version and yield the whole result at once
-        # so the caller always receives at least a complete result event.
-        yield rewrite_section(section_title, current_content, profile, grant=grant, instruction=instruction)
+        logger.warning("[rewrite_section] Stream failed for '%s': %s", section_title, e)
+        if not accumulated:
+            accumulated = rewrite_section(section_title, current_content, profile, grant=grant, instruction=instruction)
+
+    yield {
+        "event": "result",
+        "stage": "rewrite",
+        "data": {
+            "content": accumulated.strip() or current_content,
+        },
+    }

@@ -63,6 +63,19 @@ function initialConversation(): Conversation {
   };
 }
 
+function normalizeDocumentRevisions(
+  doc: ApplicationDocument | undefined,
+): ApplicationDocument | undefined {
+  if (!doc) return undefined;
+  return {
+    ...doc,
+    sections: doc.sections.map((section) => ({
+      ...section,
+      revision: section.revision ?? 1,
+    })),
+  };
+}
+
 // Structured UI blocks remain local because backend message history stores
 // plain user/assistant text. In API mode, backendConversationId links this
 // local conversation to the corresponding backend chat session.
@@ -87,7 +100,12 @@ export function useConversations() {
       storage.saveConversations([first]);
       storage.saveActiveId(first.id);
     } else {
-      setConversations(existing);
+      setConversations(
+        existing.map((conversation) => ({
+          ...conversation,
+          document: normalizeDocumentRevisions(conversation.document),
+        })),
+      );
       const savedActive = storage.loadActiveId();
       setActiveId(
         savedActive && existing.some((c) => c.id === savedActive) ? savedActive : existing[0].id,
@@ -119,10 +137,18 @@ export function useConversations() {
     [activeId],
   );
 
-  const newConversation = useCallback(() => {
-    const c = initialConversation();
+  const newConversation = useCallback((custom?: Partial<Conversation>) => {
+    const base = initialConversation();
+    const c: Conversation = {
+      ...base,
+      ...custom,
+      id: custom?.id ?? base.id,
+      title: custom?.title ?? base.title,
+      messages: custom?.messages ?? base.messages,
+    };
     setConversations((prev) => [c, ...prev]);
     setActiveId(c.id);
+    return c;
   }, []);
 
   const selectConversation = useCallback((id: string) => {
@@ -181,6 +207,43 @@ export function useConversations() {
     [updateActive],
   );
 
+  const appendMessageToConversation = useCallback(
+    (conversationId: string, message: ChatMessage) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? { ...c, messages: [...c.messages, message], updatedAt: new Date().toISOString() }
+            : c,
+        ),
+      );
+    },
+    [],
+  );
+
+  const updateMessageBlocksInConversation = useCallback(
+    (
+      conversationId: string,
+      messageId: string,
+      updater: ChatBlock[] | ((blocks: ChatBlock[]) => ChatBlock[]),
+    ) => {
+      const fn = typeof updater === "function" ? updater : () => updater;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === messageId ? { ...m, blocks: fn(m.blocks) } : m,
+                ),
+                updatedAt: new Date().toISOString(),
+              }
+            : c,
+        ),
+      );
+    },
+    [],
+  );
+
   const setStage = useCallback(
     (stage: Conversation["stage"]) => {
       updateActive((c) => ({ ...c, stage }));
@@ -193,6 +256,17 @@ export function useConversations() {
       updateActive((c) => ({ ...c, profile }));
     },
     [updateActive],
+  );
+
+  const setConversationProfile = useCallback(
+    (conversationId: string, profile: OrganisationProfile) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, profile, updatedAt: new Date().toISOString() } : c,
+        ),
+      );
+    },
+    [],
   );
 
   const setBackendConversationId = useCallback(
@@ -232,9 +306,42 @@ export function useConversations() {
 
   const setDocument = useCallback(
     (doc: ApplicationDocument | undefined, grantId?: string) => {
-      updateActive((c) => ({ ...c, document: doc, selectedGrantId: grantId ?? c.selectedGrantId }));
+      updateActive((c) => ({
+        ...c,
+        document: normalizeDocumentRevisions(doc),
+        selectedGrantId: grantId ?? c.selectedGrantId,
+      }));
     },
     [updateActive],
+  );
+
+  const setConversationStage = useCallback(
+    (conversationId: string, stage: Conversation["stage"]) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, stage, updatedAt: new Date().toISOString() } : c,
+        ),
+      );
+    },
+    [],
+  );
+
+  const setConversationDocument = useCallback(
+    (conversationId: string, doc: ApplicationDocument | undefined, grantId?: string) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                document: normalizeDocumentRevisions(doc),
+                selectedGrantId: grantId ?? c.selectedGrantId,
+                updatedAt: new Date().toISOString(),
+              }
+            : c,
+        ),
+      );
+    },
+    [],
   );
 
   /**
@@ -256,14 +363,16 @@ export function useConversations() {
   }, [updateActive]);
 
   const updateDocumentSection = useCallback(
-    (sectionId: string, content: string) => {
+    (sectionId: string, content: string, revision?: number) => {
       updateActive((c) => {
         if (!c.document) return c;
         return {
           ...c,
           document: {
             ...c.document,
-            sections: c.document.sections.map((s) => (s.id === sectionId ? { ...s, content } : s)),
+            sections: c.document.sections.map((s) =>
+              s.id === sectionId ? { ...s, content, revision: revision ?? s.revision ?? 1 } : s,
+            ),
             updatedAt: new Date().toISOString(),
           },
         };
@@ -320,13 +429,18 @@ export function useConversations() {
     renameConversation,
     deleteConversation,
     appendMessage,
+    appendMessageToConversation,
     updateMessageBlocks,
+    updateMessageBlocksInConversation,
     setStage,
+    setConversationStage,
     setProfile,
+    setConversationProfile,
     setBackendConversationId,
     synchronizeBackendMessages,
     setGrants,
     setDocument,
+    setConversationDocument,
     supersedePreviousDocumentBlocks,
     updateDocumentSection,
     uid,

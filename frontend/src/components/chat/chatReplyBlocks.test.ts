@@ -23,14 +23,13 @@ describe("chatReplyBlocks", () => {
     ]);
   });
 
-  it("shows only the blank profile card for old onboarding messages", () => {
-    expect(
-      visibleChatBlocks([
-        { type: "text", text: "Complete the profile below." },
-        { type: "question", text: "Which country?" },
-        { type: "structured_form" },
-      ]),
-    ).toEqual([{ type: "structured_form" }]);
+  it("retains all message text and questions alongside forms", () => {
+    const blocks: Parameters<typeof visibleChatBlocks>[0] = [
+      { type: "text", text: "Complete the profile below." },
+      { type: "question", text: "Which country?" },
+      { type: "structured_form" },
+    ];
+    expect(visibleChatBlocks(blocks)).toEqual(blocks);
   });
 
   it("keeps an explanation beside a deliberately pre-filled form", () => {

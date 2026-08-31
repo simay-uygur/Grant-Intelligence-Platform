@@ -14,18 +14,10 @@ export const MATCH_TIER_LABEL: Record<MatchTier, string> = {
   partial: "Partial match",
 };
 
-/**
- * The match ring's stroke colour, by tier — editorial and deliberately
- * restrained: any real match (good and above) reads in the same warm
- * `--highlight` ochre, so the ring reads as one calm visual language rather
- * than a four-colour traffic light. Only `partial` breaks from it, in a
- * neutral grey, so a weak match doesn't borrow the same celebratory accent
- * as a strong one.
- */
 export const MATCH_TIER_CLASSES: Record<MatchTier, { stroke: string }> = {
-  excellent: { stroke: "stroke-highlight" },
-  strong: { stroke: "stroke-highlight" },
-  good: { stroke: "stroke-highlight" },
+  excellent: { stroke: "stroke-emerald-500 dark:stroke-emerald-400" },
+  strong: { stroke: "stroke-emerald-600 dark:stroke-emerald-400" },
+  good: { stroke: "stroke-teal-600 dark:stroke-teal-400" },
   partial: { stroke: "stroke-muted-foreground/50" },
 };
 

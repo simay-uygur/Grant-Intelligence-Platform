@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AUTH_TOKEN_KEY, getApiBaseUrl, joinApiUrl } from "@/services/apiClient";
@@ -15,13 +16,14 @@ export function AuthScreen() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
     setBusy(true);
     setError(undefined);
     try {
       const response = await fetch(joinApiUrl(apiBaseUrl, "/api/v1/auth/" + mode), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
       const payload = (await response.json()) as {
         token?: string;
@@ -31,7 +33,7 @@ export function AuthScreen() {
       if (!response.ok || !payload.token)
         throw new Error(payload.detail ?? "Unable to authenticate.");
       localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
-      localStorage.setItem("gi.auth.email", payload.user?.email || email);
+      localStorage.setItem("gi.auth.email", payload.user?.email || cleanEmail);
       // Notify other tabs and the ProtectedApp listener via the storage event.
       window.dispatchEvent(new StorageEvent("storage", { key: AUTH_TOKEN_KEY }));
     } catch (cause) {
@@ -65,9 +67,14 @@ export function AuthScreen() {
           <Input
             type="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            disabled={busy}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              if (error) setError(undefined);
+            }}
             required
             autoComplete="email"
+            className="disabled:opacity-60"
           />
         </label>
         <label className="block space-y-1.5 text-sm font-medium text-foreground">
@@ -75,10 +82,15 @@ export function AuthScreen() {
           <Input
             type="password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            disabled={busy}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              if (error) setError(undefined);
+            }}
             required
             minLength={8}
             autoComplete={mode === "login" ? "current-password" : "new-password"}
+            className="disabled:opacity-60"
           />
         </label>
         {error && (
@@ -87,12 +99,25 @@ export function AuthScreen() {
           </p>
         )}
         <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? "Please wait…" : mode === "login" ? "Log in" : "Register"}
+          {busy ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {mode === "login" ? "Logging in…" : "Creating account…"}
+            </span>
+          ) : mode === "login" ? (
+            "Log in"
+          ) : (
+            "Register"
+          )}
         </Button>
         <button
           type="button"
-          className="w-full text-sm text-muted-foreground hover:text-foreground"
-          onClick={() => setMode(mode === "login" ? "register" : "login")}
+          disabled={busy}
+          className="w-full text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+          onClick={() => {
+            setMode(mode === "login" ? "register" : "login");
+            setError(undefined);
+          }}
         >
           {mode === "login" ? "Need an account? Register" : "Already registered? Log in"}
         </button>

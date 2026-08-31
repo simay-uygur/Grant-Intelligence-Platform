@@ -24,7 +24,6 @@ class GrantSearchService:
         effective_excluded = self._resolve_excluded_ids(payload, user_id=user_id)
         grants = self.agent_service.search_grants(
             payload.to_agent_profile(),
-            max_grants=payload.limit,
             excluded_grant_ids=effective_excluded,
         )
         source_summary = "Results discovered through parallel multi-source search across the live EU Funding & Tenders Portal and web grant discovery, ranked against your profile by the AI agent."
@@ -55,16 +54,16 @@ class GrantSearchService:
         effective_excluded = self._resolve_excluded_ids(payload, user_id=user_id)
         source_summary = "Results discovered through parallel multi-source search across the live EU Funding & Tenders Portal and web grant discovery, ranked against your profile by the AI agent."
 
+        batch_id = None
+        batch_index = None
+
         for event in self.agent_service.search_grants_stream(
             payload.to_agent_profile(),
-            max_grants=payload.limit,
             excluded_grant_ids=effective_excluded,
         ):
-            if event.get("event") == "result" and "grants" in event.get("data", {}):
+            if isinstance(event, dict) and event.get("event") == "result" and "grants" in event.get("data", {}):
                 grants_data = event["data"]["grants"]
                 all_candidates_data = event["data"].get("all_candidates")
-                batch_id = None
-                batch_index = None
                 if payload.conversation_id or user_id:
                     batch = self.application_store.record_search_batch(
                         grants=grants_data,
@@ -84,6 +83,8 @@ class GrantSearchService:
                     normalized_filters_applied=payload.to_agent_profile() | {"limit": payload.limit},
                     batch_id=batch_id,
                     batch_index=batch_index,
+                    eu_count=event["data"].get("eu_count"),
+                    web_count=event["data"].get("web_count"),
                 )
                 event = {
                     **event,

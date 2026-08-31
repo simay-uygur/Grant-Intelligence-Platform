@@ -25,11 +25,17 @@ class AgentService:
         excluded_grant_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         search_grants = self._load_function("search_grants")
-        result: list[dict[str, Any]] = search_grants(
-            profile,
-            max_grants=max_grants,
-            excluded_grant_ids=excluded_grant_ids,
-        )
+        try:
+            result: list[dict[str, Any]] = search_grants(
+                profile,
+                max_grants=max_grants,
+                excluded_grant_ids=excluded_grant_ids,
+            )
+        except TypeError:
+            result = search_grants(
+                profile,
+                excluded_grant_ids=excluded_grant_ids,
+            )
         return result
 
     def search_grants_stream(
@@ -39,11 +45,17 @@ class AgentService:
         excluded_grant_ids: list[str] | None = None,
     ) -> Iterator[dict[str, Any]]:
         search_grants_stream = self._load_function("search_grants_stream")
-        yield from search_grants_stream(
-            profile,
-            max_grants=max_grants,
-            excluded_grant_ids=excluded_grant_ids,
-        )
+        try:
+            yield from search_grants_stream(
+                profile,
+                max_grants=max_grants,
+                excluded_grant_ids=excluded_grant_ids,
+            )
+        except TypeError:
+            yield from search_grants_stream(
+                profile,
+                excluded_grant_ids=excluded_grant_ids,
+            )
 
     def generate_outline(
         self,

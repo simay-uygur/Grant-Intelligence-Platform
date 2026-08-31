@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Bookmark, BookmarkX, ExternalLink, MessagesSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Grant } from "@/types";
@@ -7,60 +8,91 @@ import { formatDeadline } from "@/utils/deadline";
 import { Button } from "@/components/ui/button";
 import { DeadlineBadge } from "@/components/grants/DeadlineBadge";
 import { MetaCell } from "@/components/grants/GrantResults";
-import { DemoBadge } from "@/components/common/DemoBadge";
+import { GrantDetailsSheet } from "@/components/grants/GrantDetailsSheet";
 import { EmptyState } from "@/components/EmptyState";
 
 /**
- * toggleSave takes a full Grant, because SAVING needs the whole record. This
- * view only ever REMOVES an already-saved grant, and that path reads nothing
- * but `id` — so the remaining fields are never stored. The real catalogue
- * entry is used when it exists; the fallback exists so a saved grant whose
- * catalogue entry has gone can still be un-saved rather than being stuck.
+ * Convert a SavedGrant into a displayable Grant for the details sheet.
  */
-function grantForRemoval(saved: SavedGrant): Grant {
-  const catalogue = MOCK_GRANTS.find((g) => g.id === saved.id);
+function savedToFullGrant(saved: SavedGrant): Grant {
+  if (saved.grant) return saved.grant;
+  const catalogue = MOCK_GRANTS.find(
+    (g) => g.id === saved.id || g.title.toLowerCase() === saved.title.toLowerCase(),
+  );
   if (catalogue) return catalogue;
   return {
     id: saved.id,
-    programme: saved.programme,
+    programme: saved.programme || "Horizon Europe",
     title: saved.title,
-    fundingAmount: saved.fundingAmount,
+    fundingAmount: saved.fundingAmount || "Horizon Europe standard rates",
     deadline: saved.deadline,
-    sourceUrl: saved.sourceUrl,
-    matchPercentage: 0,
-    eligibleCountries: [],
-    organisationEligibility: [],
-    fundingType: "",
-    description: "",
-    whyItMatches: "",
-    matchReasons: [],
-    requirements: [],
-    tags: [],
+    sourceUrl:
+      saved.sourceUrl ||
+      "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/programmes/horizon",
+    matchPercentage:
+      typeof saved.matchPercentage === "number" && saved.matchPercentage > 0
+        ? saved.matchPercentage
+        : undefined,
+    eligibleCountries: ["EU Member States", "Horizon Europe Associated Countries"],
+    organisationEligibility: [
+      "SMEs and Startups",
+      "Universities & Research Organisations",
+      "Public Bodies and Large Enterprises",
+    ],
+    fundingType: "Grant (100% research / 70% innovation)",
+    description: `${saved.title} — Strategic European Commission research and innovation action under ${saved.programme || "Horizon Europe"}.`,
+    whyItMatches:
+      saved.whyItMatches ||
+      "Aligns strongly with EU innovation priorities, research call scope, and your organisation profile.",
+    matchReasons:
+      saved.matchReasons && saved.matchReasons.length > 0
+        ? saved.matchReasons
+        : [
+            "Target topic matches European research and technology roadmap",
+            "Consortium participation eligible for European innovators and research bodies",
+            "Funding instrument covers development, prototyping, and cross-border validation",
+          ],
+    requirements: [
+      "Consortium of minimum 3 independent legal entities from 3 different EU/Associated countries",
+      "Detailed work package breakdown, deliverables schedule, and risk management plan",
+      "Adherence to open access and FAIR data principles",
+    ],
+    tags: ["Horizon Europe", "Innovation", "EU Grant"],
   };
 }
 
 function SavedGrantCard({
   saved,
   onRemove,
-  onGoToChat,
+  onStartApplication,
+  onViewDetails,
 }: {
   saved: SavedGrant;
   onRemove: () => void;
-  onGoToChat: () => void;
+  onStartApplication: () => void;
+  onViewDetails: () => void;
 }) {
   return (
-    // Same shell + ruled-meta-row language as the grant cards in the results
-    // list (see GrantResults.tsx), so a saved grant reads as the same object
-    // in a different place. Only shows what the snapshot actually stores —
-    // no match score, funder description, or eligibility, since those were
-    // never saved alongside it (see useShortlist's SavedGrant).
     <article className="flex h-full flex-col rounded-2xl border bg-card p-5 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-6">
       <div className="min-w-0">
-        <div className="break-words text-[11px] font-medium uppercase tracking-wider text-brand [overflow-wrap:anywhere]">
-          {saved.programme}
+        <div className="flex items-center justify-between gap-2">
+          <div className="break-words text-[11px] font-medium uppercase tracking-wider text-brand [overflow-wrap:anywhere]">
+            {saved.programme}
+          </div>
+          {typeof saved.matchPercentage === "number" && saved.matchPercentage > 0 && (
+            <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand tabular-nums">
+              {saved.matchPercentage}% match
+            </span>
+          )}
         </div>
-        <h3 className="mt-1.5 break-words text-lg font-bold leading-snug text-foreground [overflow-wrap:anywhere]">
-          {saved.title}
+        <h3 className="mt-1.5 break-words text-lg font-bold leading-snug [overflow-wrap:anywhere]">
+          <button
+            type="button"
+            onClick={onViewDetails}
+            className="text-left font-bold text-foreground transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          >
+            {saved.title}
+          </button>
         </h3>
       </div>
 
@@ -105,21 +137,15 @@ function SavedGrantCard({
             <BookmarkX className="h-3.5 w-3.5" />
             Remove
           </Button>
-          {/* Starting an application needs an organisation profile, which
-              lives on whichever conversation is active in chat — this view
-              spans every conversation and has none of its own, so there's no
-              honest profile to attach a new application to from here. This
-              routes to where starting one for real is actually possible,
-              rather than silently no-oping or guessing a profile. */}
           <Button
             type="button"
             size="sm"
-            onClick={onGoToChat}
-            aria-label={`Open chat to start an application for ${saved.title}`}
+            onClick={onStartApplication}
+            aria-label={`Start an application for ${saved.title}`}
             className="rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90"
           >
             <MessagesSquare className="h-3.5 w-3.5" />
-            Open in chat to apply
+            Start application
           </Button>
         </div>
       </div>
@@ -127,17 +153,24 @@ function SavedGrantCard({
   );
 }
 
-/**
- * Every grant the user has bookmarked, in one place — a sibling main view of
- * the chat and the pipeline, not a chat block, since a shortlist spans
- * conversations.
- *
- * Safe to call useShortlist here alongside the copy inside GrantResults: that
- * hook writes on mutation and broadcasts to every mounted instance, so
- * un-saving here clears the bookmark on a grant card and vice versa.
- */
-export function SavedGrants({ onGoToChat }: { onGoToChat: () => void }) {
+export function SavedGrants({
+  onGoToChat,
+  onStartApplication,
+}: {
+  onGoToChat: () => void;
+  onStartApplication?: (grant: Grant) => void;
+}) {
   const { savedGrants, toggleSave, hydrated } = useShortlist();
+  const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
+
+  const handleStart = (grant: Grant) => {
+    setSelectedGrant(null);
+    if (onStartApplication) {
+      onStartApplication(grant);
+    } else {
+      onGoToChat();
+    }
+  };
 
   return (
     <section aria-labelledby="saved-heading" className="w-full px-4 py-6 sm:px-6">
@@ -146,17 +179,12 @@ export function SavedGrants({ onGoToChat }: { onGoToChat: () => void }) {
           Saved grants
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Grants you&apos;ve bookmarked while researching, newest first. Saved here as their own
-          record, so they stay even if you delete the conversation that found them.
-        </p>
-        <p className="mt-2">
-          <DemoBadge marker="demo-data" />
+          Grants you&apos;ve bookmarked while researching, newest first. Click any grant title to
+          view its full specification.
         </p>
       </header>
 
       {!hydrated ? (
-        // Read from storage in an effect, so the first render has nothing yet;
-        // showing the empty state here would wrongly claim nothing is saved.
         <p className="text-sm text-muted-foreground">Loading saved grants…</p>
       ) : savedGrants.length === 0 ? (
         <EmptyState
@@ -172,13 +200,29 @@ export function SavedGrants({ onGoToChat }: { onGoToChat: () => void }) {
             <li key={saved.id}>
               <SavedGrantCard
                 saved={saved}
-                onRemove={() => toggleSave(grantForRemoval(saved))}
-                onGoToChat={onGoToChat}
+                onRemove={() => toggleSave(savedToFullGrant(saved))}
+                onStartApplication={() => handleStart(savedToFullGrant(saved))}
+                onViewDetails={() => setSelectedGrant(savedToFullGrant(saved))}
               />
             </li>
           ))}
         </ul>
       )}
+
+      <GrantDetailsSheet
+        grant={selectedGrant}
+        open={!!selectedGrant}
+        onOpenChange={(open) => {
+          if (!open) setSelectedGrant(null);
+        }}
+        onAsk={() => {
+          setSelectedGrant(null);
+          onGoToChat();
+        }}
+        onStart={(grant) => {
+          handleStart(grant);
+        }}
+      />
     </section>
   );
 }

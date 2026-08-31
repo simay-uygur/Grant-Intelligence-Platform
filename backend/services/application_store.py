@@ -27,6 +27,10 @@ class StoredApplicationSectionNotFoundError(ValueError):
     pass
 
 
+class StoredApplicationRevisionConflictError(ValueError):
+    pass
+
+
 class ApplicationStore:
     """Persistence for generated application documents and their inputs.
 
@@ -142,7 +146,7 @@ class ApplicationStore:
             "grant_id": document.grantId,
             "grant_title": document.grantTitle,
             "status": "drafting",
-            "sections_json": json.dumps([section.model_dump() for section in document.sections], ensure_ascii=False),
+            "sections_json": json.dumps([_section_with_revision(section.model_dump()) for section in document.sections], ensure_ascii=False),
             "grant_json": json.dumps(grant, ensure_ascii=False),
             "profile_json": json.dumps(profile, ensure_ascii=False),
             "custom_instructions": custom_instructions,
@@ -241,6 +245,7 @@ class ApplicationStore:
         section_id: str,
         content: str,
         user_id: str | None = None,
+        base_revision: int | None = None,
     ) -> dict | None:
         timestamp = self._timestamp()
         with self.engine.begin() as connection:
@@ -251,23 +256,34 @@ class ApplicationStore:
             if row is None:
                 return None
 
-            sections = json.loads(row["sections_json"])
+            original_sections_json = row["sections_json"]
+            sections = [_section_with_revision(section) for section in json.loads(original_sections_json)]
             matching_section = next(
                 (section for section in sections if section["id"] == section_id),
                 None,
             )
             if matching_section is None:
                 raise StoredApplicationSectionNotFoundError(f"Section '{section_id}' does not exist in application '{application_id}'.")
+            current_revision = int(matching_section.get("revision") or 1)
+            if base_revision is not None and current_revision != base_revision:
+                raise StoredApplicationRevisionConflictError(f"Section '{section_id}' changed since this edit started. Current revision is {current_revision}; edit was based on {base_revision}.")
 
             matching_section["content"] = content
-            connection.execute(
+            matching_section["revision"] = current_revision + 1
+            update_stmt = (
                 applications_table.update()
                 .where(applications_table.c.id == application_id)
+                .where(applications_table.c.sections_json == original_sections_json)
                 .values(
                     sections_json=json.dumps(sections, ensure_ascii=False),
                     updated_at=timestamp,
                 )
             )
+            if user_id is not None:
+                update_stmt = update_stmt.where(applications_table.c.user_id == user_id)
+            result = connection.execute(update_stmt)
+            if result.rowcount == 0:
+                raise StoredApplicationRevisionConflictError(f"Section '{section_id}' changed while this edit was being saved. Please refresh and try again.")
         return self.get_application(application_id, user_id)
 
     # ------------------------------------------------------------------
@@ -639,7 +655,7 @@ class ApplicationStore:
     # ------------------------------------------------------------------
 
     def _summary_from_row(self, row: Any) -> dict:  # row is a SQLAlchemy RowMapping
-        sections = json.loads(row["sections_json"])
+        sections = [_section_with_revision(section) for section in json.loads(row["sections_json"])]
         grant = json.loads(row["grant_json"])
         profile = json.loads(row["profile_json"])
         return {
@@ -667,7 +683,7 @@ class ApplicationStore:
             "sourceUrl": source_url if source_url else None,
             "programme": programme if programme else None,
             "status": row["status"],
-            "sections": json.loads(row["sections_json"]),
+            "sections": [_section_with_revision(section) for section in json.loads(row["sections_json"])],
             "grant": grant_dict,
             "profile": json.loads(row["profile_json"]),
             "customInstructions": row["custom_instructions"],
@@ -688,6 +704,16 @@ def select_func_count():
     from sqlalchemy import func, select
 
     return select(func.count()).select_from(applications_table)
+
+
+def _section_with_revision(section: dict[str, Any]) -> dict[str, Any]:
+    next_section = dict(section)
+    try:
+        revision = int(next_section.get("revision") or 1)
+    except (TypeError, ValueError):
+        revision = 1
+    next_section["revision"] = max(1, revision)
+    return next_section
 
 
 def _application_select():

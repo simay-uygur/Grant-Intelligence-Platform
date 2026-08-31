@@ -104,18 +104,17 @@ routes.
 
 ## 6. File upload
 
-Not modelled at all server-side today — attachments are select-only, never
-uploaded (`Composer.tsx`, and see the `Attachment` type added to
-`src/types/index.ts` ahead of this work). Proposed:
+Server-side document upload is available for applicant background material.
 
-- `POST /conversations/{id}/attachments` (multipart) → `Attachment`
-  (`{ id, filename, mimeType, sizeBytes, status }`).
-- `GET /attachments/{id}` — for showing status/retrieving after upload.
-- Open question: are attachments parsed/analysed server-side (the honesty
-  copy in `Composer.tsx` currently tells the user they aren't), or just
-  stored and attached to the application PDF as-is? This changes whether a
-  `status: "uploading" | "uploaded" | "failed"` is enough or a processing
-  state needs adding.
+- `POST /api/v1/documents/upload` accepts multipart form data with `file`,
+  plus optional `conversation_id` and `application_id`.
+- Supported parser formats: `.pdf`, `.docx`, `.txt`, `.md`, `.csv`, `.json`.
+- The backend stores extracted text and metadata, not the original file bytes.
+- Uploaded conversation documents can inform chat answers, outline generation,
+  and application drafting. Uploaded application documents can inform document
+  Q&A.
+- The response shape is `{ id, filename, contentType, characterCount,
+  textSnippet, applicationId, conversationId, uploadedAt }`.
 
 ## 7. Voice transcription
 

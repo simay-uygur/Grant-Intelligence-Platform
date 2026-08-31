@@ -28,6 +28,24 @@ export interface UploadDocumentOptions {
   applicationId?: string;
 }
 
+export interface RewriteSectionOptions {
+  sectionId?: string;
+  baseRevision?: number;
+  persist?: boolean;
+}
+
+export interface RewriteSectionResult {
+  content: string;
+  revision?: number;
+  baseRevision?: number;
+}
+
+export interface DocumentQaResult {
+  answer: string;
+  sectionId?: string;
+  suggestions?: string[];
+}
+
 export interface ApplicationService {
   listApplications(): Promise<DemoApplication[]>;
   getApplication(applicationId: string): Promise<OpenedApplication>;
@@ -37,7 +55,12 @@ export interface ApplicationService {
   ): Promise<DemoApplication>;
   upsertApplicationSummary?(application: DemoApplication): Promise<void>;
   deleteApplication?(applicationId: string): Promise<void>;
-  saveSection(applicationId: string, sectionId: string, content: string): Promise<void>;
+  saveSection(
+    applicationId: string,
+    sectionId: string,
+    content: string,
+    baseRevision?: number,
+  ): Promise<ApplicationDocument>;
   findSavedApplication(grantId: string): Promise<ApplicationDocument | undefined>;
   uploadDocument?(file: File, options?: UploadDocumentOptions): Promise<Attachment>;
   generateOutline?(
@@ -59,5 +82,14 @@ export interface ApplicationService {
     documentId?: string,
     onProgress?: (event: SseEvent) => void,
     instruction?: string,
-  ): Promise<string>;
+    options?: RewriteSectionOptions,
+  ): Promise<RewriteSectionResult>;
+  documentQa?(
+    documentId: string,
+    question: string,
+    sectionId?: string,
+    document?: ApplicationDocument,
+    grant?: Grant,
+    profile?: OrganisationProfile,
+  ): Promise<DocumentQaResult>;
 }

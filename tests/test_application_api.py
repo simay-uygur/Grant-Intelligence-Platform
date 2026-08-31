@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -54,6 +55,21 @@ def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
         },
     ]
     service.agent_service.rewrite_section = lambda section_title, current_content, profile, grant=None, instruction=None: f"AI rewrite for {profile['organisationName']}."
+
+    def rewrite_section_stream(section_title, current_content, profile, grant=None, instruction=None):
+        yield {
+            "event": "thinking",
+            "stage": "rewrite",
+            "message": "Thinking in workspace...",
+        }
+        yield {
+            "event": "result",
+            "stage": "rewrite",
+            "data": {"content": f"AI rewrite for {profile['organisationName']}."},
+        }
+
+    service.agent_service.rewrite_section_stream = rewrite_section_stream
+
     service.agent_service.document_qa = lambda question, document, grant=None, profile=None, section_id=None, attachments="": {
         "answer": f"Evaluator advice for '{question}'.",
         "section_id": section_id,
@@ -71,6 +87,69 @@ def _start_application(client: TestClient) -> dict:
     )
     assert response.status_code == 200
     return response.json()
+
+
+def test_sections_default_to_revision_one(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "application_revisions.db", monkeypatch)
+
+    document = _start_application(client)
+
+    assert document["sections"][0]["revision"] == 1
+
+
+def test_section_save_increments_matching_revision(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "section_save_revision.db", monkeypatch)
+    document = _start_application(client)
+
+    response = client.put(
+        f"/api/v1/applications/{document['id']}/sections/executive-summary",
+        json={"content": "Manual edit.", "baseRevision": 1},
+    )
+
+    assert response.status_code == 200
+    section = response.json()["sections"][0]
+    assert section["content"] == "Manual edit."
+    assert section["revision"] == 2
+
+
+def test_section_save_rejects_stale_revision(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "section_save_conflict.db", monkeypatch)
+    document = _start_application(client)
+    client.put(
+        f"/api/v1/applications/{document['id']}/sections/executive-summary",
+        json={"content": "First edit.", "baseRevision": 1},
+    )
+
+    response = client.put(
+        f"/api/v1/applications/{document['id']}/sections/executive-summary",
+        json={"content": "Stale edit.", "baseRevision": 1},
+    )
+
+    assert response.status_code == 409
+    assert "changed since this edit started" in response.json()["detail"]
+
+
+def test_review_rewrite_does_not_persist_until_apply(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "review_rewrite.db", monkeypatch)
+    document = _start_application(client)
+
+    response = client.patch(
+        f"/api/v1/documents/{document['id']}/sections/executive-summary",
+        json={
+            "sectionTitle": "Executive Summary",
+            "currentContent": "Draft for Northlight Robotics.",
+            "profile": PROFILE,
+            "grant": GRANT,
+            "baseRevision": 1,
+            "persist": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["content"].startswith("AI rewrite")
+    stored = client.get(f"/api/v1/applications/{document['id']}").json()
+    assert stored["sections"][0]["content"] == "Draft for Northlight Robotics."
+    assert stored["sections"][0]["revision"] == 1
 
 
 def test_started_application_is_persisted_for_dashboard(
@@ -177,6 +256,41 @@ def test_ai_rewrite_updates_the_stored_application_output(
     assert rewrite_response.json()["content"] == "AI rewrite for Northlight Robotics."
     stored = client.get(f"/api/v1/applications/{document['id']}").json()
     assert stored["sections"][0]["content"] == "AI rewrite for Northlight Robotics."
+
+
+def test_rewrite_stream_uses_stored_section_ids_and_rejects_missing_sections(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    client = _build_client(tmp_path / "application_rewrite_stream.db", monkeypatch)
+    document = _start_application(client)
+
+    ok_response = client.patch(
+        f"/api/v1/documents/{document['id']}/sections/executive-summary/stream",
+        json={
+            "sectionTitle": "Executive Summary",
+            "currentContent": "Draft for Northlight Robotics.",
+            "profile": PROFILE,
+            "grant": GRANT,
+            "baseRevision": 1,
+        },
+    )
+    assert ok_response.status_code == 200
+    lines = [line.strip() for line in ok_response.text.split("\n") if line.startswith("data:")]
+    result = json.loads(lines[-1].replace("data: ", ""))
+    assert result["data"]["content"] == "AI rewrite for Northlight Robotics."
+
+    missing_response = client.patch(
+        f"/api/v1/documents/{document['id']}/sections/missing-section/stream",
+        json={
+            "sectionTitle": "Missing Section",
+            "currentContent": "Draft.",
+            "profile": PROFILE,
+            "grant": GRANT,
+            "baseRevision": 1,
+        },
+    )
+    assert missing_response.status_code == 404
 
 
 def test_missing_application_and_section_return_not_found(

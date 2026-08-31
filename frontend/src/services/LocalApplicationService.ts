@@ -7,6 +7,7 @@ import {
 import type {
   ApplicationService,
   OpenedApplication,
+  RewriteSectionOptions,
   StartApplicationOptions,
 } from "./ApplicationService";
 import type { SseEvent } from "./apiClient";
@@ -22,7 +23,7 @@ function makeSections(grant: Grant, profile: OrganisationProfile): DocumentSecti
   const org = profile.organisationName || "Our organisation";
   const project = profile.projectTitle || "the proposed project";
   const programme = grantContext(grant);
-  return [
+  const sections = [
     {
       id: "organisation-overview",
       title: "Organisation Overview",
@@ -88,6 +89,7 @@ function makeSections(grant: Grant, profile: OrganisationProfile): DocumentSecti
         "Principal risks include technology adoption, partner availability, and regulatory change. Each is monitored with defined mitigation actions, owners, and review points throughout the project lifecycle.",
     },
   ];
+  return sections.map((section) => ({ ...section, revision: 1 }));
 }
 
 export class LocalApplicationService implements ApplicationService {
@@ -115,16 +117,19 @@ export class LocalApplicationService implements ApplicationService {
             id: "application-summary",
             title: "Application Summary",
             content: `${application.applicantOrganisation} is preparing an application for ${application.grantTitle} through ${application.grantOrganisation}.`,
+            revision: 1,
           },
           {
             id: "funding-and-deadline",
             title: "Funding and Deadline",
             content: `Funding requested: ${application.fundingAmount}\nDeadline: ${application.deadline}`,
+            revision: 1,
           },
           {
             id: "pipeline-status",
             title: "Pipeline Status",
             content: `Current status: ${application.status.replace(/_/g, " ")}. This local demo document is generated from the pipeline card.`,
+            revision: 1,
           },
         ],
       },
@@ -168,8 +173,20 @@ export class LocalApplicationService implements ApplicationService {
     writeLocalApplications(filtered);
   }
 
-  async saveSection(_applicationId: string, _sectionId: string, _content: string): Promise<void> {
+  async saveSection(
+    applicationId: string,
+    sectionId: string,
+    content: string,
+    baseRevision = 1,
+  ): Promise<ApplicationDocument> {
     await wait(50);
+    return {
+      id: applicationId,
+      grantId: applicationId,
+      grantTitle: "Local application",
+      sections: [{ id: sectionId, title: sectionId, content, revision: baseRevision + 1 }],
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   async findSavedApplication(_grantId: string): Promise<ApplicationDocument | undefined> {
@@ -251,18 +268,6 @@ export class LocalApplicationService implements ApplicationService {
     onProgress?: (event: SseEvent) => void,
     options?: StartApplicationOptions,
   ): Promise<ApplicationDocument> {
-    onProgress?.({
-      event: "thinking",
-      stage: "draft",
-      message: `Analyzing grant requirements for '${grant.title}'...`,
-    });
-    await wait(150);
-    onProgress?.({
-      event: "tool_call",
-      stage: "draft",
-      message: "Drafting application sections...",
-    });
-    await wait(150);
     if (isMockScenario("generate-error")) {
       onProgress?.({
         event: "error",
@@ -288,6 +293,54 @@ export class LocalApplicationService implements ApplicationService {
           };
         })
       : defaultSections;
+
+    onProgress?.({
+      event: "thinking",
+      stage: "draft",
+      message: `Analyzing grant requirements for '${grant.title}'...`,
+      data: {
+        thought: `Aligning ${profile.organisationName || "applicant"} profile with grant priorities...`,
+        section_index: 0,
+        total_sections: sections.length,
+        progress_percent: 0,
+      },
+    });
+    await wait(30);
+
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections[i];
+      const idx = i + 1;
+      const percent = Math.round((idx / sections.length) * 100);
+      const words = s.content.split(/\s+/).filter(Boolean).length;
+
+      onProgress?.({
+        event: "section_chunk",
+        stage: "draft",
+        message: `Drafting Section ${idx}/${sections.length}: ${s.title}...`,
+        data: {
+          section_id: s.id,
+          section_title: s.title,
+          accumulated_content: s.content,
+          word_count: words,
+          section_index: idx,
+          total_sections: sections.length,
+          progress_percent: percent,
+          thought: `Writing ${s.title} (${words} words)...`,
+        },
+      });
+
+      onProgress?.({
+        event: "progress",
+        stage: "draft",
+        message: `Completed Section ${idx}/${sections.length}: ${s.title} (${percent}% complete)`,
+        data: {
+          section_index: idx,
+          total_sections: sections.length,
+          progress_percent: percent,
+          section: s,
+        },
+      });
+    }
 
     const doc: ApplicationDocument = {
       id: `doc-${grant.id}-${Date.now()}`,
@@ -315,7 +368,8 @@ export class LocalApplicationService implements ApplicationService {
     _documentId?: string,
     onProgress?: (event: SseEvent) => void,
     instruction?: string,
-  ): Promise<string> {
+    options?: RewriteSectionOptions,
+  ): Promise<{ content: string; revision?: number; baseRevision?: number }> {
     onProgress?.({
       event: "thinking",
       stage: "rewrite",
@@ -325,7 +379,7 @@ export class LocalApplicationService implements ApplicationService {
     onProgress?.({
       event: "tool_call",
       stage: "rewrite",
-      message: `Rewriting section '${sectionTitle}'...`,
+      message: `Thinking in workspace for '${sectionTitle}'...`,
     });
     await wait(350);
     if (isMockScenario("rewrite-error")) {
@@ -366,7 +420,33 @@ export class LocalApplicationService implements ApplicationService {
     const instructionNote = instruction?.trim()
       ? `\n\n[Applied guidance: "${instruction.trim()}"]`
       : "";
-    return `${opener}\n\n${currentContent.trim()}${instructionNote}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
+    return {
+      content: `${opener}\n\n${currentContent.trim()}${instructionNote}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`,
+      revision: options?.persist === false ? undefined : (options?.baseRevision ?? 1) + 1,
+      baseRevision: options?.baseRevision,
+    };
+  }
+
+  async documentQa(
+    _documentId: string,
+    _question: string,
+    sectionId?: string,
+    document?: ApplicationDocument,
+    grant?: Grant,
+    profile?: OrganisationProfile,
+  ): Promise<{ answer: string; sectionId?: string; suggestions: string[] }> {
+    await wait(300);
+    const org = profile?.organisationName || "The applicant";
+    const prog = grant?.programme || grant?.title || "EU Horizon";
+    return {
+      answer: `Based on an analysis of "${document?.grantTitle || prog}", ${org}'s application demonstrates strong structural alignment with call criteria. Key emphasis areas: ensure TRL milestones are explicitly articulated, quantify direct societal impacts, and confirm consortium partner obligations.`,
+      sectionId,
+      suggestions: [
+        "Include quantifiable KPI targets (e.g. % efficiency gain, number of pilots).",
+        "Clarify gender dimension and open access data management strategy.",
+        "Strengthen work package risk mitigation measures.",
+      ],
+    };
   }
 }
 

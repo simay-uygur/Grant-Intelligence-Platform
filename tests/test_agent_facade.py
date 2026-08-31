@@ -31,6 +31,8 @@ class _PublishedAgentStub:
         self,
         profile: dict[str, Any],
         *,
+        user_request: str | None,
+        conversation_history: list[dict[str, Any]] | None,
         max_grants: int,
         excluded_grant_ids: list[str] | None,
     ):

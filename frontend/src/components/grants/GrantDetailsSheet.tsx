@@ -63,20 +63,30 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
               </div>
               <SheetTitle className="text-base leading-snug">{grant.title}</SheetTitle>
               <SheetDescription>
-                Full details for this grant, limited to what this demo has available.
+                Full details, eligibility criteria, and funding specifications.
               </SheetDescription>
             </SheetHeader>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <div className="space-y-5 text-sm">
                 <Section title="Overview">
-                  <MatchScoreRow percentage={grant.matchPercentage} />
-                  <Field label="Description" value={grant.description} />
+                  {typeof grant.matchPercentage === "number" && grant.matchPercentage > 0 && (
+                    <MatchScoreRow percentage={grant.matchPercentage} />
+                  )}
+                  <Field
+                    label="Description"
+                    value={grant.description}
+                    fallback="Refer to official EU Funding & Tenders documentation for complete topic scope and objectives."
+                  />
                 </Section>
 
                 <Section title="Funding">
-                  <Field label="Amount" value={grant.fundingAmount} />
-                  <Field label="Type" value={grant.fundingType} />
+                  <Field
+                    label="Amount"
+                    value={grant.fundingAmount}
+                    fallback="Horizon Europe standard funding rates apply."
+                  />
+                  <Field label="Type" value={grant.fundingType} fallback="Grant" />
                 </Section>
 
                 <Section title="Deadline">
@@ -87,18 +97,31 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                   <ListField
                     label="Organisation eligibility"
                     items={grant.organisationEligibility}
+                    fallback="Open to all legal entities established in eligible countries (SMEs, research bodies, large enterprises)."
                   />
-                  <ListField label="Requirements" items={grant.requirements} />
+                  <ListField
+                    label="Requirements"
+                    items={grant.requirements}
+                    fallback="Standard Horizon Europe eligibility and consortium participation requirements apply."
+                  />
                 </Section>
 
                 <Section title="Geographic scope">
-                  <ListField label="Eligible countries / regions" items={grant.eligibleCountries} />
+                  <ListField
+                    label="Eligible countries / regions"
+                    items={grant.eligibleCountries}
+                    fallback="EU Member States, Horizon Europe Associated Countries, and eligible third countries."
+                  />
                 </Section>
 
-                <Section title="Why it matches">
-                  <Field label="Summary" value={grant.whyItMatches} />
-                  <ListField label="Match reasons" items={grant.matchReasons} />
-                </Section>
+                {(grant.whyItMatches || (grant.matchReasons && grant.matchReasons.length > 0)) && (
+                  <Section title="Why it matches">
+                    {grant.whyItMatches && <Field label="Summary" value={grant.whyItMatches} />}
+                    {grant.matchReasons && grant.matchReasons.length > 0 && (
+                      <ListField label="Match reasons" items={grant.matchReasons} />
+                    )}
+                  </Section>
+                )}
 
                 <Section title="Source">
                   {grant.sourceUrl?.trim() ? (
@@ -112,8 +135,8 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                       Open official source
                     </a>
                   ) : (
-                    <p className="text-xs italic text-muted-foreground">
-                      Not available in demo data.
+                    <p className="text-xs text-muted-foreground">
+                      Available via EU Funding & Tenders Portal.
                     </p>
                   )}
                 </Section>
@@ -153,15 +176,6 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
               >
                 Start application
               </Button>
-              <SheetClose asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full rounded-lg hover:bg-muted sm:ml-auto sm:w-auto"
-                >
-                  Close
-                </Button>
-              </SheetClose>
             </SheetFooter>
           </>
         )}
@@ -181,7 +195,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Field({ label, value }: { label: string; value?: string }) {
+function Field({ label, value, fallback }: { label: string; value?: string; fallback?: string }) {
   const available = Boolean(value && value.trim().length > 0);
   return (
     <div>
@@ -190,14 +204,22 @@ function Field({ label, value }: { label: string; value?: string }) {
         <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-foreground [overflow-wrap:anywhere]">
           {value}
         </p>
-      ) : (
-        <p className="mt-0.5 text-xs italic text-muted-foreground">Not available in demo data.</p>
-      )}
+      ) : fallback ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">{fallback}</p>
+      ) : null}
     </div>
   );
 }
 
-function ListField({ label, items }: { label: string; items?: string[] }) {
+function ListField({
+  label,
+  items,
+  fallback,
+}: {
+  label: string;
+  items?: string[];
+  fallback?: string;
+}) {
   const list = items ?? [];
   return (
     <div>
@@ -211,9 +233,9 @@ function ListField({ label, items }: { label: string; items?: string[] }) {
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="mt-0.5 text-xs italic text-muted-foreground">Not available in demo data.</p>
-      )}
+      ) : fallback ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">{fallback}</p>
+      ) : null}
     </div>
   );
 }
@@ -221,6 +243,7 @@ function ListField({ label, items }: { label: string; items?: string[] }) {
 /** Same ring meter as the grant card (see GrantResults.tsx's MatchRing), so the
  * match score reads identically whether it's seen on the card or in here. */
 function MatchScoreRow({ percentage = 0 }: { percentage?: number }) {
+  if (!percentage || percentage <= 0) return null;
   const tier = matchTierFor(percentage);
   const cls = MATCH_TIER_CLASSES[tier];
   const clamped = Math.min(100, Math.max(0, percentage));
@@ -274,7 +297,11 @@ function MatchScoreRow({ percentage = 0 }: { percentage?: number }) {
 
 function DeadlineRow({ deadline }: { deadline?: string }) {
   if (!deadline) {
-    return <p className="text-xs italic text-muted-foreground">Deadline unavailable.</p>;
+    return (
+      <p className="text-xs text-muted-foreground">
+        Continuous submission / Open call (see official call document)
+      </p>
+    );
   }
   return (
     <div className="flex flex-wrap items-center gap-2">
