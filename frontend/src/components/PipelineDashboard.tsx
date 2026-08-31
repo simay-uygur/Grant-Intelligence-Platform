@@ -251,6 +251,7 @@ function ApplicationDetailsSheet({
   onStatusChange,
   link,
   onOpenConversation,
+  onOpenConversationForApplication,
   onOpenApplication,
   onDeleteApplication,
 }: {
@@ -260,15 +261,20 @@ function ApplicationDetailsSheet({
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   link: ApplicationLink;
   onOpenConversation: (conversationId: string) => void;
+  onOpenConversationForApplication?: (application: DemoApplication) => void;
   onOpenApplication?: (applicationId: string) => void;
   onDeleteApplication?: (applicationId: string) => void;
 }) {
   const reasonId = "application-actions-reason";
 
   const goToConversation = () => {
-    if (!link.conversationId) return;
+    if (!application) return;
     onOpenChange(false);
-    onOpenConversation(link.conversationId);
+    if (link.conversationId) {
+      onOpenConversation(link.conversationId);
+    } else if (onOpenConversationForApplication) {
+      onOpenConversationForApplication(application);
+    }
   };
 
   const handleOpenDraft = () => {
@@ -385,12 +391,10 @@ function ApplicationDetailsSheet({
                     type="button"
                     variant="outline"
                     onClick={goToConversation}
-                    disabled={!link.conversationId}
-                    aria-describedby={link.conversationId ? undefined : reasonId}
                     className="justify-start rounded-lg hover:bg-muted"
                   >
                     <MessagesSquare className="h-4 w-4" />
-                    Open source conversation
+                    {link.conversationId ? "Open source conversation" : "Open in new conversation"}
                   </Button>
                   {onDeleteApplication && (
                     <Button
@@ -403,7 +407,7 @@ function ApplicationDetailsSheet({
                       Delete application from pipeline
                     </Button>
                   )}
-                  {link.reason && (
+                  {link.reason && link.conversationId && (
                     <p id={reasonId} className="text-[11px] text-muted-foreground">
                       {link.reason}
                     </p>
@@ -588,6 +592,7 @@ export function PipelineDashboard({
   deleteApplication,
   conversations,
   onOpenConversation,
+  onOpenConversationForApplication,
   onOpenApplication,
 }: {
   onGoToChat: () => void;
@@ -599,6 +604,7 @@ export function PipelineDashboard({
   /** Read-only: used solely to work out what a card can link back to. */
   conversations: Conversation[];
   onOpenConversation: (conversationId: string) => void;
+  onOpenConversationForApplication?: (application: DemoApplication) => void;
   onOpenApplication?: (applicationId: string) => void;
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
@@ -766,6 +772,7 @@ export function PipelineDashboard({
             : { conversationId: null, hasLiveDraft: false, reason: null }
         }
         onOpenConversation={onOpenConversation}
+        onOpenConversationForApplication={onOpenConversationForApplication}
       />
     </section>
   );

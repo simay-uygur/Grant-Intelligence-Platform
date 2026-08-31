@@ -5,6 +5,7 @@ import {
   MessageCircleQuestion,
   Mic,
   Paperclip,
+  RotateCcw,
   Send,
   X,
 } from "lucide-react";
@@ -28,6 +29,8 @@ interface Props {
   conversationId?: string | null;
   /** Uploads the file's text to the backend so AI drafting and Q&A can use it. Absent in demo mode. */
   uploadDocument?: (file: File, conversationId: string | null) => Promise<void>;
+  /** Searches for alternative grants matching the current profile. */
+  onFindAlternatives?: () => void;
 }
 
 const ACCEPTED_FILE_TYPES =
@@ -100,6 +103,7 @@ export function Composer({
   onClearGrantContext,
   conversationId,
   uploadDocument,
+  onFindAlternatives,
 }: Props) {
   const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -207,7 +211,22 @@ export function Composer({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur">
+      <div className="relative shrink-0 border-t border-border bg-background/80 backdrop-blur">
+        {onFindAlternatives && (
+          <div className="pointer-events-none absolute -top-3.5 inset-x-0 flex justify-center -translate-y-full z-20">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onFindAlternatives}
+              disabled={disabled}
+              className="pointer-events-auto h-7 gap-1.5 rounded-full border border-border/80 bg-card/95 px-3.5 text-xs font-semibold text-foreground shadow-md backdrop-blur-md transition-all hover:border-brand/40 hover:bg-muted"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-brand" />
+              <span>Find alternative grants</span>
+            </Button>
+          </div>
+        )}
         <div className="mx-auto w-full max-w-3xl px-4 py-4">
           {grantContext && (
             <div className="mb-2 space-y-2">

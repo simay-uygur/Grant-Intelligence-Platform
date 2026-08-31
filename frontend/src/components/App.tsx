@@ -12,6 +12,8 @@ import { applicationService, chatService, grantService, isMockMode } from "@/ser
 import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
+import type { DemoApplication } from "@/data/mockApplications";
+import { resolveApplicationLink } from "@/utils/applicationLink";
 import type {
   ApplicationStage,
   ChatBlock,
@@ -344,9 +346,15 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
 
   const handleRetryResearch = useCallback(() => {
     if (c.activeConversation?.profile) {
+      askUser([
+        {
+          type: "text",
+          text: "Find alternative grants matching my organisation profile.",
+        },
+      ]);
       void runResearch(c.activeConversation.profile);
     }
-  }, [c.activeConversation, runResearch]);
+  }, [askUser, c.activeConversation, runResearch]);
 
   const handleAskGrant = useCallback(
     (grant: Grant) => {
@@ -695,6 +703,77 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     newConversation();
   }, [newConversation]);
 
+  const handleOpenConversationForApplication = useCallback(
+    (application: DemoApplication) => {
+      const link = resolveApplicationLink(application, c.conversations);
+      if (link.conversationId) {
+        selectConversationInChat(link.conversationId);
+        return;
+      }
+
+      const targetGrant = MOCK_GRANTS.find(
+        (g) => g.id === application.grantId || g.title === application.grantTitle,
+      ) ?? {
+        id: application.grantId || application.id,
+        programme: application.grantOrganisation,
+        title: application.grantTitle,
+        fundingAmount: application.fundingAmount,
+        deadline: application.deadline,
+        sourceUrl: "",
+        matchPercentage: 90,
+        eligibleCountries: ["EU Member States"],
+        organisationEligibility: ["SMEs", "Research"],
+        fundingType: "Grant",
+        description: `Application for ${application.grantTitle}`,
+        whyItMatches: "Candidate from application pipeline",
+        matchReasons: [],
+        requirements: [],
+        tags: ["EU Funding"],
+      };
+
+      const defaultProfile: OrganisationProfile = {
+        organisationName: application.applicantOrganisation || "Applicant",
+        organisationType: "SME",
+        organisationDescription: "European innovation leader",
+        country: "Germany",
+        region: "Western Europe",
+        projectTitle: application.grantTitle,
+        projectDescription: `Proposal for ${application.grantTitle}`,
+        sector: "Technology & Industry",
+        fundingAmount: application.fundingAmount || "€1,000,000",
+        projectStartDate: "2027-01-01",
+        projectDuration: "24 months",
+        eligibilityConstraints: "None",
+      };
+
+      c.newConversation({
+        title: application.grantTitle,
+        stage: "application",
+        profile: defaultProfile,
+        grants: [targetGrant],
+        messages: [
+          {
+            id: uid(),
+            role: "assistant",
+            createdAt: new Date().toISOString(),
+            blocks: [
+              {
+                type: "text",
+                text: `You are viewing the conversation for **${application.grantTitle}**. Ask anything about eligibility, proposal structure, or funding rules.`,
+              },
+              {
+                type: "grant_results",
+                grants: [targetGrant],
+              },
+            ],
+          },
+        ],
+      });
+      setMainView("chat");
+    },
+    [c, selectConversationInChat, uid],
+  );
+
   const callbacks: BlockCallbacks = useMemo(
     () => ({
       onSubmitProfile: handleSubmitProfile,
@@ -1026,6 +1105,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
               // activate handler the sidebar already uses.
               conversations={c.conversations}
               onOpenConversation={selectConversationInChat}
+              onOpenConversationForApplication={handleOpenConversationForApplication}
             />
           </div>
         )}
@@ -1039,6 +1119,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             placeholder={active ? COMPOSER_PLACEHOLDERS[active.stage] : undefined}
             grantContext={askingAboutGrant}
             onClearGrantContext={() => setAskingAboutGrant(null)}
+            onFindAlternatives={active?.profile ? handleRetryResearch : undefined}
           />
         </div>
       </main>
