@@ -55,8 +55,23 @@ export function OutlinePreviewModal({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  const effectiveProfile: OrganisationProfile = profile ?? {
+    organisationName: "Your Organisation",
+    organisationType: "SME",
+    organisationDescription: "European Innovation Partner",
+    country: "Germany",
+    region: "Western Europe",
+    projectTitle: grant?.title ?? "Grant Proposal",
+    projectDescription: `Proposal for ${grant?.title ?? "Grant"}`,
+    sector: "Technology & Innovation",
+    fundingAmount: grant?.fundingAmount || "€1,000,000",
+    projectStartDate: "2027-01-01",
+    projectDuration: "24 months",
+    eligibilityConstraints: "None",
+  };
+
   useEffect(() => {
-    if (!open || !grant || !profile) return;
+    if (!open || !grant) return;
     let isCurrent = true;
     setLoading(true);
     setIsAdding(false);
@@ -67,7 +82,7 @@ export function OutlinePreviewModal({
     const fetchOutline = async () => {
       try {
         if (applicationService.generateOutline) {
-          const generated = await applicationService.generateOutline(grant, profile, {
+          const generated = await applicationService.generateOutline(grant, effectiveProfile, {
             conversationId,
           });
           if (isCurrent && generated && generated.length > 0) {
@@ -133,7 +148,7 @@ export function OutlinePreviewModal({
     };
   }, [open, grant, profile, conversationId]);
 
-  if (!grant || !profile) return null;
+  if (!grant) return null;
 
   const handleMove = (index: number, direction: "up" | "down" | "top" | "bottom") => {
     if (index < 0 || index >= sections.length) return;

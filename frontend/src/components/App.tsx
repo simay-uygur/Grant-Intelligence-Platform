@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
 import { useShortlist } from "@/hooks/useShortlist";
@@ -449,9 +450,10 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         };
         c.setProfile(profile);
       }
+      askUser([{ type: "text", text: `I want to start the application for "${grant.title}".` }]);
       setOutlineModalGrant(grant);
     },
-    [c],
+    [askUser, c],
   );
 
   const handleOpenApplication = useCallback(
@@ -546,11 +548,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
           projectDuration: "24 months",
           eligibilityConstraints: "None",
         };
-        c.newConversation();
         c.setProfile(profile);
       }
       await handleStartApplication(grant);
-      setMainView("workspace");
     },
     [c, handleStartApplication],
   );
@@ -848,51 +848,61 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         tabIndex={-1}
         className="flex min-w-0 flex-1 flex-col overflow-hidden"
       >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setMobileSidebarOpen(true)}
-              aria-label="Open conversation menu"
-              className="shrink-0 rounded-lg md:hidden"
-            >
-              <Menu className="h-4 w-4" />
-            </Button>
-            <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold text-foreground" title={headerTitle}>
-                {headerTitle}
-              </h1>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                  Connected · {isMockMode ? "Demo mode" : "API mode"}
-                </span>
-                {mainView === "chat" && active && (
-                  <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
-                )}
+        {(mainView === "chat" || mainView === "workspace") && (
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setMobileSidebarOpen(true)}
+                aria-label="Open conversation menu"
+                className="shrink-0 rounded-lg md:hidden"
+              >
+                <Menu className="h-4 w-4" />
+              </Button>
+              <div className="min-w-0">
+                <h1 className="truncate text-sm font-semibold text-foreground" title={headerTitle}>
+                  {headerTitle}
+                </h1>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                    Connected · {isMockMode ? "Demo mode" : "API mode"}
+                  </span>
+                  {mainView === "chat" && active && (
+                    <>
+                      <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
+                      {active.updatedAt && (
+                        <span>
+                          Updated{" "}
+                          {formatDistanceToNow(new Date(active.updatedAt), { addSuffix: true })}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {mainView === "chat" && active?.stage === "welcome" && (
-              <button
-                type="button"
-                onClick={runDemo}
-                disabled={demoRunning || busy}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              >
-                <Play className="h-3.5 w-3.5" />
-                {demoRunning ? "Running demo…" : "Run demo"}
-              </button>
-            )}
-            {mainView === "workspace" && active?.document && (
-              <WorkspaceExportControl doc={active.document} />
-            )}
-            <ThemeToggle />
-          </div>
-        </header>
+            <div className="flex shrink-0 items-center gap-2">
+              {mainView === "chat" && active?.stage === "welcome" && (
+                <button
+                  type="button"
+                  onClick={runDemo}
+                  disabled={demoRunning || busy}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  {demoRunning ? "Running demo…" : "Run demo"}
+                </button>
+              )}
+              {mainView === "workspace" && active?.document && (
+                <WorkspaceExportControl doc={active.document} />
+              )}
+              <ThemeToggle />
+            </div>
+          </header>
+        )}
 
         {!c.persistenceOk && (
           <div

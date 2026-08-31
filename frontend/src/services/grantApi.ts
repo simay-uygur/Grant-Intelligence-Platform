@@ -151,7 +151,10 @@ export function mapGrantResult(dto: GrantResultDto): Grant {
       "No description returned by the backend.",
     provenance: "live",
     programme: clean(dto.programme ?? undefined),
-    matchPercentage: dto.matchPercentage ?? undefined,
+    matchPercentage:
+      typeof dto.matchPercentage === "number" && dto.matchPercentage > 0
+        ? dto.matchPercentage
+        : undefined,
     fundingAmount: clean(dto.fundingAmount ?? dto.amount ?? undefined),
     deadline:
       dto.deadline && dto.deadline.trim().length >= 8 && !/^\d{1,4}$/.test(dto.deadline.trim())

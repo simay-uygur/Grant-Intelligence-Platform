@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/EmptyState";
  * Convert a SavedGrant into a displayable Grant for the details sheet.
  */
 function savedToFullGrant(saved: SavedGrant): Grant {
+  if (saved.grant) return saved.grant;
   const catalogue = MOCK_GRANTS.find(
     (g) => g.id === saved.id || g.title.toLowerCase() === saved.title.toLowerCase(),
   );
@@ -28,7 +29,10 @@ function savedToFullGrant(saved: SavedGrant): Grant {
     sourceUrl:
       saved.sourceUrl ||
       "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/programmes/horizon",
-    matchPercentage: 90,
+    matchPercentage:
+      typeof saved.matchPercentage === "number" && saved.matchPercentage > 0
+        ? saved.matchPercentage
+        : undefined,
     eligibleCountries: ["EU Member States", "Horizon Europe Associated Countries"],
     organisationEligibility: [
       "SMEs and Startups",
@@ -38,12 +42,16 @@ function savedToFullGrant(saved: SavedGrant): Grant {
     fundingType: "Grant (100% research / 70% innovation)",
     description: `${saved.title} — Strategic European Commission research and innovation action under ${saved.programme || "Horizon Europe"}.`,
     whyItMatches:
+      saved.whyItMatches ||
       "Aligns strongly with EU innovation priorities, research call scope, and your organisation profile.",
-    matchReasons: [
-      "Target topic matches European research and technology roadmap",
-      "Consortium participation eligible for European innovators and research bodies",
-      "Funding instrument covers development, prototyping, and cross-border validation",
-    ],
+    matchReasons:
+      saved.matchReasons && saved.matchReasons.length > 0
+        ? saved.matchReasons
+        : [
+            "Target topic matches European research and technology roadmap",
+            "Consortium participation eligible for European innovators and research bodies",
+            "Funding instrument covers development, prototyping, and cross-border validation",
+          ],
     requirements: [
       "Consortium of minimum 3 independent legal entities from 3 different EU/Associated countries",
       "Detailed work package breakdown, deliverables schedule, and risk management plan",
@@ -67,8 +75,15 @@ function SavedGrantCard({
   return (
     <article className="flex h-full flex-col rounded-2xl border bg-card p-5 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-6">
       <div className="min-w-0">
-        <div className="break-words text-[11px] font-medium uppercase tracking-wider text-brand [overflow-wrap:anywhere]">
-          {saved.programme}
+        <div className="flex items-center justify-between gap-2">
+          <div className="break-words text-[11px] font-medium uppercase tracking-wider text-brand [overflow-wrap:anywhere]">
+            {saved.programme}
+          </div>
+          {typeof saved.matchPercentage === "number" && saved.matchPercentage > 0 && (
+            <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand tabular-nums">
+              {saved.matchPercentage}% match
+            </span>
+          )}
         </div>
         <h3 className="mt-1.5 break-words text-lg font-bold leading-snug [overflow-wrap:anywhere]">
           <button

@@ -4,8 +4,8 @@ import {
   ChevronDown,
   FileDown,
   FileText,
+  ListOrdered,
   MessagesSquare,
-  Pencil,
   Send,
   Sparkles,
   Undo2,
@@ -19,19 +19,19 @@ import type {
   OrganisationProfile,
 } from "@/types";
 import type { ApplicationStatus } from "@/data/mockApplications";
-import { useDrafts } from "@/hooks/useDrafts";
 import { useProgressiveReveal } from "@/hooks/useProgressiveReveal";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { applicationService } from "@/services";
 import { cn } from "@/lib/utils";
-import { charCount, wordCount } from "@/utils/text";
+import { wordCount } from "@/utils/text";
 import { diffLines } from "@/utils/diffLines";
 import { formatDeadline } from "@/utils/deadline";
 import { exportAsPdf, exportAsWord } from "@/utils/export";
 import { STATUS_BADGE, STATUS_LABEL } from "@/components/pipeline/statusPresentation";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { formatDistanceToNow } from "date-fns";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,254 +44,78 @@ import { EmptyState } from "@/components/EmptyState";
 const WORD_BUDGET = 2500;
 
 /**
- * One section, always visible (not one-at-a-time like the chat's document
- * card) — the Google-Docs feel this view is going for. Manual edit/save/
- * cancel mirrors ApplicationDocumentView's SectionEditor exactly: presence
- * of a key in `drafts` means "in edit mode", Save commits via
- * `onSectionChange`, Cancel discards. Deliberately does NOT include
- * Rewrite-with-AI's OWN button, Undo, export, or the pipeline-status
- * control — those stay on the chat's document card; AI rewriting here comes
- * from the side chat instead (see AssistantPanel), which figures out which
- * section(s) an instruction targets from its own wording — or from this
- * section's "Ask assistant" affordance, which just pins the context.
+ * Continuous Google-Docs style section — integrated smoothly into the continuous document flow.
+ * Direct text modifications are handled autonomously by the AI agent via the Assistant Panel.
  */
-function WorkspaceSection({
+function GoogleDocsSection({
   index,
   section,
-  draft,
-  dirty,
-  savedFlash,
-  onStartEdit,
-  onChangeDraft,
-  onCancel,
-  onSave,
+  content,
   onAskAssistant,
   revealText,
   onRevealComplete,
+  active,
 }: {
   index: number;
   section: DocSection;
-  draft: string | undefined;
-  dirty: boolean;
-  savedFlash: boolean;
-  onStartEdit: () => void;
-  onChangeDraft: (value: string) => void;
-  onCancel: () => void;
-  onSave: () => void;
+  content: string;
   onAskAssistant: () => void;
-  /** Set only while an AI rewrite just landed on this section — the commit
-   * already happened; this is purely how it's REVEALED on the way there. */
   revealText?: string;
   onRevealComplete?: () => void;
+  active?: boolean;
 }) {
-  const editing = draft !== undefined;
   const { revealed, streaming: revealing } = useProgressiveReveal(revealText, onRevealComplete);
-  const displayText = editing ? draft : (revealed ?? section.content);
-  const indexLabel = String(index).padStart(2, "0");
+  const displayText = revealed ?? content;
+  const words = wordCount(displayText);
 
   return (
-    <section
+    <article
       id={`workspace-section-${section.id}`}
       aria-labelledby={`workspace-section-title-${section.id}`}
-      className="group scroll-mt-4 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors"
+      className={cn(
+        "group relative scroll-mt-6 rounded-xl p-3 sm:p-5 transition-all duration-200",
+        active
+          ? "bg-brand/[0.04] ring-1 ring-brand/30"
+          : "hover:bg-muted/30",
+      )}
     >
-      <div className="mb-2 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          {/* Two-digit index, distinct from the toc's own "N." numbering —
-              a document-feel detail (like a form field number), not a
-              duplicate of the contents rail's list marker. */}
-          <span
-            aria-hidden="true"
-            className="mt-0.5 shrink-0 font-mono text-xs font-semibold tabular-nums text-muted-foreground/60"
-          >
-            {indexLabel}
+      <div className="mb-3 flex items-center justify-between gap-4 border-b border-border/50 pb-2">
+        <h2
+          id={`workspace-section-title-${section.id}`}
+          className="text-base sm:text-lg font-bold text-foreground tracking-tight flex items-center gap-2"
+        >
+          <span className="font-mono text-sm text-brand font-bold tabular-nums">
+            {index}.
           </span>
-          <div className="min-w-0">
-            <h3
-              id={`workspace-section-title-${section.id}`}
-              className="break-words text-base font-semibold text-foreground"
-            >
-              {section.title}
-            </h3>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-              <span>
-                {wordCount(displayText)} words · {charCount(displayText)} characters
-              </span>
-              {dirty && <span className="font-medium text-warning">Unsaved changes</span>}
-              {savedFlash && (
-                <span className="inline-flex items-center gap-1 font-medium text-success">
-                  <Check className="h-3 w-3" />
-                  Saved
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
-          {/* Hidden until hover/focus on pointer-capable screens (same
-              reveal-on-hover technique as the sidebar's row actions);
-              always visible on touch, so it's never unreachable. */}
+          <span>{section.title}</span>
+        </h2>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[11px] text-muted-foreground font-medium tabular-nums">
+            {words}w
+          </span>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={onAskAssistant}
-            className="h-auto rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground opacity-100 transition-opacity hover:bg-muted hover:text-foreground md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+            className="h-7 px-2 text-xs gap-1.5 rounded-lg text-brand hover:bg-brand/10 hover:text-brand transition-colors opacity-90 group-hover:opacity-100"
           >
             <Wand2 className="h-3 w-3" />
-            Ask assistant
+            <span>Refine with AI</span>
           </Button>
-          {!editing ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onStartEdit}
-              className="h-auto rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
-            >
-              <Pencil className="h-3 w-3" />
-              Edit
-            </Button>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onCancel}
-                className="h-auto rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
-              >
-                <X className="h-3 w-3" />
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={onSave}
-                disabled={!dirty}
-                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-brand-foreground hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground"
-              >
-                <Check className="h-3 w-3" />
-                Save
-              </Button>
-            </>
-          )}
         </div>
       </div>
 
-      {editing ? (
-        <Textarea
-          value={draft}
-          onChange={(e) => onChangeDraft(e.target.value)}
-          rows={10}
-          className="min-h-[220px] w-full resize-y break-words rounded-lg border border-border bg-background px-3 py-2.5 text-sm leading-relaxed text-foreground [overflow-wrap:anywhere] focus-visible:border-brand/60 focus-visible:ring-brand/20"
-        />
-      ) : (
-        <p className="whitespace-pre-wrap break-words text-sm leading-[1.8] text-foreground/85 [overflow-wrap:anywhere]">
-          {displayText}
-          {revealing && (
-            <span
-              aria-hidden="true"
-              className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[3px] bg-brand motion-safe:animate-pulse dark:bg-foreground"
-            />
-          )}
-        </p>
-      )}
-    </section>
-  );
-}
-
-/** The "N / 2500" meter at the bottom of the left pane — purely presentational. */
-function WordBudgetBar({ total }: { total: number }) {
-  const pct = Math.min(100, Math.round((total / WORD_BUDGET) * 100));
-  const overBudget = total > WORD_BUDGET;
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium text-foreground">Word budget</span>
-        <span
-          className={cn(
-            "font-medium tabular-nums",
-            overBudget ? "text-warning" : "text-muted-foreground",
-          )}
-        >
-          {total} / {WORD_BUDGET}
-        </span>
+      <div className="whitespace-pre-wrap break-words text-sm sm:text-[15px] leading-relaxed sm:leading-[1.8] text-foreground/90 font-normal [overflow-wrap:anywhere]">
+        {displayText}
+        {revealing && (
+          <span
+            aria-hidden="true"
+            className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[3px] bg-brand motion-safe:animate-pulse"
+          />
+        )}
       </div>
-      <div
-        role="progressbar"
-        aria-valuenow={total}
-        aria-valuemin={0}
-        aria-valuemax={WORD_BUDGET}
-        aria-label={`Word budget: ${total} of ${WORD_BUDGET} words`}
-        className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted"
-      >
-        <div
-          className={cn(
-            "h-full rounded-full transition-all",
-            overBudget ? "bg-warning" : "bg-brand",
-          )}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
- * The numbered contents rail — same visual recipe as ApplicationDocumentView's
- * "Application sections" nav (bg-brand/10 active state, hidden below a
- * breakpoint), adapted for a page where every section is already visible: a
- * click scrolls to it and marks it active, rather than switching which one
- * renders.
- */
-function ContentsRail({
-  sections,
-  drafts,
-  activeSectionId,
-  onSelect,
-}: {
-  sections: DocSection[];
-  drafts: Record<string, string>;
-  activeSectionId: string | null;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <nav
-      aria-label="Document sections"
-      className="hidden shrink-0 lg:sticky lg:top-8 lg:block lg:w-56"
-    >
-      <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Contents
-      </p>
-      <ul className="mt-2 space-y-0.5">
-        {sections.map((s, i) => {
-          const active = s.id === activeSectionId;
-          const text = drafts[s.id] ?? s.content;
-          return (
-            <li key={s.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(s.id)}
-                aria-current={active ? "true" : undefined}
-                className={cn(
-                  "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-                  active
-                    ? "bg-brand/10 font-medium text-brand"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                <span className="mt-px shrink-0 tabular-nums">{i + 1}.</span>
-                <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                <span className="shrink-0 tabular-nums opacity-70">{wordCount(text)}w</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    </article>
   );
 }
 
@@ -438,37 +262,19 @@ export function WorkspaceExportControl({ doc }: { doc: ApplicationDocument }) {
 
 function WorkspaceEditor({
   doc,
-  drafts,
-  savedFlashId,
-  restoredIds,
-  conflictIds,
-  restoreDismissed,
-  persistenceOk,
-  onDismissRestore,
-  onStartEdit,
-  onChangeDraft,
-  onCancel,
-  onSave,
+  profile,
+  grant,
   onAskAssistant,
   streamingSections,
   onRevealComplete,
   totalWords,
 }: {
   doc: ApplicationDocument;
-  drafts: Record<string, string>;
-  savedFlashId: string | null;
-  restoredIds: string[];
-  conflictIds: string[];
-  restoreDismissed: boolean;
-  persistenceOk: boolean;
-  onDismissRestore: () => void;
-  onStartEdit: (id: string) => void;
-  onChangeDraft: (id: string, value: string) => void;
-  onCancel: (id: string) => void;
-  onSave: (id: string) => void;
+  profile: OrganisationProfile | undefined;
+  grant: Grant | undefined;
   onAskAssistant: (id: string) => void;
   /** sectionId -> the full text an AI rewrite just produced for it, purely
-   * for the progressive-reveal effect (see WorkspaceSection). */
+   * for the progressive-reveal effect (see GoogleDocsSection). */
   streamingSections: Record<string, string>;
   onRevealComplete: (id: string) => void;
   totalWords: number;
@@ -477,6 +283,7 @@ function WorkspaceEditor({
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
     doc.sections[0]?.id ?? null,
   );
+  const [showContents, setShowContents] = useState(false);
 
   const scrollToSection = (id: string) => {
     setActiveSectionId(id);
@@ -485,89 +292,155 @@ function WorkspaceEditor({
       ?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   };
 
-  const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
-  const isDirty = (id: string) => {
-    const draft = drafts[id];
-    return draft !== undefined && draft !== savedContentOf(id);
-  };
-
-  const titleOf = (id: string) => doc.sections.find((s) => s.id === id)?.title ?? "a section";
-  const restoredSummary =
-    restoredIds.length === 1
-      ? `"${titleOf(restoredIds[0])}"`
-      : `${restoredIds.length} sections (${restoredIds.map(titleOf).join(", ")})`;
-
   return (
-    <section aria-label="Document editor" className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 lg:px-10">
-        {restoredIds.length > 0 && !restoreDismissed && (
-          <InlineNotice tone={conflictIds.length > 0 ? "warning" : "empty"} className="mb-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="min-w-0">
-                {conflictIds.length > 0 ? (
-                  <>
-                    Unsaved edits restored to {restoredSummary} — but{" "}
-                    {conflictIds.length === 1 ? "that section has" : "some of those sections have"}{" "}
-                    also been saved since, so the two versions differ. Check the text before saving;
-                    Cancel keeps the saved version instead.
-                  </>
-                ) : (
-                  <>
-                    Draft restored — unsaved changes to {restoredSummary} were carried over from
-                    your last visit. Save to keep them, or Cancel to go back to the saved text.
-                  </>
-                )}
-              </span>
+    <section aria-label="Document editor" className="min-h-0 flex-1 overflow-y-auto bg-muted/20">
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 lg:px-10">
+        {/* Table of Contents Header Strip */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowContents((v) => !v)}
+            className="h-8 gap-2 rounded-lg border-border bg-card text-xs font-medium hover:bg-muted"
+          >
+            <ListOrdered className="h-3.5 w-3.5" />
+            <span>Table of Contents ({doc.sections.length} sections)</span>
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform duration-200",
+                showContents && "rotate-180",
+              )}
+            />
+          </Button>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="tabular-nums font-semibold text-foreground">{totalWords}</span> / {WORD_BUDGET} words
+            <span>•</span>
+            <span>{doc.sections.length} sections</span>
+          </div>
+        </div>
+
+        {/* Expandable Table of Contents Grid */}
+        {showContents && (
+          <div className="mb-8 rounded-xl border border-border bg-card p-4 shadow-sm motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2">
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Document Sections
+              </h4>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={onDismissRestore}
-                className="h-auto shrink-0 rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
+                onClick={() => setShowContents(false)}
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
               >
-                Dismiss
+                <X className="h-3.5 w-3.5" />
               </Button>
             </div>
-          </InlineNotice>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {doc.sections.map((s, i) => {
+                const active = s.id === activeSectionId;
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        scrollToSection(s.id);
+                      }}
+                      className={cn(
+                        "flex w-full items-start justify-between gap-2 rounded-lg border p-2.5 text-left text-xs transition-all",
+                        active
+                          ? "border-brand/40 bg-brand/5 font-medium text-brand"
+                          : "border-border/60 bg-muted/20 hover:border-brand/30 hover:bg-muted/40 text-foreground",
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="font-semibold text-brand mr-1.5">{i + 1}.</span>
+                        <span className="truncate">{s.title}</span>
+                      </div>
+                      <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                        {wordCount(s.content)}w
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
 
-        {!persistenceOk && (
-          <InlineNotice tone="warning" className="mb-6">
-            Unsaved edits can&apos;t be backed up in this browser right now — local storage may be
-            full or unavailable (for example, in private browsing). What you see here is intact, but
-            a reload could lose anything you haven&apos;t saved.
-          </InlineNotice>
-        )}
+        {/* Continuous Google Docs "Paper" Sheet */}
+        <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-12 md:p-16 shadow-lg ring-1 ring-border/30">
+          {/* Document Cover / Header */}
+          <header className="border-b border-border/70 pb-8 mb-8">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-brand">
+                {doc.programme || grant?.programme || "European Grant Proposal"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Updated {formatDistanceToNow(new Date(doc.updatedAt), { addSuffix: true })}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
+              {doc.grantTitle}
+            </h1>
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+              <span><strong>Applicant:</strong> {profile?.organisationName || "Applicant Organisation"}</span>
+              {grant?.fundingAmount && <span><strong>Funding:</strong> {grant.fundingAmount}</span>}
+              {grant?.deadline && <span><strong>Deadline:</strong> {formatDeadline(grant.deadline)}</span>}
+            </div>
+            <div className="mt-5 flex items-center gap-2.5 rounded-lg bg-brand/5 border border-brand/20 px-3.5 py-2.5 text-xs text-brand">
+              <Sparkles className="h-4 w-4 shrink-0" />
+              <span>
+                <strong>AI-Managed Document:</strong> Direct edits are handled autonomously by the AI Assistant on the right. Ask to refine, expand, or adjust any section.
+              </span>
+            </div>
+          </header>
 
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-          <ContentsRail
-            sections={doc.sections}
-            drafts={drafts}
-            activeSectionId={activeSectionId}
-            onSelect={scrollToSection}
-          />
-
-          <div className="min-w-0 flex-1 space-y-6">
+          {/* Continuous Flow of All Sections */}
+          <div className="space-y-8">
             {doc.sections.map((section, i) => (
-              <WorkspaceSection
+              <GoogleDocsSection
                 key={section.id}
                 index={i + 1}
                 section={section}
-                draft={drafts[section.id]}
-                dirty={isDirty(section.id)}
-                savedFlash={savedFlashId === section.id}
-                onStartEdit={() => onStartEdit(section.id)}
-                onChangeDraft={(value) => onChangeDraft(section.id, value)}
-                onCancel={() => onCancel(section.id)}
-                onSave={() => onSave(section.id)}
+                content={section.content}
                 onAskAssistant={() => onAskAssistant(section.id)}
                 revealText={streamingSections[section.id]}
                 onRevealComplete={() => onRevealComplete(section.id)}
+                active={activeSectionId === section.id}
               />
             ))}
-
-            <WordBudgetBar total={totalWords} />
           </div>
+
+          {/* Document Footer */}
+          <footer className="mt-12 pt-6 border-t border-border/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs text-muted-foreground">
+              Total Length: <span className="font-semibold text-foreground tabular-nums">{totalWords}</span> / {WORD_BUDGET} words
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => exportAsPdf(doc)}
+                className="rounded-lg text-xs hover:bg-muted"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                Export PDF
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void exportAsWord(doc)}
+                className="rounded-lg text-xs hover:bg-muted"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                Export Word
+              </Button>
+            </div>
+          </footer>
         </div>
       </div>
     </section>
@@ -1285,114 +1158,13 @@ function DocumentWorkspaceContent({
   pipelineStatus: ApplicationStatus | undefined;
   onSectionChange: (sectionId: string, content: string) => void;
 }) {
-  // Same in-progress-edit model as ApplicationDocumentView: presence of a key
-  // means that section is being edited. Lifted up from the editor pane (vs.
-  // the structure-only version of this component) so the assistant panel can
-  // apply an AI rewrite through the exact same commit path as a manual Save —
-  // including clearing out any open draft on that section — rather than a
-  // second, divergent write path.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [restoredIds, setRestoredIds] = useState<string[]>([]);
-  const [conflictIds, setConflictIds] = useState<string[]>([]);
-  const [restoreDismissed, setRestoreDismissed] = useState(false);
-  // sectionId -> the full text an AI rewrite just produced for it. Purely
-  // presentational (see useProgressiveReveal) — commitSection below has
-  // already saved the real content by the time this is ever set, so losing
-  // this state (e.g. a refresh mid-reveal) loses nothing but the animation.
   const [streamingSections, setStreamingSections] = useState<Record<string, string>>({});
-  // Which section a section's own "Ask assistant" button last pinned as the
-  // chat's default target — shared between the left pane (sets it) and the
-  // chat panel (reads/clears it), so it has to live above both.
   const [pinnedSectionId, setPinnedSectionId] = useState<string | null>(null);
 
-  const { restore, persistenceOk, flush: flushDrafts } = useDrafts(doc, drafts);
-
-  useEffect(() => {
-    if (!restore) return;
-    setDrafts((prev) => {
-      const merged = { ...prev };
-      for (const [sectionId, text] of Object.entries(restore.sections)) {
-        if (!(sectionId in merged)) merged[sectionId] = text;
-      }
-      return merged;
-    });
-    setRestoredIds(Object.keys(restore.sections));
-    setConflictIds(restore.conflictSectionIds);
-    setRestoreDismissed(false);
-  }, [restore]);
-
-  const forgetRestored = (id: string) => {
-    setRestoredIds((prev) => prev.filter((restoredId) => restoredId !== id));
-    setConflictIds((prev) => prev.filter((conflictId) => conflictId !== id));
-  };
-
-  const flushRequestedRef = useRef(false);
-  const requestDraftFlush = () => {
-    flushRequestedRef.current = true;
-  };
-
-  useEffect(() => {
-    if (!flushRequestedRef.current) return;
-    flushRequestedRef.current = false;
-    flushDrafts();
-  }, [drafts, flushDrafts]);
-
-  const flashSaved = (id: string) => {
-    setSavedFlashId(id);
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setSavedFlashId(null), 1600);
-  };
-
-  const startEdit = (id: string) => {
-    const savedContent = doc.sections.find((s) => s.id === id)?.content ?? "";
-    setDrafts((prev) => (prev[id] !== undefined ? prev : { ...prev, [id]: savedContent }));
-  };
-
-  const updateDraft = (id: string, value: string) => {
-    setDrafts((prev) => ({ ...prev, [id]: value }));
-  };
-
-  const clearDraft = (id: string) => {
-    setDrafts((prev) => {
-      if (!(id in prev)) return prev;
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  };
-
-  const cancelEdit = (id: string) => {
-    clearDraft(id);
-    forgetRestored(id);
-    requestDraftFlush();
-  };
-
-  /** The one write path: manual Save and an applied AI rewrite both funnel through here. */
-  const commitSection = (id: string, text: string) => {
-    onSectionChange(id, text);
-    clearDraft(id);
-    forgetRestored(id);
-    requestDraftFlush();
-    flashSaved(id);
-  };
-
-  const save = (id: string) => {
-    const draft = drafts[id];
-    if (draft === undefined) return;
-    commitSection(id, draft);
-  };
-
-  /**
-   * The AI path: commits exactly like a manual Save (same function, same
-   * call, same timing — nothing about the save is different or delayed),
-   * then separately flags the text for a progressive reveal. The reveal is
-   * fire-and-forget from the caller's perspective; it never gates or
-   * follows the commit.
-   */
   const applyAiRewrite = (id: string, text: string) => {
-    commitSection(id, text);
+    onSectionChange(id, text);
+    setDrafts((prev) => ({ ...prev, [id]: text }));
     setStreamingSections((prev) => ({ ...prev, [id]: text }));
   };
 
@@ -1416,17 +1188,8 @@ function DocumentWorkspaceContent({
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:overflow-hidden">
         <WorkspaceEditor
           doc={doc}
-          drafts={drafts}
-          savedFlashId={savedFlashId}
-          restoredIds={restoredIds}
-          conflictIds={conflictIds}
-          restoreDismissed={restoreDismissed}
-          persistenceOk={persistenceOk}
-          onDismissRestore={() => setRestoreDismissed(true)}
-          onStartEdit={startEdit}
-          onChangeDraft={updateDraft}
-          onCancel={cancelEdit}
-          onSave={save}
+          profile={profile}
+          grant={grant}
           onAskAssistant={setPinnedSectionId}
           streamingSections={streamingSections}
           onRevealComplete={clearStreaming}

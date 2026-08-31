@@ -176,15 +176,6 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
               >
                 Start application
               </Button>
-              <SheetClose asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full rounded-lg hover:bg-muted sm:ml-auto sm:w-auto"
-                >
-                  Close
-                </Button>
-              </SheetClose>
             </SheetFooter>
           </>
         )}
@@ -252,6 +243,7 @@ function ListField({
 /** Same ring meter as the grant card (see GrantResults.tsx's MatchRing), so the
  * match score reads identically whether it's seen on the card or in here. */
 function MatchScoreRow({ percentage = 0 }: { percentage?: number }) {
+  if (!percentage || percentage <= 0) return null;
   const tier = matchTierFor(percentage);
   const cls = MATCH_TIER_CLASSES[tier];
   const clamped = Math.min(100, Math.max(0, percentage));
