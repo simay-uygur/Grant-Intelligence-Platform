@@ -10,6 +10,7 @@ import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications
 import type {
   ApplicationService,
   OpenedApplication,
+  RewriteSectionOptions,
   StartApplicationOptions,
   UploadDocumentOptions,
 } from "./ApplicationService";
@@ -338,9 +339,9 @@ export class ApiApplicationService implements ApplicationService {
     documentId?: string,
     onProgress?: (event: SseEvent) => void,
     instruction?: string,
-    options?: { baseRevision?: number; persist?: boolean },
+    options?: RewriteSectionOptions,
   ): Promise<{ content: string; revision?: number; baseRevision?: number }> {
-    const sectionId = sectionTitle.toLowerCase().replace(/\s+/g, "-");
+    const sectionId = options?.sectionId || sectionTitle.toLowerCase().replace(/\s+/g, "-");
     const storedDocumentId = documentId ?? grant?.id ?? "active-document";
     const payload = await this.client.requestSse<unknown>(
       `/api/v1/documents/${encodeURIComponent(storedDocumentId)}/sections/${encodeURIComponent(sectionId)}/stream`,

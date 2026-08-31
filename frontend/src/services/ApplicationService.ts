@@ -29,6 +29,7 @@ export interface UploadDocumentOptions {
 }
 
 export interface RewriteSectionOptions {
+  sectionId?: string;
   baseRevision?: number;
   persist?: boolean;
 }

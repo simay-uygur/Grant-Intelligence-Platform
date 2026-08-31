@@ -10,19 +10,35 @@ describe("ResearchStatus component", () => {
       steps: [
         { label: "Generating keywords", status: "done" },
         {
-          label: "Parallel multi-source search",
+          label: "Discovering opportunities in parallel",
           status: "active",
-          euCount: 7,
-          webCount: 3,
         },
         { label: "Evaluating matches", status: "pending" },
       ],
+      sources: {
+        eu_portal: {
+          id: "eu_portal",
+          label: "EU Portal",
+          detail: "Horizon Europe / SEDIA",
+          status: "active",
+          candidateCount: 7,
+        },
+        web_discovery: {
+          id: "web_discovery",
+          label: "Web Discovery",
+          detail: "National & regional funding sources",
+          status: "active",
+          candidateCount: 3,
+        },
+      },
     };
 
     render(<ResearchStatus state={state} />);
 
-    expect(screen.getByText("+7")).toBeDefined();
-    expect(screen.getByText("+3")).toBeDefined();
+    expect(screen.getByText("EU Portal")).toBeDefined();
+    expect(screen.getByText("Web Discovery")).toBeDefined();
+    expect(screen.getByText("7 candidates")).toBeDefined();
+    expect(screen.getByText("3 candidates")).toBeDefined();
   });
 
   it("does not render fake fallback counts (14, 8) when counts are undefined", () => {
@@ -30,7 +46,7 @@ describe("ResearchStatus component", () => {
       steps: [
         { label: "Generating keywords", status: "done" },
         {
-          label: "Parallel multi-source search",
+          label: "Discovering opportunities in parallel",
           status: "active",
         },
         { label: "Evaluating matches", status: "pending" },

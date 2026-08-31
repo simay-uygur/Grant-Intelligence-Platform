@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -54,6 +55,20 @@ def _build_client(database_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
         },
     ]
     service.agent_service.rewrite_section = lambda section_title, current_content, profile, grant=None, instruction=None: f"AI rewrite for {profile['organisationName']}."
+
+    def rewrite_section_stream(section_title, current_content, profile, grant=None, instruction=None):
+        yield {
+            "event": "thinking",
+            "stage": "rewrite",
+            "message": "Thinking in workspace...",
+        }
+        yield {
+            "event": "result",
+            "stage": "rewrite",
+            "data": {"content": f"AI rewrite for {profile['organisationName']}."},
+        }
+
+    service.agent_service.rewrite_section_stream = rewrite_section_stream
     service.agent_service.document_qa = lambda question, document, grant=None, profile=None, section_id=None, attachments="": {
         "answer": f"Evaluator advice for '{question}'.",
         "section_id": section_id,
@@ -240,6 +255,41 @@ def test_ai_rewrite_updates_the_stored_application_output(
     assert rewrite_response.json()["content"] == "AI rewrite for Northlight Robotics."
     stored = client.get(f"/api/v1/applications/{document['id']}").json()
     assert stored["sections"][0]["content"] == "AI rewrite for Northlight Robotics."
+
+
+def test_rewrite_stream_uses_stored_section_ids_and_rejects_missing_sections(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    client = _build_client(tmp_path / "application_rewrite_stream.db", monkeypatch)
+    document = _start_application(client)
+
+    ok_response = client.patch(
+        f"/api/v1/documents/{document['id']}/sections/executive-summary/stream",
+        json={
+            "sectionTitle": "Executive Summary",
+            "currentContent": "Draft for Northlight Robotics.",
+            "profile": PROFILE,
+            "grant": GRANT,
+            "baseRevision": 1,
+        },
+    )
+    assert ok_response.status_code == 200
+    lines = [line.strip() for line in ok_response.text.split("\n") if line.startswith("data:")]
+    result = json.loads(lines[-1].replace("data: ", ""))
+    assert result["data"]["content"] == "AI rewrite for Northlight Robotics."
+
+    missing_response = client.patch(
+        f"/api/v1/documents/{document['id']}/sections/missing-section/stream",
+        json={
+            "sectionTitle": "Missing Section",
+            "currentContent": "Draft.",
+            "profile": PROFILE,
+            "grant": GRANT,
+            "baseRevision": 1,
+        },
+    )
+    assert missing_response.status_code == 404
 
 
 def test_missing_application_and_section_return_not_found(

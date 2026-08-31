@@ -7,6 +7,7 @@ import {
 import type {
   ApplicationService,
   OpenedApplication,
+  RewriteSectionOptions,
   StartApplicationOptions,
 } from "./ApplicationService";
 import type { SseEvent } from "./apiClient";
@@ -367,7 +368,7 @@ export class LocalApplicationService implements ApplicationService {
     _documentId?: string,
     onProgress?: (event: SseEvent) => void,
     instruction?: string,
-    options?: { baseRevision?: number; persist?: boolean },
+    options?: RewriteSectionOptions,
   ): Promise<{ content: string; revision?: number; baseRevision?: number }> {
     onProgress?.({
       event: "thinking",
@@ -378,7 +379,7 @@ export class LocalApplicationService implements ApplicationService {
     onProgress?.({
       event: "tool_call",
       stage: "rewrite",
-      message: `Rewriting section '${sectionTitle}'...`,
+      message: `Thinking in workspace for '${sectionTitle}'...`,
     });
     await wait(350);
     if (isMockScenario("rewrite-error")) {

@@ -10,7 +10,7 @@ import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { useGrantSearch } from "@/hooks/useGrantSearch";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { applicationService, chatService, isMockMode } from "@/services";
-import type { SseEvent } from "@/services/apiClient";
+import { ApiError, type SseEvent } from "@/services/apiClient";
 import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -251,7 +251,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
           type: "text",
           text:
             grants.length === 0
-              ? `I couldn't find anything matching ${profile.organisationName || "your organisation"} on every criterion. Here's what usually helps:`
+              ? allCandidates && allCandidates.length > 0
+                ? `I found source opportunities for ${profile.organisationName || "your organisation"}, but none were strong enough to recommend on every criterion. You can inspect the discovered opportunities below or broaden the profile and search again.`
+                : `I couldn't find any grant opportunities matching ${profile.organisationName || "your organisation"} on every criterion. Here's what usually helps:`
               : `I found ${grants.length} strong matches for ${profile.organisationName || "your organisation"}. Here are the top three, ranked by fit:`,
         },
         {
@@ -562,25 +564,121 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         eligibilityConstraints: "None",
       };
 
-      c.newConversation({
+      const draftConversation = c.newConversation({
         title: app.grantTitle,
         stage: "application",
         profile: defaultProfile,
+        grants: [targetGrant],
+        selectedGrantId: targetGrant.id,
+        messages: [],
       });
-      setBusy(true);
-      try {
-        const doc = await applicationService.startApplication(targetGrant, defaultProfile);
-        c.setProfile(defaultProfile);
-        c.setDocument(doc, targetGrant.id);
-        c.setStage("application");
-        setMainView("workspace");
-      } catch (err) {
-        askAssistant([
+      const statusMessageId = c.uid();
+      c.appendMessageToConversation(draftConversation.id, {
+        id: statusMessageId,
+        role: "assistant",
+        createdAt: new Date().toISOString(),
+        blocks: [
           {
-            type: "error",
-            message: `Could not load application draft: ${err instanceof Error ? err.message : "Error"}`,
+            type: "draft_progress",
+            state: {
+              grantTitle: targetGrant.title,
+              percent: 0,
+              currentSectionTitle: "Analyzing grant requirements...",
+              sectionIndex: 0,
+              totalSections: 12,
+            },
+          },
+        ],
+      });
+      setMainView("chat");
+      setBusy(true);
+      const handleDraftProgress = (event: SseEvent) => {
+        const data = event.data as Record<string, unknown> | undefined;
+        const sectionIdx = (data?.section_index as number | undefined) ?? 0;
+        const total = (data?.total_sections as number | undefined) ?? 12;
+        const percent =
+          (data?.progress_percent as number | undefined) ??
+          (sectionIdx ? Math.min(99, Math.round((sectionIdx / total) * 100)) : 0);
+        const chunkText =
+          (data?.accumulated_content as string | undefined) ?? (data?.chunk as string | undefined);
+        const wordCount = data?.word_count as number | undefined;
+        const thought = (data?.thought as string | undefined) ?? event.message;
+        const sectionTitle = (data?.section_title as string | undefined) ?? "Drafting...";
+
+        c.updateMessageBlocksInConversation(draftConversation.id, statusMessageId, () => [
+          {
+            type: "draft_progress",
+            state: {
+              grantTitle: targetGrant.title,
+              currentSectionTitle: sectionTitle,
+              thought,
+              liveTextChunk: chunkText,
+              wordCount,
+              sectionIndex: sectionIdx,
+              totalSections: total,
+              percent,
+            },
           },
         ]);
+      };
+      try {
+        const doc = await applicationService.startApplication(
+          targetGrant,
+          defaultProfile,
+          handleDraftProgress,
+          { conversationId: draftConversation.id },
+        );
+        c.updateMessageBlocksInConversation(draftConversation.id, statusMessageId, () => [
+          {
+            type: "draft_progress",
+            state: {
+              grantTitle: targetGrant.title,
+              currentSectionTitle: `Completed ${doc.sections.length} sections`,
+              sectionIndex: doc.sections.length,
+              totalSections: doc.sections.length,
+              percent: 100,
+            },
+          },
+        ]);
+        c.setConversationProfile(draftConversation.id, defaultProfile);
+        c.setConversationDocument(draftConversation.id, doc, targetGrant.id);
+        c.setConversationStage(draftConversation.id, "application");
+        c.appendMessageToConversation(draftConversation.id, {
+          id: c.uid(),
+          role: "assistant",
+          createdAt: new Date().toISOString(),
+          blocks: [
+            {
+              type: "success",
+              message: `Application draft created for ${targetGrant.title}.`,
+            },
+            { type: "document", documentId: doc.id },
+          ],
+        });
+        setMainView("workspace");
+      } catch (err) {
+        c.updateMessageBlocksInConversation(draftConversation.id, statusMessageId, () => [
+          {
+            type: "draft_progress",
+            state: {
+              grantTitle: targetGrant.title,
+              currentSectionTitle: "Drafting stopped",
+              error: err instanceof Error ? err.message : "The draft couldn't be generated.",
+              percent: 0,
+            },
+          },
+        ]);
+        c.appendMessageToConversation(draftConversation.id, {
+          id: c.uid(),
+          role: "assistant",
+          createdAt: new Date().toISOString(),
+          blocks: [
+            {
+              type: "error",
+              message: `Could not load application draft: ${err instanceof Error ? err.message : "Error"}`,
+            },
+          ],
+        });
       } finally {
         setBusy(false);
       }
@@ -644,9 +742,15 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         setBusy(true);
         try {
           const profile = c.activeConversation?.profile;
+          let backendConversationId = c.activeConversation?.backendConversationId;
+          if (!backendConversationId) {
+            const backendConversation = await chatService.createConversation();
+            backendConversationId = backendConversation.conversationId;
+            c.setBackendConversationId(backendConversationId);
+          }
           const reply = await chatService.sendMessage({
-            conversationId: c.activeId || "conv-default",
-            sessionId: c.activeId || "conv-default",
+            conversationId: backendConversationId,
+            sessionId: backendConversationId,
             userMessage: text,
             profile,
           });
@@ -662,8 +766,14 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             await runResearch(profile);
           }
           return;
-        } catch {
-          // Graceful fallback if backend call fails
+        } catch (err) {
+          const message =
+            err instanceof ApiError && err.status === 404
+              ? "The live chat backend could not find the linked conversation. I will continue locally here."
+              : err instanceof Error
+                ? `${err.message} I will continue locally here.`
+                : "The live chat backend did not respond. I will continue locally here.";
+          askAssistant([{ type: "error", message }]);
         } finally {
           setBusy(false);
         }

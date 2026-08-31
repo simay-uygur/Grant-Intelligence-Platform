@@ -207,6 +207,43 @@ export function useConversations() {
     [updateActive],
   );
 
+  const appendMessageToConversation = useCallback(
+    (conversationId: string, message: ChatMessage) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? { ...c, messages: [...c.messages, message], updatedAt: new Date().toISOString() }
+            : c,
+        ),
+      );
+    },
+    [],
+  );
+
+  const updateMessageBlocksInConversation = useCallback(
+    (
+      conversationId: string,
+      messageId: string,
+      updater: ChatBlock[] | ((blocks: ChatBlock[]) => ChatBlock[]),
+    ) => {
+      const fn = typeof updater === "function" ? updater : () => updater;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === messageId ? { ...m, blocks: fn(m.blocks) } : m,
+                ),
+                updatedAt: new Date().toISOString(),
+              }
+            : c,
+        ),
+      );
+    },
+    [],
+  );
+
   const setStage = useCallback(
     (stage: Conversation["stage"]) => {
       updateActive((c) => ({ ...c, stage }));
@@ -219,6 +256,17 @@ export function useConversations() {
       updateActive((c) => ({ ...c, profile }));
     },
     [updateActive],
+  );
+
+  const setConversationProfile = useCallback(
+    (conversationId: string, profile: OrganisationProfile) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, profile, updatedAt: new Date().toISOString() } : c,
+        ),
+      );
+    },
+    [],
   );
 
   const setBackendConversationId = useCallback(
@@ -265,6 +313,35 @@ export function useConversations() {
       }));
     },
     [updateActive],
+  );
+
+  const setConversationStage = useCallback(
+    (conversationId: string, stage: Conversation["stage"]) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, stage, updatedAt: new Date().toISOString() } : c,
+        ),
+      );
+    },
+    [],
+  );
+
+  const setConversationDocument = useCallback(
+    (conversationId: string, doc: ApplicationDocument | undefined, grantId?: string) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                document: normalizeDocumentRevisions(doc),
+                selectedGrantId: grantId ?? c.selectedGrantId,
+                updatedAt: new Date().toISOString(),
+              }
+            : c,
+        ),
+      );
+    },
+    [],
   );
 
   /**
@@ -352,13 +429,18 @@ export function useConversations() {
     renameConversation,
     deleteConversation,
     appendMessage,
+    appendMessageToConversation,
     updateMessageBlocks,
+    updateMessageBlocksInConversation,
     setStage,
+    setConversationStage,
     setProfile,
+    setConversationProfile,
     setBackendConversationId,
     synchronizeBackendMessages,
     setGrants,
     setDocument,
+    setConversationDocument,
     supersedePreviousDocumentBlocks,
     updateDocumentSection,
     uid,

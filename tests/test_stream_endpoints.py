@@ -36,7 +36,23 @@ def _install_fake_streaming_agent():
             "event": "result",
             "stage": "select",
             "message": "Selected 1 grant",
-            "data": {"grants": search_grants(profile, max_grants, excluded_grant_ids)},
+            "data": {
+                "grants": search_grants(profile, max_grants, excluded_grant_ids),
+                "all_candidates": [
+                    {
+                        "id": "HORIZON-FAKE-001",
+                        "title": "Fake Grant",
+                        "programme": "Horizon Europe",
+                    },
+                    {
+                        "id": "WEB-FAKE-001",
+                        "title": "Fake Web Grant",
+                        "programme": "Web Grant Discovery",
+                    },
+                ],
+                "eu_count": 1,
+                "web_count": 1,
+            },
         }
 
     def start_application(grant: dict, profile: dict, custom_instructions=None, template_type=None, attachments="") -> dict:
@@ -150,6 +166,9 @@ def test_grant_search_stream(monkeypatch: MonkeyPatch):
     assert event2["event"] == "result"
     assert "grants" in event2["data"]
     assert event2["data"]["grants"][0]["id"] == "HORIZON-FAKE-001"
+    assert len(event2["data"]["all_candidates"]) == 2
+    assert event2["data"]["eu_count"] == 1
+    assert event2["data"]["web_count"] == 1
 
 
 def test_start_application_stream(monkeypatch: MonkeyPatch):

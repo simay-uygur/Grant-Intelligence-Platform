@@ -99,13 +99,27 @@ export interface ApplicationDocument {
   updatedAt: string;
 }
 
+export type ResearchProgressStatus = "pending" | "active" | "done";
+export type ResearchSourceStatus = ResearchProgressStatus | "error";
+export type ResearchSourceId = "eu_portal" | "web_discovery";
+
 export interface ResearchStep {
   label: string;
-  status: "pending" | "active" | "done";
+  status: ResearchProgressStatus;
   detail?: string;
   euCount?: number;
   webCount?: number;
   candidateCount?: number;
+  selectedCount?: number;
+}
+
+export interface ResearchSourceProgress {
+  id: ResearchSourceId;
+  label: string;
+  detail: string;
+  status: ResearchSourceStatus;
+  candidateCount?: number;
+  error?: string;
 }
 
 /** Progress of the current research session (grant matching in progress for a profile). */
@@ -114,6 +128,7 @@ export interface ResearchState {
   error?: string;
   euCount?: number;
   webCount?: number;
+  sources?: Record<ResearchSourceId, ResearchSourceProgress>;
 }
 
 /**

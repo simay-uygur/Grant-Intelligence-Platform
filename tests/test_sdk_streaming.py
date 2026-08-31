@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from agent.sdk_agent import (
+    _fallback_final_grants,
     rewrite_section_stream,
     run_agent_stream,
     start_application_stream,
@@ -142,3 +143,91 @@ def test_sdk_agent_rewrite_section_stream():
 
         result = next(e for e in events if e.get("event") == "result")
         assert result["data"]["content"] == "Rewritten chunk 1 and chunk 2"
+
+
+def test_fallback_final_grants_returns_without_source_url():
+    candidates = [
+        {
+            "id": "test-1",
+            "title": "Test Grant 1",
+            "programme": "Horizon Europe",
+            "source": "EU Horizon API",
+            "deadline": "2027-12-31",
+        },
+        {
+            "id": "test-2",
+            "title": "Test Grant 2",
+            "programme": "Horizon Europe",
+            "source": "EU Horizon API",
+            "deadline": "2027-12-31",
+        },
+    ]
+    profile = {"organisationName": "Test", "sector": "ai"}
+    result = _fallback_final_grants(candidates, profile, max_grants=2)
+    assert len(result) == 2, f"Expected 2 grants, got {len(result)}"
+
+
+def test_fallback_final_grants_returns_with_expired_deadline():
+    candidates = [
+        {
+            "id": "test-3",
+            "title": "Expired Grant",
+            "programme": "Horizon Europe",
+            "source": "EU Horizon API",
+            "deadline": "2020-01-01",
+        },
+    ]
+    profile = {"organisationName": "Test", "sector": "ai"}
+    result = _fallback_final_grants(candidates, profile, max_grants=1)
+    assert len(result) == 1, f"Expected 1 grant, got {len(result)}"
+
+
+def test_fallback_final_grants_excludes_by_id():
+    candidates = [
+        {
+            "id": "EXCLUDE-THIS",
+            "title": "Excluded Grant",
+            "programme": "Horizon Europe",
+            "source": "EU Horizon API",
+            "deadline": "2027-12-31",
+            "sourceUrl": "https://example.com",
+        },
+        {
+            "id": "KEEP-THIS",
+            "title": "Keep This Grant",
+            "programme": "Horizon Europe",
+            "source": "EU Horizon API",
+            "deadline": "2027-12-31",
+            "sourceUrl": "https://example.com",
+        },
+    ]
+    profile = {"organisationName": "Test", "sector": "ai"}
+    result = _fallback_final_grants(candidates, profile, max_grants=2, excluded_grant_ids=["EXCLUDE-THIS"])
+    excluded_ids = [g.get("id") for g in result]
+    assert "EXCLUDE-THIS" not in excluded_ids, "EXCLUDE-THIS should be excluded"
+    assert "KEEP-THIS" in excluded_ids, "KEEP-THIS should be returned"
+
+
+def test_fallback_final_grants_ranks_by_score():
+    candidates = [
+        {
+            "id": "low-match",
+            "title": "Low Match Grant",
+            "programme": "Horizon Europe",
+            "source": "EU Horizon API",
+            "deadline": "2027-12-31",
+            "sourceUrl": "https://example.com",
+        },
+        {
+            "id": "high-match",
+            "title": "Artificial Intelligence Research",
+            "programme": "Horizon Europe",
+            "source": "EU Horizon API",
+            "deadline": "2027-12-31",
+            "sourceUrl": "https://example.com",
+        },
+    ]
+    profile = {"organisationName": "Test", "sector": "ai"}
+    result = _fallback_final_grants(candidates, profile, max_grants=2)
+    assert len(result) == 2, f"Expected 2 grants, got {len(result)}"
+    assert result[0]["matchPercentage"] >= result[1]["matchPercentage"], "Should be ranked by score"

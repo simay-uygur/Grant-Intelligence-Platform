@@ -120,11 +120,12 @@ export function GrantResults({
     () => grants.filter((g) => compareIds.has(g.id)),
     [grants, compareIds],
   );
+  const candidatesExpanded = grants.length === 0 || showAllCandidates;
 
   // Zero matches is a real outcome for a real grant-seeker, not an edge case:
   // it needs to say what to change next, not just report the absence. Reachable
   // via ?mock=search-empty (see services/mockScenario.ts).
-  if (grants.length === 0) {
+  if (grants.length === 0 && candidatePool.length === 0) {
     return (
       <EmptyState
         headingLevel="h3"
@@ -142,40 +143,64 @@ export function GrantResults({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">
-            Top {grants.length} matched grant{grants.length === 1 ? "" : "s"}
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Ranked by fit with your organisation profile.
-          </p>
+      {grants.length > 0 ? (
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              Top {grants.length} matched grant{grants.length === 1 ? "" : "s"}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Ranked by fit with your organisation profile.
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-xl border border-warning/30 bg-warning/10 p-4">
+          <h3 className="text-sm font-semibold text-foreground">
+            No strong recommendations selected
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            The search found source opportunities, but none cleared every fit criterion for a
+            recommendation. Review the discovered opportunities below or widen the profile and
+            search again.
+          </p>
+          {onRetryResearch && (
+            <Button type="button" size="sm" onClick={onRetryResearch} className="mt-3 rounded-lg">
+              <RefreshCw className="h-3.5 w-3.5" />
+              Search again
+            </Button>
+          )}
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-4">
-        {grants.map((g) => (
-          <GrantCard
-            key={g.id}
-            grant={g}
-            onAsk={onAsk}
-            onStart={onStart}
-            onViewDetails={openDetails}
-            saved={isSaved(g.id)}
-            onToggleSaved={() => toggleSave(g)}
-            compareChecked={compareIds.has(g.id)}
-            onToggleCompare={() => toggleCompare(g.id)}
-            compareDisabled={!compareIds.has(g.id) && compareIds.size >= MAX_COMPARE}
-            startDisabled={startDisabled}
-          />
-        ))}
-      </div>
+      {grants.length > 0 && (
+        <div className="grid grid-cols-1 gap-4">
+          {grants.map((g) => (
+            <GrantCard
+              key={g.id}
+              grant={g}
+              onAsk={onAsk}
+              onStart={onStart}
+              onViewDetails={openDetails}
+              saved={isSaved(g.id)}
+              onToggleSaved={() => toggleSave(g)}
+              compareChecked={compareIds.has(g.id)}
+              onToggleCompare={() => toggleCompare(g.id)}
+              compareDisabled={!compareIds.has(g.id) && compareIds.size >= MAX_COMPARE}
+              startDisabled={startDisabled}
+            />
+          ))}
+        </div>
+      )}
 
       {candidatePool.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
           <button
             type="button"
-            onClick={() => setShowAllCandidates((prev) => !prev)}
+            onClick={() => {
+              if (grants.length > 0) setShowAllCandidates((prev) => !prev);
+            }}
+            aria-expanded={candidatesExpanded}
             className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
           >
             <div className="flex items-center gap-2">
@@ -186,23 +211,26 @@ export function GrantResults({
                 <span className="font-semibold text-xs sm:text-sm text-foreground">
                   All Discovered Opportunities & Web Sources
                 </span>
-                <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground tabular-nums">
-                  {candidatePool.length} found
-                </span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-normal">
-              <span>{showAllCandidates ? "Hide list" : "Show all"}</span>
+              <span>
+                {grants.length === 0
+                  ? "Candidate list"
+                  : candidatesExpanded
+                    ? "Hide list"
+                    : "Show all"}
+              </span>
               <ChevronRight
                 className={cn(
                   "h-4 w-4 transition-transform duration-200",
-                  showAllCandidates && "rotate-90",
+                  candidatesExpanded && "rotate-90",
                 )}
               />
             </div>
           </button>
 
-          {showAllCandidates && (
+          {candidatesExpanded && (
             <div className="border-t border-border px-4 py-3.5 space-y-3 bg-muted/10">
               {sourceSummary && (
                 <p className="text-[11px] text-muted-foreground">{sourceSummary}</p>
@@ -217,7 +245,7 @@ export function GrantResults({
                     onClick={() => setCandidateFilter("all")}
                     className="h-7 text-xs rounded-full px-2.5"
                   >
-                    All ({candidatePool.length})
+                    All
                   </Button>
                   <Button
                     type="button"
@@ -226,7 +254,7 @@ export function GrantResults({
                     onClick={() => setCandidateFilter("eu_portal")}
                     className="h-7 text-xs rounded-full px-2.5 gap-1"
                   >
-                    <span>🇪🇺</span> EU Portal ({euCount})
+                    EU Portal ({euCount})
                   </Button>
                   <Button
                     type="button"
@@ -235,7 +263,7 @@ export function GrantResults({
                     onClick={() => setCandidateFilter("web_discovery")}
                     className="h-7 text-xs rounded-full px-2.5 gap-1"
                   >
-                    <span>🌐</span> Web Discovery ({webCount})
+                    Web Discovery ({webCount})
                   </Button>
                 </div>
 
@@ -278,7 +306,7 @@ export function GrantResults({
           the feature exists. Static (not sticky): it sits right after the
           grid rather than trailing behind scroll position in a block that's
           embedded partway down a long chat transcript. */}
-      {compareIds.size >= 1 && (
+      {grants.length > 0 && compareIds.size >= 1 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
           <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
             {compareIds.size === 1

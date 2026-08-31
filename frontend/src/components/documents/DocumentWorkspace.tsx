@@ -1037,7 +1037,7 @@ function AssistantPanel({
         doc.id,
         undefined,
         instruction,
-        { baseRevision, persist: true },
+        { sectionId: section.id, baseRevision, persist: true },
       );
       onApplyRewrite(section.id, next.content, next.revision ?? baseRevision + 1);
       return { ok: true, previousText };
@@ -1064,7 +1064,7 @@ function AssistantPanel({
         doc.id,
         undefined,
         instruction,
-        { baseRevision, persist: false },
+        { sectionId: section.id, baseRevision, persist: false },
       );
       pushProposal({
         sectionId: section.id,
@@ -1385,8 +1385,8 @@ function AssistantPanel({
                   <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" />
                   <span className="text-xs text-muted-foreground">
                     {progress
-                      ? `Rewriting ${progress.index} of ${progress.total} — ${progress.title}…`
-                      : "Rewriting…"}
+                      ? `Thinking in workspace ${progress.index} of ${progress.total}: ${progress.title}...`
+                      : "Thinking in workspace..."}
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="h-1.5 w-1.5 motion-safe:animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.3s]" />

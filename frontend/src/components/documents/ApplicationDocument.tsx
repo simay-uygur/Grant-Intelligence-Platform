@@ -320,7 +320,7 @@ export function ApplicationDocumentView({
         doc.id,
         undefined,
         undefined,
-        { baseRevision, persist: true },
+        { sectionId: section.id, baseRevision, persist: true },
       );
       setLastRewrite({
         sectionId: section.id,
@@ -875,7 +875,7 @@ function SectionEditor({
       {/* Announced politely so a screen reader hears the rewrite start and
           finish; the visible signal is the spinner in the toolbar button. */}
       <span aria-live="polite" className="sr-only">
-        {rewriting ? `Rewriting ${section.title}…` : ""}
+        {rewriting ? `Thinking in workspace for ${section.title}...` : ""}
       </span>
 
       {/* role="alert" comes from InlineNotice's error tone, so a failed

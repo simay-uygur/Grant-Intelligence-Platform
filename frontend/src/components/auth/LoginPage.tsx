@@ -77,9 +77,12 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
           setBusy(false);
           return;
         } else {
+          const detail = payload.detail?.trim();
           setError(
-            payload.detail ||
-              (mode === "login" ? "Invalid email or password." : "Registration failed."),
+            mode === "register" && detail && /already exists/i.test(detail)
+              ? "An account with that email already exists. Switch to sign in to continue."
+              : detail ||
+                  (mode === "login" ? "Invalid email or password." : "Registration failed."),
           );
           setBusy(false);
           return;
