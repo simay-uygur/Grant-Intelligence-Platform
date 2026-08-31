@@ -23,7 +23,7 @@ jobs:
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install -r requirements.txt -r ai-agent/requirements.txt
 
       - name: Run backend lint
         run: python -m ruff check backend tests
