@@ -37,7 +37,13 @@ async def sse_generator_bridge(
     loop.run_in_executor(None, _worker)
 
     while True:
-        item = await queue.get()
+        try:
+            item = await asyncio.wait_for(queue.get(), timeout=10.0)
+        except TimeoutError:
+            # Send an SSE comment heartbeat to prevent AWS Lightsail / CloudFront 60s idle connection drop
+            yield ": keepalive\n\n"
+            continue
+
         if item is None:
             break
         if isinstance(item, Exception):
