@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
-import { isMockMode } from "@/services";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -353,9 +352,7 @@ function SidebarContent({
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-sidebar-border/60 px-4 py-3">
         <div className="flex min-w-0 items-center gap-2 text-[11px] text-sidebar-foreground/50">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" />
-          <span className="truncate">
-            {isMockMode === false ? "Live · AI & Search Active" : "Workspace Ready"}
-          </span>
+          <span className="truncate">Connected</span>
         </div>
         {onSignOut && (
           <button

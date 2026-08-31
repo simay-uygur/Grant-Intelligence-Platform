@@ -25,7 +25,6 @@ import { STATUS_BADGE, STATUS_LABEL } from "@/components/pipeline/statusPresenta
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDistanceToNow } from "date-fns";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -245,6 +244,8 @@ function WorkspaceEditor({
   streamingSections,
   onRevealComplete,
   totalWords,
+  showAssistant,
+  onToggleAssistant,
 }: {
   doc: ApplicationDocument;
   profile: OrganisationProfile | undefined;
@@ -254,12 +255,14 @@ function WorkspaceEditor({
   streamingSections: Record<string, string>;
   onRevealComplete: (id: string) => void;
   totalWords: number;
+  showAssistant: boolean;
+  onToggleAssistant: (show: boolean) => void;
 }) {
   const reduceMotion = usePrefersReducedMotion();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
     doc.sections[0]?.id ?? null,
   );
-  const [showContents, setShowContents] = useState(false);
+  const [showOutline, setShowOutline] = useState(false);
 
   const scrollToSection = (id: string) => {
     setActiveSectionId(id);
@@ -269,93 +272,109 @@ function WorkspaceEditor({
   };
 
   return (
-    <section aria-label="Document editor" className="min-h-0 flex-1 overflow-y-auto bg-muted/20">
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 lg:px-10">
-        {/* Table of Contents Header Strip */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowContents((v) => !v)}
-            className="h-8 gap-2 rounded-lg border-border bg-card text-xs font-medium hover:bg-muted"
-          >
-            <ListOrdered className="h-3.5 w-3.5" />
-            <span>Table of Contents ({doc.sections.length} sections)</span>
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 transition-transform duration-200",
-                showContents && "rotate-180",
-              )}
-            />
-          </Button>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="tabular-nums font-semibold text-foreground">{totalWords}</span> /{" "}
-            {WORD_BUDGET} words
-            <span>•</span>
-            <span>{doc.sections.length} sections</span>
-          </div>
-        </div>
-
-        {/* Expandable Table of Contents Grid */}
-        {showContents && (
-          <div className="mb-8 rounded-xl border border-border bg-card p-4 shadow-sm motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2">
-            <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Document Sections
-              </h4>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowContents(false)}
-                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+    <div className="relative flex min-h-0 flex-1 overflow-hidden bg-muted/20">
+      {/* Left Outline Sidebar (Google Docs Style) */}
+      {showOutline && (
+        <aside
+          aria-label="Document outline"
+          className="flex w-64 shrink-0 flex-col border-r border-border bg-card/60 backdrop-blur-sm transition-all duration-200"
+        >
+          <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <ListOrdered className="h-4 w-4 text-brand" />
+              <span className="text-xs font-semibold text-foreground">Document Outline</span>
             </div>
-            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {doc.sections.map((s, i) => {
-                const active = s.id === activeSectionId;
-                return (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        scrollToSection(s.id);
-                      }}
-                      className={cn(
-                        "flex w-full items-start justify-between gap-2 rounded-lg border p-2.5 text-left text-xs transition-all",
-                        active
-                          ? "border-brand/40 bg-brand/5 font-medium text-brand"
-                          : "border-border/60 bg-muted/20 hover:border-brand/30 hover:bg-muted/40 text-foreground",
-                      )}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="font-semibold text-brand mr-1.5">{i + 1}.</span>
-                        <span className="truncate">{s.title}</span>
-                      </div>
-                      <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
-                        {wordCount(s.content)}w
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowOutline(false)}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+              title="Hide outline"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          <nav aria-label="Section navigation" className="flex-1 overflow-y-auto p-3 space-y-1">
+            {doc.sections.map((s, i) => {
+              const active = s.id === activeSectionId;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => scrollToSection(s.id)}
+                  className={cn(
+                    "flex w-full items-start justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors",
+                    active
+                      ? "bg-brand/10 font-medium text-brand"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <div className="min-w-0 flex-1 leading-snug">
+                    <span className="font-semibold mr-1.5 tabular-nums">{i + 1}.</span>
+                    <span>{s.title}</span>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-muted-foreground/80 tabular-nums">
+                    {wordCount(s.content)}w
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="border-t border-border/80 px-4 py-2.5 text-[11px] text-muted-foreground flex items-center justify-between">
+            <span>{doc.sections.length} sections</span>
+            <span>{totalWords} / {WORD_BUDGET} words</span>
+          </div>
+        </aside>
+      )}
+
+      {/* Main Document Paper Scroll Area */}
+      <section aria-label="Document editor" className="relative min-h-0 flex-1 overflow-y-auto">
+        {/* Floating Quick Action Controls (Stays pinned when scrolling) */}
+        {(!showOutline || !showAssistant) && (
+          <div className="pointer-events-none sticky top-3 z-30 flex items-center justify-between px-4 sm:px-8 mb-2">
+            <div className="pointer-events-auto">
+              {!showOutline && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowOutline(true)}
+                  className="h-8 gap-2 rounded-full border-border bg-card/95 px-3.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md hover:border-brand/40 hover:bg-card transition-all"
+                >
+                  <ListOrdered className="h-3.5 w-3.5 text-brand" />
+                  <span>Document Outline ({doc.sections.length})</span>
+                </Button>
+              )}
+            </div>
+
+            <div className="pointer-events-auto">
+              {!showAssistant && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onToggleAssistant(true)}
+                  className="h-8 gap-2 rounded-full border-brand/30 bg-card/95 px-3.5 text-xs font-medium text-brand shadow-md backdrop-blur-md hover:border-brand/60 hover:bg-brand/5 transition-all"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-brand" />
+                  <span>Open Assistant</span>
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Continuous Google Docs "Paper" Sheet */}
-        <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-12 md:p-16 shadow-lg ring-1 ring-border/30">
+        <div className="mx-auto max-w-4xl px-4 py-4 sm:px-8 lg:px-10 pb-16">
+          {/* Continuous Google Docs "Paper" Sheet */}
+          <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-12 md:p-16 shadow-lg ring-1 ring-border/30">
           {/* Document Cover / Header */}
           <header className="border-b border-border/70 pb-8 mb-8">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div className="mb-3">
               <span className="text-[11px] font-bold uppercase tracking-widest text-brand">
                 {doc.programme || grant?.programme || "European Grant Proposal"}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                Updated {formatDistanceToNow(new Date(doc.updatedAt), { addSuffix: true })}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
@@ -403,7 +422,8 @@ function WorkspaceEditor({
         </div>
       </div>
     </section>
-  );
+  </div>
+);
 }
 
 interface TextMessage {
@@ -683,6 +703,7 @@ function AssistantPanel({
   pinnedSectionId,
   onClearPinnedSection,
   onApplyRewrite,
+  onClose,
 }: {
   doc: ApplicationDocument;
   profile: OrganisationProfile | undefined;
@@ -694,6 +715,7 @@ function AssistantPanel({
   pinnedSectionId: string | null;
   onClearPinnedSection: () => void;
   onApplyRewrite: (sectionId: string, text: string) => void;
+  onClose: () => void;
 }) {
   const [messages, setMessages] = useState<WorkspaceChatMessage[]>([]);
   const [value, setValue] = useState("");
@@ -920,39 +942,51 @@ function AssistantPanel({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold text-foreground">Assistant</h2>
           </div>
-          <div
-            role="radiogroup"
-            aria-label="Apply mode"
-            className="inline-flex shrink-0 rounded-lg border border-border p-0.5 text-[11px] font-medium"
-          >
-            <button
-              type="button"
-              role="radio"
-              aria-checked={mode === "review"}
-              onClick={() => setMode("review")}
-              className={cn(
-                "rounded-md px-2 py-1 transition-colors",
-                mode === "review"
-                  ? "bg-brand text-brand-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
+          <div className="flex items-center gap-2">
+            <div
+              role="radiogroup"
+              aria-label="Apply mode"
+              className="inline-flex shrink-0 rounded-lg border border-border p-0.5 text-[11px] font-medium"
             >
-              Review
-            </button>
-            <button
+              <button
+                type="button"
+                role="radio"
+                aria-checked={mode === "review"}
+                onClick={() => setMode("review")}
+                className={cn(
+                  "rounded-md px-2 py-1 transition-colors",
+                  mode === "review"
+                    ? "bg-brand text-brand-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Review
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={mode === "auto"}
+                onClick={() => setMode("auto")}
+                className={cn(
+                  "rounded-md px-2 py-1 transition-colors",
+                  mode === "auto"
+                    ? "bg-brand text-brand-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Auto-apply
+              </button>
+            </div>
+            <Button
               type="button"
-              role="radio"
-              aria-checked={mode === "auto"}
-              onClick={() => setMode("auto")}
-              className={cn(
-                "rounded-md px-2 py-1 transition-colors",
-                mode === "auto"
-                  ? "bg-brand text-brand-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground rounded-lg"
+              title="Hide assistant"
             >
-              Auto-apply
-            </button>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         <p className="mt-1.5 text-xs text-muted-foreground">
@@ -1141,6 +1175,8 @@ function DocumentWorkspaceContent({
     [doc.sections, drafts],
   );
 
+  const [showAssistant, setShowAssistant] = useState(true);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <WorkspaceMetaBar doc={doc} grant={grant} pipelineStatus={pipelineStatus} drafts={drafts} />
@@ -1152,16 +1188,21 @@ function DocumentWorkspaceContent({
           streamingSections={streamingSections}
           onRevealComplete={clearStreaming}
           totalWords={totalWords}
+          showAssistant={showAssistant}
+          onToggleAssistant={setShowAssistant}
         />
-        <AssistantPanel
-          doc={doc}
-          profile={profile}
-          grant={grant}
-          drafts={drafts}
-          pinnedSectionId={pinnedSectionId}
-          onClearPinnedSection={() => setPinnedSectionId(null)}
-          onApplyRewrite={applyAiRewrite}
-        />
+        {showAssistant && (
+          <AssistantPanel
+            doc={doc}
+            profile={profile}
+            grant={grant}
+            drafts={drafts}
+            pinnedSectionId={pinnedSectionId}
+            onClearPinnedSection={() => setPinnedSectionId(null)}
+            onApplyRewrite={applyAiRewrite}
+            onClose={() => setShowAssistant(false)}
+          />
+        )}
       </div>
     </div>
   );

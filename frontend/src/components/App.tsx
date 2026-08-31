@@ -876,10 +876,6 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
                   {headerTitle}
                 </h1>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                    Connected · {isMockMode ? "Demo mode" : "API mode"}
-                  </span>
                   {mainView === "chat" && active && (
                     <>
                       <span className="capitalize">Stage: {active.stage.replace(/_/g, " ")}</span>
@@ -890,6 +886,11 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
                         </span>
                       )}
                     </>
+                  )}
+                  {mainView === "workspace" && active?.updatedAt && (
+                    <span>
+                      Updated {formatDistanceToNow(new Date(active.updatedAt), { addSuffix: true })}
+                    </span>
                   )}
                 </div>
               </div>
