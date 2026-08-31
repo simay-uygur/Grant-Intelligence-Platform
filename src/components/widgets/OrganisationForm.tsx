@@ -520,7 +520,7 @@ export function OrganisationForm({ initial, disabled, onSubmit }: Props) {
           type="button"
           onClick={goNext}
           disabled={disabled || !stepValid || (step === 3 && !allValid)}
-          className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground sm:w-auto"
+          className="w-full rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground sm:w-auto"
         >
           {step < 3 ? "Continue" : "Research matching grants"}
         </Button>
@@ -546,8 +546,8 @@ function StepIndicator({ step }: { step: Step }) {
                 aria-current={status === "current" ? "step" : undefined}
                 className={cn(
                   "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium transition-colors",
-                  status === "complete" && "bg-brand text-white",
-                  status === "current" && "bg-brand text-white ring-4 ring-brand/15",
+                  status === "complete" && "bg-brand text-brand-foreground",
+                  status === "current" && "bg-brand text-brand-foreground ring-4 ring-brand/15",
                   status === "upcoming" && "bg-muted text-muted-foreground",
                 )}
               >

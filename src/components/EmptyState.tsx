@@ -64,7 +64,7 @@ export function EmptyState({
         (isPanel ? (
           <span
             aria-hidden="true"
-            className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-brand/10 text-brand dark:text-foreground"
+            className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-brand/10 text-brand"
           >
             <Icon className="h-5 w-5" />
           </span>
@@ -97,7 +97,7 @@ export function EmptyState({
           type="button"
           onClick={action.onClick}
           className={cn(
-            "rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90",
+            "rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90",
             isPanel ? "mt-5" : "mt-2 h-8 px-2.5 text-xs",
           )}
         >

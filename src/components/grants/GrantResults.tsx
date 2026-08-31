@@ -2,16 +2,13 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   Bookmark,
   BookmarkCheck,
-  CalendarClock,
   ChevronRight,
   ExternalLink,
-  Globe2,
   MessageSquare,
   RefreshCw,
   Scale,
   SearchX,
   Sparkles,
-  Users,
 } from "lucide-react";
 import type { Grant } from "@/types";
 import { cn } from "@/lib/utils";
@@ -249,27 +246,27 @@ function GrantCard({
   const compareId = `compare-${grant.id}`;
 
   return (
-    <article className="rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-5">
+    <article className="rounded-2xl border bg-card p-5 text-card-foreground shadow-sm transition-shadow hover:shadow-md sm:p-6">
       <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 p-0">
         <div className="min-w-0 flex-1">
-          <div className="break-words text-[11px] font-medium text-brand [overflow-wrap:anywhere]">
+          <div className="break-words text-[11px] font-medium uppercase tracking-wider text-brand [overflow-wrap:anywhere]">
             {grant.programme}
           </div>
           <button
             type="button"
             onClick={() => onViewDetails(grant)}
             title={grant.title}
-            className="group mt-1 flex w-full items-start gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="group mt-1.5 flex w-full items-start gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           >
-            <h4 className="line-clamp-2 min-w-0 flex-1 break-words text-base font-semibold text-foreground group-hover:underline [overflow-wrap:anywhere]">
+            <h4 className="line-clamp-2 min-w-0 flex-1 break-words text-lg font-bold leading-snug text-foreground group-hover:underline [overflow-wrap:anywhere]">
               {grant.title}
             </h4>
-            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" />
+            <ChevronRight className="mt-1.5 h-4 w-4 shrink-0 text-muted-foreground/60 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" />
           </button>
         </div>
 
         <div className="flex shrink-0 items-start gap-2">
-          <MatchMeter percentage={grant.matchPercentage} tier={matchTier} />
+          <MatchRing percentage={grant.matchPercentage} tier={matchTier} />
           <Button
             type="button"
             variant="ghost"
@@ -289,29 +286,18 @@ function GrantCard({
       </CardHeader>
 
       <CardContent className="p-0">
-        <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-xs sm:grid-cols-3">
-          <Fact label="Funding" value={grant.fundingAmount} />
-          <Fact
+        <dl className="mt-5 grid grid-cols-2 divide-x divide-y divide-border rounded-lg border border-border sm:grid-cols-4 sm:divide-y-0">
+          <MetaCell label="Funding" value={grant.fundingAmount} />
+          <MetaCell
             label="Deadline"
             value={formatDeadline(grant.deadline)}
-            icon={<CalendarClock className="h-3 w-3" />}
             badge={<DeadlineBadge deadline={grant.deadline} compact />}
           />
-          <Fact label="Funding type" value={grant.fundingType} />
-          <Fact
-            label="Eligible countries"
-            value={grant.eligibleCountries.join(", ")}
-            icon={<Globe2 className="h-3 w-3" />}
-          />
-          <Fact
-            label="Organisation eligibility"
-            value={grant.organisationEligibility.join(", ")}
-            icon={<Users className="h-3 w-3" />}
-            className="col-span-2 sm:col-span-1"
-          />
+          <MetaCell label="Type" value={grant.fundingType} />
+          <MetaCell label="Eligibility" value={grant.organisationEligibility.join(", ")} />
         </dl>
 
-        <div className="mt-4 rounded-lg bg-brand/5 p-3">
+        <div className="mt-4 rounded-r-lg border-l-2 border-brand bg-brand/5 py-3 pl-3 pr-3">
           {/* The one piece of a grant card that reads like written analysis
               rather than a catalogue field, so it carries its own marker. */}
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium text-brand">
@@ -379,7 +365,7 @@ function GrantCard({
           // chat, even though the pipeline upsert dedupes the row.
           disabled={startDisabled}
           aria-label={`Start application for ${grant.title}`}
-          className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+          className="rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90"
         >
           {startDisabled ? "Starting…" : "Start application"}
         </Button>
@@ -388,23 +374,10 @@ function GrantCard({
   );
 }
 
-function Fact({
-  label,
-  value,
-  icon,
-  badge,
-  className,
-}: {
-  label: string;
-  value: string;
-  icon?: ReactNode;
-  badge?: ReactNode;
-  className?: string;
-}) {
+function MetaCell({ label, value, badge }: { label: string; value: string; badge?: ReactNode }) {
   return (
-    <div className={cn("min-w-0", className)}>
-      <dt className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-        {icon}
+    <div className="min-w-0 px-3 py-2.5">
+      <dt className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-0.5 flex flex-wrap items-center gap-1.5">
@@ -420,23 +393,60 @@ function Fact({
   );
 }
 
-function MatchMeter({ percentage, tier }: { percentage: number; tier: MatchTier }) {
+/**
+ * The editorial match ring: a thin circular meter (SVG stroke-dasharray, no
+ * new dependency) replacing the old number+bar meter. Colour is tier-driven
+ * via MATCH_TIER_CLASSES — the warm `--highlight` ochre for any real match,
+ * a neutral grey for a partial one — so the ring itself never needs a
+ * fourth colour to stay legible.
+ */
+function MatchRing({ percentage, tier }: { percentage: number; tier: MatchTier }) {
   const cls = MATCH_TIER_CLASSES[tier];
   const clamped = Math.min(100, Math.max(0, percentage));
+  const size = 52;
+  const stroke = 4;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - clamped / 100);
 
   return (
-    <div className="flex w-16 shrink-0 flex-col items-end gap-1.5">
-      <div className="text-right leading-none">
-        <span className={cn("text-lg font-medium tabular-nums", cls.text)}>{percentage}%</span>
-        <div className="mt-0.5 text-[10px] text-muted-foreground">match</div>
+    <div className="flex shrink-0 flex-col items-center gap-1">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={stroke}
+            className="stroke-muted"
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            className={cn(
+              "motion-safe:transition-[stroke-dashoffset] motion-safe:duration-700",
+              cls.stroke,
+            )}
+          />
+        </svg>
+        <span
+          role="img"
+          aria-label={`${percentage}% match`}
+          className="absolute inset-0 flex items-center justify-center text-xs font-bold tabular-nums text-foreground"
+        >
+          {percentage}%
+        </span>
       </div>
-      <div
-        role="img"
-        aria-label={`${percentage}% match`}
-        className="h-1 w-full overflow-hidden rounded-full bg-muted"
-      >
-        <div className={cn("h-full rounded-full", cls.bar)} style={{ width: `${clamped}%` }} />
-      </div>
+      <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+        match
+      </span>
     </div>
   );
 }

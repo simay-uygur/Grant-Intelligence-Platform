@@ -316,7 +316,7 @@ export function ApplicationDocumentView({
                   type="button"
                   size="sm"
                   onClick={onOpenWorkspace}
-                  className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+                  className="rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90"
                 >
                   <FileText className="h-3.5 w-3.5" />
                   Open full workspace
@@ -614,7 +614,7 @@ export function ApplicationDocumentView({
                 setPendingRewriteId(null);
                 if (section) void performRewrite(section);
               }}
-              className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+              className="rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90"
             >
               Replace with rewrite
             </Button>
@@ -750,7 +750,7 @@ function SectionEditor({
                 type="button"
                 onClick={onSave}
                 disabled={!dirty}
-                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-white hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground"
+                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-brand-foreground hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground"
               >
                 <Check className="h-3 w-3" />
                 Save

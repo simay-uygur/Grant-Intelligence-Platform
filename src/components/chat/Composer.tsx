@@ -368,7 +368,7 @@ export function Composer({
                   onClick={submit}
                   disabled={disabled || !value.trim()}
                   aria-label="Send message"
-                  className="shrink-0 rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 disabled:opacity-40"
+                  className="shrink-0 rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:opacity-40"
                 >
                   <Send className="h-4 w-4" />
                 </Button>

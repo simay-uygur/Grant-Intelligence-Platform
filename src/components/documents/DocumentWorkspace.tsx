@@ -12,7 +12,6 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import type {
   ApplicationDocument,
   DocumentSection as DocSection,
@@ -42,7 +41,6 @@ import {
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 const WORD_BUDGET = 2500;
 
@@ -173,7 +171,7 @@ function WorkspaceSection({
                 size="sm"
                 onClick={onSave}
                 disabled={!dirty}
-                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-white hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground"
+                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-brand-foreground hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground"
               >
                 <Check className="h-3 w-3" />
                 Save
@@ -282,7 +280,7 @@ function ContentsRail({
                 className={cn(
                   "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                   active
-                    ? "bg-brand/10 font-medium text-brand dark:text-foreground"
+                    ? "bg-brand/10 font-medium text-brand"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
@@ -298,11 +296,147 @@ function ContentsRail({
   );
 }
 
-function WorkspaceEditor({
+/**
+ * The workspace's single header strip — full width, sitting directly below
+ * the app's own header (see App.tsx) and styled to match it (same
+ * border/blur/padding recipe), so the two read as one continuous header
+ * region instead of two competing blocks. Deliberately does NOT repeat the
+ * grant title: App's header already shows it as the page's `<h1>`, so
+ * restating it here as a second, bigger heading is exactly the duplication
+ * this bar exists to remove. Also deliberately has no theme control (the
+ * app's own header carries the one, consistent toggle) and no Export
+ * control (see `WorkspaceExportControl`, rendered by App.tsx next to that
+ * same toggle) — kept down to a single glanceable status line so the
+ * document's own header carries the least text possible: the honesty
+ * badge, save state, and deadline. Word count and per-visit "Saved X ago"
+ * are deliberately dropped here — they're still available per-section and
+ * in the word-budget bar, so nothing is lost, just decluttered.
+ */
+function WorkspaceMetaBar({
   doc,
-  profile,
   grant,
   pipelineStatus,
+  drafts,
+}: {
+  doc: ApplicationDocument;
+  grant: Grant | undefined;
+  pipelineStatus: ApplicationStatus | undefined;
+  drafts: Record<string, string>;
+}) {
+  const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
+  const dirtyCount = doc.sections.filter((s) => {
+    const draft = drafts[s.id];
+    return draft !== undefined && draft !== savedContentOf(s.id);
+  }).length;
+
+  return (
+    <div className="shrink-0 border-b border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-6">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
+        <DemoBadge marker="mock-draft" compact />
+        {pipelineStatus && (
+          <Badge
+            variant="outline"
+            className={cn("shrink-0 whitespace-nowrap font-medium", STATUS_BADGE[pipelineStatus])}
+          >
+            <span className="sr-only">Pipeline status: </span>
+            {STATUS_LABEL[pipelineStatus]}
+          </Badge>
+        )}
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 font-medium",
+            dirtyCount > 0 ? "text-warning" : "text-success",
+          )}
+        >
+          <span
+            className={cn("h-1.5 w-1.5 rounded-full", dirtyCount > 0 ? "bg-warning" : "bg-success")}
+          />
+          {dirtyCount > 0
+            ? `Unsaved changes in ${dirtyCount} section${dirtyCount === 1 ? "" : "s"}`
+            : "All changes saved"}
+        </span>
+        {grant?.deadline && <span>Deadline {formatDeadline(grant.deadline)}</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The document's Export control, rendered by App.tsx in its own top header
+ * (immediately before the theme toggle) rather than inside the workspace's
+ * own header strip — grouping the two "global corner" controls together.
+ * Self-contained: owns its own error state and renders its failure notice
+ * as a small popover anchored to the button, since it now lives in a slim
+ * app-wide header bar with no room for a full-width inline notice.
+ */
+export function WorkspaceExportControl({ doc }: { doc: ApplicationDocument }) {
+  const [exportError, setExportError] = useState<"pdf" | "word" | null>(null);
+
+  const handleExportPdf = () => setExportError(exportAsPdf(doc) ? null : "pdf");
+  const handleExportWord = () => setExportError(exportAsWord(doc) ? null : "word");
+  const retry = exportError === "pdf" ? handleExportPdf : handleExportWord;
+
+  return (
+    <div className="relative shrink-0">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="rounded-lg hover:bg-muted">
+            <FileDown className="h-3.5 w-3.5" />
+            Export
+            <ChevronDown className="h-3 w-3 opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={handleExportPdf}>
+            <FileDown className="h-3.5 w-3.5" />
+            Export as PDF
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleExportWord}>
+            <FileDown className="h-3.5 w-3.5" />
+            Export as Word
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {exportError && (
+        <div
+          role="alert"
+          className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-destructive/30 bg-card p-3 text-xs text-destructive shadow-lg"
+        >
+          <p>
+            {exportError === "pdf"
+              ? "Couldn't open the PDF preview — your browser may have blocked the pop-up window."
+              : "Couldn't create the Word file — your browser may have blocked the download."}{" "}
+            Allow pop-ups or downloads for this site, then try again.
+          </p>
+          <div className="mt-2 flex justify-end gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setExportError(null)}
+              className="h-auto rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted"
+            >
+              Dismiss
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={retry}
+              className="h-auto rounded-md border-destructive/40 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorkspaceEditor({
+  doc,
   drafts,
   savedFlashId,
   restoredIds,
@@ -317,11 +451,9 @@ function WorkspaceEditor({
   onAskAssistant,
   streamingSections,
   onRevealComplete,
+  totalWords,
 }: {
   doc: ApplicationDocument;
-  profile: OrganisationProfile | undefined;
-  grant: Grant | undefined;
-  pipelineStatus: ApplicationStatus | undefined;
   drafts: Record<string, string>;
   savedFlashId: string | null;
   restoredIds: string[];
@@ -338,12 +470,12 @@ function WorkspaceEditor({
    * for the progressive-reveal effect (see WorkspaceSection). */
   streamingSections: Record<string, string>;
   onRevealComplete: (id: string) => void;
+  totalWords: number;
 }) {
   const reduceMotion = usePrefersReducedMotion();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
     doc.sections[0]?.id ?? null,
   );
-  const [exportError, setExportError] = useState<"pdf" | "word" | null>(null);
 
   const scrollToSection = (id: string) => {
     setActiveSectionId(id);
@@ -352,15 +484,11 @@ function WorkspaceEditor({
       ?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   };
 
-  const handleExportPdf = () => setExportError(exportAsPdf(doc) ? null : "pdf");
-  const handleExportWord = () => setExportError(exportAsWord(doc) ? null : "word");
-
   const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
   const isDirty = (id: string) => {
     const draft = drafts[id];
     return draft !== undefined && draft !== savedContentOf(id);
   };
-  const dirtyCount = doc.sections.filter((s) => isDirty(s.id)).length;
 
   const titleOf = (id: string) => doc.sections.find((s) => s.id === id)?.title ?? "a section";
   const restoredSummary =
@@ -368,170 +496,47 @@ function WorkspaceEditor({
       ? `"${titleOf(restoredIds[0])}"`
       : `${restoredIds.length} sections (${restoredIds.map(titleOf).join(", ")})`;
 
-  const totalWords = useMemo(
-    () => doc.sections.reduce((sum, s) => sum + wordCount(drafts[s.id] ?? s.content), 0),
-    [doc.sections, drafts],
-  );
-
-  // Never "undefined" — each piece is only included if the underlying data
-  // actually has it (a document isn't guaranteed a resolved grant, and a
-  // profile field can be blank if the user skipped it in the form).
-  const metaParts = [
-    profile?.organisationName,
-    profile?.country,
-    profile?.projectDuration ? `${profile.projectDuration} initiative` : undefined,
-    grant?.fundingAmount || profile?.fundingAmount,
-  ].filter((part): part is string => Boolean(part));
-
   return (
     <section aria-label="Document editor" className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 lg:px-10">
-        <header className="mb-8 border-b border-border pb-6">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-[11px] font-medium text-brand">Grant application draft</span>
-            <DemoBadge marker="mock-draft" compact />
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="break-words text-xl font-semibold text-foreground">
-                  {doc.grantTitle}
-                </h2>
-                {pipelineStatus && (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "shrink-0 whitespace-nowrap font-medium",
-                      STATUS_BADGE[pipelineStatus],
-                    )}
-                  >
-                    <span className="sr-only">Pipeline status: </span>
-                    {STATUS_LABEL[pipelineStatus]}
-                  </Badge>
+        {restoredIds.length > 0 && !restoreDismissed && (
+          <InlineNotice tone={conflictIds.length > 0 ? "warning" : "empty"} className="mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="min-w-0">
+                {conflictIds.length > 0 ? (
+                  <>
+                    Unsaved edits restored to {restoredSummary} — but{" "}
+                    {conflictIds.length === 1 ? "that section has" : "some of those sections have"}{" "}
+                    also been saved since, so the two versions differ. Check the text before saving;
+                    Cancel keeps the saved version instead.
+                  </>
+                ) : (
+                  <>
+                    Draft restored — unsaved changes to {restoredSummary} were carried over from
+                    your last visit. Save to keep them, or Cancel to go back to the saved text.
+                  </>
                 )}
-              </div>
-              {metaParts.length > 0 && (
-                <p className="mt-1 break-words text-xs text-muted-foreground">
-                  {metaParts.join(" · ")}
-                </p>
-              )}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onDismissRestore}
+                className="h-auto shrink-0 rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
+              >
+                Dismiss
+              </Button>
             </div>
+          </InlineNotice>
+        )}
 
-            <div className="flex shrink-0 items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg hover:bg-muted"
-                  >
-                    <FileDown className="h-3.5 w-3.5" />
-                    Export
-                    <ChevronDown className="h-3 w-3 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportPdf}>
-                    <FileDown className="h-3.5 w-3.5" />
-                    Export as PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportWord}>
-                    <FileDown className="h-3.5 w-3.5" />
-                    Export as Word
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <ThemeToggle />
-            </div>
-          </div>
-
-          {exportError && (
-            <InlineNotice tone="error" className="mt-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span>
-                  {exportError === "pdf"
-                    ? "Couldn't open the PDF preview — your browser may have blocked the pop-up window."
-                    : "Couldn't create the Word file — your browser may have blocked the download."}{" "}
-                  Allow pop-ups or downloads for this site, then try again.
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={exportError === "pdf" ? handleExportPdf : handleExportWord}
-                  className="h-auto shrink-0 rounded-md border-destructive/40 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10"
-                >
-                  Retry
-                </Button>
-              </div>
-            </InlineNotice>
-          )}
-
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 font-medium",
-                dirtyCount > 0 ? "text-warning" : "text-success",
-              )}
-            >
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  dirtyCount > 0 ? "bg-warning" : "bg-success",
-                )}
-              />
-              {dirtyCount > 0
-                ? `Unsaved changes in ${dirtyCount} section${dirtyCount === 1 ? "" : "s"}`
-                : "All changes saved"}
-            </span>
-            {grant?.deadline && <span>Deadline {formatDeadline(grant.deadline)}</span>}
-            <span>{totalWords} words</span>
-            <span>Saved {formatDistanceToNow(new Date(doc.updatedAt), { addSuffix: true })}</span>
-          </div>
-
-          {restoredIds.length > 0 && !restoreDismissed && (
-            <InlineNotice tone={conflictIds.length > 0 ? "warning" : "empty"} className="mt-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="min-w-0">
-                  {conflictIds.length > 0 ? (
-                    <>
-                      Unsaved edits restored to {restoredSummary} — but{" "}
-                      {conflictIds.length === 1
-                        ? "that section has"
-                        : "some of those sections have"}{" "}
-                      also been saved since, so the two versions differ. Check the text before
-                      saving; Cancel keeps the saved version instead.
-                    </>
-                  ) : (
-                    <>
-                      Draft restored — unsaved changes to {restoredSummary} were carried over from
-                      your last visit. Save to keep them, or Cancel to go back to the saved text.
-                    </>
-                  )}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onDismissRestore}
-                  className="h-auto shrink-0 rounded-md px-2 py-1 text-[11px] font-medium hover:bg-muted"
-                >
-                  Dismiss
-                </Button>
-              </div>
-            </InlineNotice>
-          )}
-
-          {!persistenceOk && (
-            <InlineNotice tone="warning" className="mt-3">
-              Unsaved edits can&apos;t be backed up in this browser right now — local storage may be
-              full or unavailable (for example, in private browsing). What you see here is intact,
-              but a reload could lose anything you haven&apos;t saved.
-            </InlineNotice>
-          )}
-        </header>
+        {!persistenceOk && (
+          <InlineNotice tone="warning" className="mb-6">
+            Unsaved edits can&apos;t be backed up in this browser right now — local storage may be
+            full or unavailable (for example, in private browsing). What you see here is intact, but
+            a reload could lose anything you haven&apos;t saved.
+          </InlineNotice>
+        )}
 
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <ContentsRail
@@ -663,10 +668,7 @@ function ProposedEditCard({
     <div className="w-full max-w-[92%] rounded-2xl border border-border bg-card p-3 text-sm shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-foreground">
-          <Sparkles
-            className="h-3.5 w-3.5 shrink-0 text-brand dark:text-foreground"
-            aria-hidden="true"
-          />
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
           <span className="min-w-0 truncate">Proposed edit — {proposal.sectionTitle}</span>
         </div>
         <span
@@ -718,7 +720,7 @@ function ProposedEditCard({
               <button
                 type="button"
                 onClick={() => setShowFullDiff((v) => !v)}
-                className="text-[11px] font-medium text-brand hover:underline dark:text-foreground"
+                className="text-[11px] font-medium text-brand hover:underline"
               >
                 {showFullDiff ? "Show changes only" : "Full diff"}
               </button>
@@ -741,7 +743,7 @@ function ProposedEditCard({
                 size="sm"
                 onClick={onApply}
                 disabled={disabled}
-                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-white hover:bg-brand/90"
+                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-brand-foreground hover:bg-brand/90"
               >
                 Apply
               </Button>
@@ -1097,7 +1099,7 @@ function AssistantPanel({
               className={cn(
                 "rounded-md px-2 py-1 transition-colors",
                 mode === "review"
-                  ? "bg-brand text-white"
+                  ? "bg-brand text-brand-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -1111,7 +1113,7 @@ function AssistantPanel({
               className={cn(
                 "rounded-md px-2 py-1 transition-colors",
                 mode === "auto"
-                  ? "bg-brand text-white"
+                  ? "bg-brand text-brand-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -1169,7 +1171,7 @@ function AssistantPanel({
             {pending && (
               <li aria-hidden="true" className="flex justify-start">
                 <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/30 px-3.5 py-2.5">
-                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand dark:text-foreground" />
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" />
                   <span className="text-xs text-muted-foreground">
                     {progress
                       ? `Rewriting ${progress.index} of ${progress.total} — ${progress.title}…`
@@ -1215,7 +1217,7 @@ function AssistantPanel({
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
           <span className="font-medium uppercase tracking-wider">Context</span>
           {pinnedSection ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand/10 px-2 py-0.5 font-medium text-brand dark:text-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand/10 px-2 py-0.5 font-medium text-brand">
               {pinnedIndex + 1}. {pinnedSection.title}
               <button
                 type="button"
@@ -1258,7 +1260,7 @@ function AssistantPanel({
             size="icon"
             disabled={pending || !profile || !value.trim()}
             aria-label="Send"
-            className="shrink-0 rounded-lg bg-brand text-white hover:bg-brand/90"
+            className="shrink-0 rounded-lg bg-brand text-brand-foreground hover:bg-brand/90"
           >
             <Send className="h-4 w-4" />
           </Button>
@@ -1401,37 +1403,43 @@ function DocumentWorkspaceContent({
     });
   };
 
+  const totalWords = useMemo(
+    () => doc.sections.reduce((sum, s) => sum + wordCount(drafts[s.id] ?? s.content), 0),
+    [doc.sections, drafts],
+  );
+
   return (
-    <div className="flex h-full min-h-0 flex-col lg:flex-row lg:overflow-hidden">
-      <WorkspaceEditor
-        doc={doc}
-        profile={profile}
-        grant={grant}
-        pipelineStatus={pipelineStatus}
-        drafts={drafts}
-        savedFlashId={savedFlashId}
-        restoredIds={restoredIds}
-        conflictIds={conflictIds}
-        restoreDismissed={restoreDismissed}
-        persistenceOk={persistenceOk}
-        onDismissRestore={() => setRestoreDismissed(true)}
-        onStartEdit={startEdit}
-        onChangeDraft={updateDraft}
-        onCancel={cancelEdit}
-        onSave={save}
-        onAskAssistant={setPinnedSectionId}
-        streamingSections={streamingSections}
-        onRevealComplete={clearStreaming}
-      />
-      <AssistantPanel
-        doc={doc}
-        profile={profile}
-        grant={grant}
-        drafts={drafts}
-        pinnedSectionId={pinnedSectionId}
-        onClearPinnedSection={() => setPinnedSectionId(null)}
-        onApplyRewrite={applyAiRewrite}
-      />
+    <div className="flex h-full min-h-0 flex-col">
+      <WorkspaceMetaBar doc={doc} grant={grant} pipelineStatus={pipelineStatus} drafts={drafts} />
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:overflow-hidden">
+        <WorkspaceEditor
+          doc={doc}
+          drafts={drafts}
+          savedFlashId={savedFlashId}
+          restoredIds={restoredIds}
+          conflictIds={conflictIds}
+          restoreDismissed={restoreDismissed}
+          persistenceOk={persistenceOk}
+          onDismissRestore={() => setRestoreDismissed(true)}
+          onStartEdit={startEdit}
+          onChangeDraft={updateDraft}
+          onCancel={cancelEdit}
+          onSave={save}
+          onAskAssistant={setPinnedSectionId}
+          streamingSections={streamingSections}
+          onRevealComplete={clearStreaming}
+          totalWords={totalWords}
+        />
+        <AssistantPanel
+          doc={doc}
+          profile={profile}
+          grant={grant}
+          drafts={drafts}
+          pinnedSectionId={pinnedSectionId}
+          onClearPinnedSection={() => setPinnedSectionId(null)}
+          onApplyRewrite={applyAiRewrite}
+        />
+      </div>
     </div>
   );
 }

@@ -149,7 +149,7 @@ export function GrantDetailsSheet({ grant, open, onOpenChange, onAsk, onStart }:
                   onStart(grant);
                   onOpenChange(false);
                 }}
-                className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 sm:w-auto"
+                className="w-full rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 sm:w-auto"
               >
                 Start application
               </Button>
@@ -217,23 +217,56 @@ function ListField({ label, items }: { label: string; items: string[] }) {
   );
 }
 
+/** Same ring meter as the grant card (see GrantResults.tsx's MatchRing), so the
+ * match score reads identically whether it's seen on the card or in here. */
 function MatchScoreRow({ percentage }: { percentage: number }) {
   const tier = matchTierFor(percentage);
   const cls = MATCH_TIER_CLASSES[tier];
   const clamped = Math.min(100, Math.max(0, percentage));
+  const size = 52;
+  const stroke = 4;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - clamped / 100);
+
   return (
     <div className="flex items-center gap-3">
-      <div className="shrink-0 text-right leading-none">
-        <span className={cn("text-lg font-medium tabular-nums", cls.text)}>{percentage}%</span>
-        <div className="mt-0.5 text-[10px] text-muted-foreground">match</div>
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={stroke}
+            className="stroke-muted"
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            className={cn(
+              "motion-safe:transition-[stroke-dashoffset] motion-safe:duration-700",
+              cls.stroke,
+            )}
+          />
+        </svg>
+        <span
+          role="img"
+          aria-label={`${percentage}% match`}
+          className="absolute inset-0 flex items-center justify-center text-xs font-bold tabular-nums text-foreground"
+        >
+          {percentage}%
+        </span>
       </div>
-      <div
-        role="img"
-        aria-label={`${percentage}% match`}
-        className="h-1 flex-1 overflow-hidden rounded-full bg-muted"
-      >
-        <div className={cn("h-full rounded-full", cls.bar)} style={{ width: `${clamped}%` }} />
-      </div>
+      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Match score
+      </span>
     </div>
   );
 }

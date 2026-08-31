@@ -56,16 +56,13 @@ export const STATUS_EMPTY: Record<ApplicationStatus, string> = {
  * Semantic tints built from the design tokens (never raw palette literals),
  * so each status keeps its meaning and its contrast in both light and dark
  * mode: neutral = not out the door yet, brand = in flight, warning = waiting
- * on someone else, success = funded, destructive = declined.
- *
- * `submitted` is the one exception to "same classes in both themes": --brand
- * has no .dark override (it stays a dark blue), so `text-brand` on a dark
- * card falls to roughly 1.9:1. The blue signal moves to the fill and border
- * there, and the label switches to --foreground, which does flip.
+ * on someone else, success = funded, destructive = declined. `--brand` has
+ * a proper `.dark` override (see styles.css), so the same classes hold
+ * contrast in both themes without a per-usage workaround.
  */
 export const STATUS_BADGE: Record<ApplicationStatus, string> = {
   drafting: "border-border bg-muted text-muted-foreground",
-  submitted: "border-brand/40 bg-brand/15 text-brand dark:text-foreground",
+  submitted: "border-brand/40 bg-brand/15 text-brand",
   under_review: "border-warning/40 bg-warning/10 text-warning",
   approved: "border-success/30 bg-success/10 text-success",
   rejected: "border-destructive/30 bg-destructive/10 text-destructive",

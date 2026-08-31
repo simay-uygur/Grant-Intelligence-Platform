@@ -4,7 +4,9 @@ import { useConversations } from "@/hooks/useConversations";
 import { useApplications } from "@/hooks/useApplications";
 import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/hooks/useAuth";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
+import { LoginPage } from "@/components/auth/LoginPage";
 import { grantService, isMockMode } from "@/services";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -20,7 +22,10 @@ import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sideb
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { PipelineDashboard } from "@/components/PipelineDashboard";
 import { SavedGrants } from "@/components/SavedGrants";
-import { DocumentWorkspace } from "@/components/documents/DocumentWorkspace";
+import {
+  DocumentWorkspace,
+  WorkspaceExportControl,
+} from "@/components/documents/DocumentWorkspace";
 import { MessageList } from "@/components/chat/MessageList";
 import { Composer } from "@/components/chat/Composer";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
@@ -138,7 +143,33 @@ const DEMO_PROFILE: OrganisationProfile = {
   eligibilityConstraints: "SME status must be maintained throughout the project.",
 };
 
+/**
+ * The single-route app's auth gate — no router route added (see the
+ * inspection note before this round's diff): a small wrapper around the
+ * existing single-page shell, mirroring how useConversations already gates
+ * its own hydration. AppShell's hooks (conversations, applications, etc.)
+ * only start running once actually authed, so nothing behind the login
+ * screen is doing work before it's reached.
+ */
 export function App() {
+  const auth = useAuth();
+
+  if (!auth.hydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Loading Grant Intelligence…
+      </div>
+    );
+  }
+
+  if (!auth.authed) {
+    return <LoginPage onSignIn={auth.signIn} />;
+  }
+
+  return <AppShell onSignOut={auth.signOut} />;
+}
+
+function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const c = useConversations();
   // The single useApplications instance for the whole app. Both writers live
   // here — the chat (starting an application) and the pipeline (changing a
@@ -574,7 +605,7 @@ export function App() {
     <div className="h-dvh-safe flex w-full overflow-hidden bg-background text-foreground">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-brand-foreground"
       >
         Skip to conversation
       </a>
@@ -588,6 +619,7 @@ export function App() {
         mainView={mainView}
         onSelectView={setMainView}
         savedCount={shortlist.savedGrants.length}
+        onSignOut={onSignOut}
       />
       <MobileSidebar
         open={mobileSidebarOpen}
@@ -601,6 +633,7 @@ export function App() {
         mainView={mainView}
         onSelectView={setMainView}
         savedCount={shortlist.savedGrants.length}
+        onSignOut={onSignOut}
       />
 
       <main
@@ -647,6 +680,9 @@ export function App() {
                 {demoRunning ? "Running demo…" : "Run demo"}
               </button>
             )}
+            {mainView === "workspace" && active?.document && (
+              <WorkspaceExportControl doc={active.document} />
+            )}
             <ThemeToggle />
           </div>
         </header>
@@ -692,7 +728,7 @@ export function App() {
                 <Button
                   type="button"
                   onClick={c.newConversation}
-                  className="rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90"
+                  className="rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90"
                 >
                   <MessageSquarePlus className="h-4 w-4" />
                   New conversation

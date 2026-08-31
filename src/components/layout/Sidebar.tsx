@@ -4,6 +4,7 @@ import {
   FileText,
   KanbanSquare,
   Landmark,
+  LogOut,
   MessagesSquare,
   Pencil,
   Plus,
@@ -38,6 +39,8 @@ interface SidebarProps {
   onSelectView: (view: MainView) => void;
   /** Bookmark count shown beside the Saved item; live via useShortlist. */
   savedCount: number;
+  /** Clears the mock auth flag (see useAuth) and returns to the login screen. */
+  onSignOut: () => void;
 }
 
 const VIEWS: { id: MainView; label: string; icon: typeof MessagesSquare }[] = [
@@ -57,6 +60,7 @@ function SidebarContent({
   mainView,
   onSelectView,
   savedCount,
+  onSignOut,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   const searchId = useId();
@@ -109,7 +113,7 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-white">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
           <Landmark className="h-5 w-5" />
         </div>
         <div className="min-w-0">
@@ -127,7 +131,7 @@ function SidebarContent({
             onNew();
             onNavigate?.();
           }}
-          className="w-full rounded-lg bg-brand text-white shadow-sm hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand/50"
+          className="w-full rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm hover:bg-sidebar-primary/90 focus:outline-none focus:ring-2 focus:ring-sidebar-ring"
         >
           <Plus className="h-4 w-4" />
           New conversation
@@ -344,11 +348,19 @@ function SidebarContent({
         </ul>
       </nav>
 
-      <div className="mt-auto flex items-center border-t border-sidebar-border/60 px-4 py-3">
-        <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/50">
-          <span className="h-1.5 w-1.5 rounded-full bg-success/70" />
-          Demo mode — local data only
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-sidebar-border/60 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2 text-[11px] text-sidebar-foreground/50">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" />
+          <span className="truncate">Demo mode — local data only</span>
         </div>
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-sidebar-foreground/60 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        >
+          <LogOut className="h-3 w-3" />
+          Sign out
+        </button>
       </div>
     </div>
   );
@@ -373,7 +385,7 @@ export function MobileSidebar({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="left"
-        className="w-72 max-w-[85vw] border-sidebar-border bg-sidebar p-0 text-sidebar-foreground [&>button]:text-sidebar-foreground/70 [&>button]:hover:bg-white/10 [&>button]:hover:text-white [&>button]:focus:ring-brand md:hidden"
+        className="w-72 max-w-[85vw] border-sidebar-border bg-sidebar p-0 text-sidebar-foreground [&>button]:text-sidebar-foreground/70 [&>button]:hover:bg-white/10 [&>button]:hover:text-white [&>button]:focus:ring-sidebar-ring md:hidden"
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Conversations</SheetTitle>

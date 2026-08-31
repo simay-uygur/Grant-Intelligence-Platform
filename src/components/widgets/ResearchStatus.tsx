@@ -157,7 +157,7 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
 function StepMarker({ status, index }: { status: ResearchStep["status"]; index: number }) {
   if (status === "done") {
     return (
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success text-white">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success text-success-foreground">
         <Check className="h-3 w-3" />
       </span>
     );
@@ -166,7 +166,7 @@ function StepMarker({ status, index }: { status: ResearchStep["status"]; index: 
     return (
       <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
         <span className="absolute inset-0 rounded-full bg-brand/40 motion-safe:animate-ping" />
-        <span className="relative flex h-5 w-5 items-center justify-center rounded-full bg-brand text-[10px] font-medium text-white">
+        <span className="relative flex h-5 w-5 items-center justify-center rounded-full bg-brand text-[10px] font-medium text-brand-foreground">
           {index + 1}
         </span>
       </span>
