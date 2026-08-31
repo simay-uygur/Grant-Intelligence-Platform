@@ -415,6 +415,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
           },
           { type: "document", documentId: doc.id },
         ]);
+        if (c.activeConversation?.title === "New conversation") {
+          c.renameConversation(c.activeConversation.id, grant.title);
+        }
         setMainView("workspace");
       } catch (err) {
         askAssistant([
@@ -508,7 +511,11 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         eligibilityConstraints: "None",
       };
 
-      c.newConversation();
+      c.newConversation({
+        title: app.grantTitle,
+        stage: "application",
+        profile: defaultProfile,
+      });
       setBusy(true);
       try {
         const doc = await applicationService.startApplication(targetGrant, defaultProfile);
@@ -557,6 +564,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
 
   const handleUserSend = useCallback(
     async (text: string) => {
+      if (c.activeConversation?.title === "New conversation") {
+        c.renameConversation(c.activeConversation.id, text.trim().slice(0, 45));
+      }
       askUser([{ type: "text", text }]);
       const stage = c.activeConversation?.stage ?? "welcome";
 
@@ -948,7 +958,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
                 </div>
                 <Button
                   type="button"
-                  onClick={c.newConversation}
+                  onClick={newConversationInChat}
                   className="rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90"
                 >
                   <MessageSquarePlus className="h-4 w-4" />

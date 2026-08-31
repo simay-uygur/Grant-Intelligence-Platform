@@ -119,10 +119,18 @@ export function useConversations() {
     [activeId],
   );
 
-  const newConversation = useCallback(() => {
-    const c = initialConversation();
+  const newConversation = useCallback((custom?: Partial<Conversation>) => {
+    const base = initialConversation();
+    const c: Conversation = {
+      ...base,
+      ...custom,
+      id: custom?.id ?? base.id,
+      title: custom?.title ?? base.title,
+      messages: custom?.messages ?? base.messages,
+    };
     setConversations((prev) => [c, ...prev]);
     setActiveId(c.id);
+    return c;
   }, []);
 
   const selectConversation = useCallback((id: string) => {

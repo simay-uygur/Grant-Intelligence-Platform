@@ -176,9 +176,7 @@ export function ApplicationDocumentView({
                 {doc.programme || grant?.programme || "Grant application draft"}
               </span>
             </div>
-            <h3 className="mt-1 break-words text-lg font-bold text-foreground">
-              {doc.grantTitle}
-            </h3>
+            <h3 className="mt-1 break-words text-lg font-bold text-foreground">{doc.grantTitle}</h3>
             {(doc.sourceUrl || grant?.sourceUrl) && (
               <div className="mt-1">
                 <a

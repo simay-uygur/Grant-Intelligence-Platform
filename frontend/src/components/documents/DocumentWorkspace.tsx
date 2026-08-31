@@ -9,7 +9,6 @@ import {
   Send,
   Sparkles,
   Undo2,
-  Wand2,
   X,
 } from "lucide-react";
 import type {
@@ -21,11 +20,6 @@ import type {
 import type { ApplicationStatus } from "@/data/mockApplications";
 import { useProgressiveReveal } from "@/hooks/useProgressiveReveal";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { applicationService } from "@/services";
-import { cn } from "@/lib/utils";
-import { wordCount } from "@/utils/text";
-import { diffLines } from "@/utils/diffLines";
-import { formatDeadline } from "@/utils/deadline";
 import { exportAsPdf, exportAsWord } from "@/utils/export";
 import { STATUS_BADGE, STATUS_LABEL } from "@/components/pipeline/statusPresentation";
 import { Button } from "@/components/ui/button";
@@ -38,6 +32,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { diffLines } from "@/utils/diffLines";
+import { formatDeadline } from "@/utils/deadline";
+import { wordCount } from "@/utils/text";
+import { applicationService } from "@/services";
+import { cn } from "@/lib/utils";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { EmptyState } from "@/components/EmptyState";
 
@@ -51,15 +50,13 @@ function GoogleDocsSection({
   index,
   section,
   content,
-  onAskAssistant,
   revealText,
   onRevealComplete,
-  active,
 }: {
   index: number;
   section: DocSection;
   content: string;
-  onAskAssistant: () => void;
+  onAskAssistant?: () => void;
   revealText?: string;
   onRevealComplete?: () => void;
   active?: boolean;
@@ -72,41 +69,22 @@ function GoogleDocsSection({
     <article
       id={`workspace-section-${section.id}`}
       aria-labelledby={`workspace-section-title-${section.id}`}
-      className={cn(
-        "group relative scroll-mt-6 rounded-xl p-3 sm:p-5 transition-all duration-200",
-        active
-          ? "bg-brand/[0.04] ring-1 ring-brand/30"
-          : "hover:bg-muted/30",
-      )}
+      className="scroll-mt-8 py-4 first:pt-0"
     >
-      <div className="mb-3 flex items-center justify-between gap-4 border-b border-border/50 pb-2">
+      <div className="mb-2.5 flex items-baseline justify-between gap-4">
         <h2
           id={`workspace-section-title-${section.id}`}
-          className="text-base sm:text-lg font-bold text-foreground tracking-tight flex items-center gap-2"
+          className="text-lg sm:text-xl font-bold text-foreground tracking-tight"
         >
-          <span className="font-mono text-sm text-brand font-bold tabular-nums">
-            {index}.
-          </span>
+          <span className="text-muted-foreground mr-2 font-medium">{index}.</span>
           <span>{section.title}</span>
         </h2>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[11px] text-muted-foreground font-medium tabular-nums">
-            {words}w
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onAskAssistant}
-            className="h-7 px-2 text-xs gap-1.5 rounded-lg text-brand hover:bg-brand/10 hover:text-brand transition-colors opacity-90 group-hover:opacity-100"
-          >
-            <Wand2 className="h-3 w-3" />
-            <span>Refine with AI</span>
-          </Button>
-        </div>
+        <span className="text-xs text-muted-foreground font-normal tabular-nums shrink-0">
+          {words}w
+        </span>
       </div>
 
-      <div className="whitespace-pre-wrap break-words text-sm sm:text-[15px] leading-relaxed sm:leading-[1.8] text-foreground/90 font-normal [overflow-wrap:anywhere]">
+      <div className="whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed sm:leading-[1.8] text-foreground/90 font-normal [overflow-wrap:anywhere]">
         {displayText}
         {revealing && (
           <span
@@ -264,7 +242,6 @@ function WorkspaceEditor({
   doc,
   profile,
   grant,
-  onAskAssistant,
   streamingSections,
   onRevealComplete,
   totalWords,
@@ -272,7 +249,6 @@ function WorkspaceEditor({
   doc: ApplicationDocument;
   profile: OrganisationProfile | undefined;
   grant: Grant | undefined;
-  onAskAssistant: (id: string) => void;
   /** sectionId -> the full text an AI rewrite just produced for it, purely
    * for the progressive-reveal effect (see GoogleDocsSection). */
   streamingSections: Record<string, string>;
@@ -314,7 +290,8 @@ function WorkspaceEditor({
             />
           </Button>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="tabular-nums font-semibold text-foreground">{totalWords}</span> / {WORD_BUDGET} words
+            <span className="tabular-nums font-semibold text-foreground">{totalWords}</span> /{" "}
+            {WORD_BUDGET} words
             <span>•</span>
             <span>{doc.sections.length} sections</span>
           </div>
@@ -385,15 +362,19 @@ function WorkspaceEditor({
               {doc.grantTitle}
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-              <span><strong>Applicant:</strong> {profile?.organisationName || "Applicant Organisation"}</span>
-              {grant?.fundingAmount && <span><strong>Funding:</strong> {grant.fundingAmount}</span>}
-              {grant?.deadline && <span><strong>Deadline:</strong> {formatDeadline(grant.deadline)}</span>}
-            </div>
-            <div className="mt-5 flex items-center gap-2.5 rounded-lg bg-brand/5 border border-brand/20 px-3.5 py-2.5 text-xs text-brand">
-              <Sparkles className="h-4 w-4 shrink-0" />
               <span>
-                <strong>AI-Managed Document:</strong> Direct edits are handled autonomously by the AI Assistant on the right. Ask to refine, expand, or adjust any section.
+                <strong>Applicant:</strong> {profile?.organisationName || "Applicant Organisation"}
               </span>
+              {grant?.fundingAmount && (
+                <span>
+                  <strong>Funding:</strong> {grant.fundingAmount}
+                </span>
+              )}
+              {grant?.deadline && (
+                <span>
+                  <strong>Deadline:</strong> {formatDeadline(grant.deadline)}
+                </span>
+              )}
             </div>
           </header>
 
@@ -405,40 +386,18 @@ function WorkspaceEditor({
                 index={i + 1}
                 section={section}
                 content={section.content}
-                onAskAssistant={() => onAskAssistant(section.id)}
                 revealText={streamingSections[section.id]}
                 onRevealComplete={() => onRevealComplete(section.id)}
-                active={activeSectionId === section.id}
               />
             ))}
           </div>
 
           {/* Document Footer */}
-          <footer className="mt-12 pt-6 border-t border-border/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <footer className="mt-12 pt-6 border-t border-border/70 flex items-center justify-between">
             <div className="text-xs text-muted-foreground">
-              Total Length: <span className="font-semibold text-foreground tabular-nums">{totalWords}</span> / {WORD_BUDGET} words
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => exportAsPdf(doc)}
-                className="rounded-lg text-xs hover:bg-muted"
-              >
-                <FileDown className="h-3.5 w-3.5" />
-                Export PDF
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void exportAsWord(doc)}
-                className="rounded-lg text-xs hover:bg-muted"
-              >
-                <FileDown className="h-3.5 w-3.5" />
-                Export Word
-              </Button>
+              Total Length:{" "}
+              <span className="font-semibold text-foreground tabular-nums">{totalWords}</span> /{" "}
+              {WORD_BUDGET} words
             </div>
           </footer>
         </div>
@@ -1190,7 +1149,6 @@ function DocumentWorkspaceContent({
           doc={doc}
           profile={profile}
           grant={grant}
-          onAskAssistant={setPinnedSectionId}
           streamingSections={streamingSections}
           onRevealComplete={clearStreaming}
           totalWords={totalWords}
