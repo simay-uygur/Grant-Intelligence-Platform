@@ -25,6 +25,7 @@ from backend.schemas.sheets import GenerateSheetsRequest, SheetsBundle, SheetTab
 from backend.services.agent_service import AgentUnavailableError
 from backend.services.document_service import (
     ApplicationNotFoundError,
+    ApplicationRevisionConflictError,
     ApplicationSectionNotFoundError,
     DocumentService,
 )
@@ -132,9 +133,12 @@ def update_application_section(
             section_id,
             payload.content,
             current_user["id"] if current_user else None,
+            payload.baseRevision,
         )
     except (ApplicationNotFoundError, ApplicationSectionNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ApplicationRevisionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post(
@@ -239,6 +243,8 @@ async def rewrite_section(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ApplicationSectionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ApplicationRevisionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.patch(
@@ -253,13 +259,20 @@ async def rewrite_section_stream(
     payload: RewriteSectionRequest,
     current_user: dict[str, str] | None = Depends(get_current_user),
 ) -> StreamingResponse:
+    user_id = current_user["id"] if current_user else None
+    try:
+        document_service._ensure_rewrite_revision(document_id, section_id, payload, user_id)
+    except ApplicationSectionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ApplicationRevisionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return StreamingResponse(
         sse_generator_bridge(
             document_service.rewrite_section_stream,
             document_id,
             section_id,
             payload,
-            current_user["id"] if current_user else None,
+            user_id,
         ),
         media_type="text/event-stream",
         headers={

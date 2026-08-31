@@ -22,6 +22,7 @@ from backend.schemas.sheets import SheetsBundle, UpdateSheetTabRequest
 from backend.services.agent_service import AgentService
 from backend.services.application_store import (
     ApplicationStore,
+    StoredApplicationRevisionConflictError,
     StoredApplicationSectionNotFoundError,
 )
 from backend.services.export_service import build_export
@@ -42,6 +43,10 @@ class ApplicationNotFoundError(ValueError):
 
 
 class ApplicationSectionNotFoundError(ValueError):
+    pass
+
+
+class ApplicationRevisionConflictError(ValueError):
     pass
 
 
@@ -239,6 +244,7 @@ class DocumentService:
         section_id: str,
         content: str,
         user_id: str | None = None,
+        base_revision: int | None = None,
     ) -> StoredApplication:
         try:
             application = self.application_store.update_section(
@@ -246,9 +252,12 @@ class DocumentService:
                 section_id,
                 content,
                 user_id,
+                base_revision,
             )
         except StoredApplicationSectionNotFoundError as exc:
             raise ApplicationSectionNotFoundError(str(exc)) from exc
+        except StoredApplicationRevisionConflictError as exc:
+            raise ApplicationRevisionConflictError(str(exc)) from exc
         if application is None:
             raise ApplicationNotFoundError(f"Application '{application_id}' does not exist.")
         return StoredApplication.model_validate(application)
@@ -260,6 +269,7 @@ class DocumentService:
         payload: RewriteSectionRequest,
         user_id: str | None = None,
     ) -> RewriteSectionResponse:
+        self._ensure_rewrite_revision(document_id, section_id, payload, user_id)
         grant = _grant_to_dict(payload.grant)
         content = self.agent_service.rewrite_section(
             payload.sectionTitle,
@@ -268,15 +278,29 @@ class DocumentService:
             grant=grant,
             instruction=payload.instruction,
         )
-        if self.application_store.get_application(document_id, user_id) is not None:
+        saved_revision: int | None = None
+        if payload.persist and self.application_store.get_application(document_id, user_id) is not None:
             try:
-                self.application_store.update_section(document_id, section_id, content, user_id)
+                application = self.application_store.update_section(
+                    document_id,
+                    section_id,
+                    content,
+                    user_id,
+                    payload.baseRevision,
+                )
+                if application is not None:
+                    matching = next((section for section in application["sections"] if section["id"] == section_id), None)
+                    saved_revision = matching.get("revision") if matching else None
             except StoredApplicationSectionNotFoundError as exc:
                 raise ApplicationSectionNotFoundError(str(exc)) from exc
+            except StoredApplicationRevisionConflictError as exc:
+                raise ApplicationRevisionConflictError(str(exc)) from exc
         return RewriteSectionResponse(
             sectionId=section_id,
             title=payload.sectionTitle,
             content=content,
+            revision=saved_revision,
+            baseRevision=payload.baseRevision,
         )
 
     def rewrite_section_stream(
@@ -286,6 +310,7 @@ class DocumentService:
         payload: RewriteSectionRequest,
         user_id: str | None = None,
     ) -> Iterator[dict[str, Any]]:
+        self._ensure_rewrite_revision(document_id, section_id, payload, user_id)
         grant = _grant_to_dict(payload.grant)
         for event in self.agent_service.rewrite_section_stream(
             payload.sectionTitle,
@@ -296,21 +321,54 @@ class DocumentService:
         ):
             if event.get("event") == "result" and "content" in event.get("data", {}):
                 content = event["data"]["content"]
-                if self.application_store.get_application(document_id, user_id) is not None:
+                saved_revision: int | None = None
+                if payload.persist and self.application_store.get_application(document_id, user_id) is not None:
                     try:
-                        self.application_store.update_section(document_id, section_id, content, user_id)
+                        application = self.application_store.update_section(
+                            document_id,
+                            section_id,
+                            content,
+                            user_id,
+                            payload.baseRevision,
+                        )
+                        if application is not None:
+                            matching = next((section for section in application["sections"] if section["id"] == section_id), None)
+                            saved_revision = matching.get("revision") if matching else None
                     except StoredApplicationSectionNotFoundError as exc:
                         raise ApplicationSectionNotFoundError(str(exc)) from exc
+                    except StoredApplicationRevisionConflictError as exc:
+                        raise ApplicationRevisionConflictError(str(exc)) from exc
                 response = RewriteSectionResponse(
                     sectionId=section_id,
                     title=payload.sectionTitle,
                     content=content,
+                    revision=saved_revision,
+                    baseRevision=payload.baseRevision,
                 )
                 event = {
                     **event,
                     "data": response.model_dump(exclude_none=True),
                 }
             yield event
+
+    def _ensure_rewrite_revision(
+        self,
+        document_id: str,
+        section_id: str,
+        payload: RewriteSectionRequest,
+        user_id: str | None,
+    ) -> None:
+        if not payload.persist or payload.baseRevision is None:
+            return
+        application = self.application_store.get_application(document_id, user_id)
+        if application is None:
+            return
+        matching = next((section for section in application["sections"] if section["id"] == section_id), None)
+        if matching is None:
+            raise ApplicationSectionNotFoundError(f"Section '{section_id}' does not exist in application '{document_id}'.")
+        current_revision = int(matching.get("revision") or 1)
+        if current_revision != payload.baseRevision:
+            raise ApplicationRevisionConflictError(f"Section '{section_id}' changed since this edit started. Current revision is {current_revision}; edit was based on {payload.baseRevision}.")
 
     def _resolve_qa_context(
         self,

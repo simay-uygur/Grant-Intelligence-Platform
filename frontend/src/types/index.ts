@@ -74,6 +74,8 @@ export interface DocumentSection {
   id: string;
   title: string;
   content: string;
+  /** Monotonic backend revision used to prevent stale manual or AI edits from overwriting newer text. */
+  revision?: number;
 }
 
 /** Pre-draft proposal section outline guidance. */
@@ -114,12 +116,8 @@ export interface ResearchState {
 }
 
 /**
- * A file the user has selected in the composer. Not currently uploaded
- * anywhere — selection is local-only (see Composer.tsx) and no Attachment
- * value is constructed or stored yet. Modelled here ahead of time so a
- * future upload integration has a clear target shape to produce and a
- * ChatBlock variant to render it as, without needing to invent one under
- * time pressure later. See docs/api-contract.md ("File upload").
+ * A file uploaded through the composer or document workflow. The backend
+ * stores extracted text, not the original file bytes.
  */
 export interface Attachment {
   id: string;

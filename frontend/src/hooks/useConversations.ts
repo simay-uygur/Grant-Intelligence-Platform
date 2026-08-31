@@ -63,6 +63,19 @@ function initialConversation(): Conversation {
   };
 }
 
+function normalizeDocumentRevisions(
+  doc: ApplicationDocument | undefined,
+): ApplicationDocument | undefined {
+  if (!doc) return undefined;
+  return {
+    ...doc,
+    sections: doc.sections.map((section) => ({
+      ...section,
+      revision: section.revision ?? 1,
+    })),
+  };
+}
+
 // Structured UI blocks remain local because backend message history stores
 // plain user/assistant text. In API mode, backendConversationId links this
 // local conversation to the corresponding backend chat session.
@@ -87,7 +100,12 @@ export function useConversations() {
       storage.saveConversations([first]);
       storage.saveActiveId(first.id);
     } else {
-      setConversations(existing);
+      setConversations(
+        existing.map((conversation) => ({
+          ...conversation,
+          document: normalizeDocumentRevisions(conversation.document),
+        })),
+      );
       const savedActive = storage.loadActiveId();
       setActiveId(
         savedActive && existing.some((c) => c.id === savedActive) ? savedActive : existing[0].id,
@@ -240,7 +258,11 @@ export function useConversations() {
 
   const setDocument = useCallback(
     (doc: ApplicationDocument | undefined, grantId?: string) => {
-      updateActive((c) => ({ ...c, document: doc, selectedGrantId: grantId ?? c.selectedGrantId }));
+      updateActive((c) => ({
+        ...c,
+        document: normalizeDocumentRevisions(doc),
+        selectedGrantId: grantId ?? c.selectedGrantId,
+      }));
     },
     [updateActive],
   );
@@ -264,14 +286,16 @@ export function useConversations() {
   }, [updateActive]);
 
   const updateDocumentSection = useCallback(
-    (sectionId: string, content: string) => {
+    (sectionId: string, content: string, revision?: number) => {
       updateActive((c) => {
         if (!c.document) return c;
         return {
           ...c,
           document: {
             ...c.document,
-            sections: c.document.sections.map((s) => (s.id === sectionId ? { ...s, content } : s)),
+            sections: c.document.sections.map((s) =>
+              s.id === sectionId ? { ...s, content, revision: revision ?? s.revision ?? 1 } : s,
+            ),
             updatedAt: new Date().toISOString(),
           },
         };

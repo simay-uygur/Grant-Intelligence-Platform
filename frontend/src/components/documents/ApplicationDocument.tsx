@@ -58,7 +58,7 @@ interface Props {
   doc: ApplicationDocument;
   profile?: OrganisationProfile;
   grant?: Grant;
-  onSectionChange: (sectionId: string, content: string) => void;
+  onSectionChange: (sectionId: string, content: string, revision?: number) => void;
   /** This draft's pipeline status; undefined when no application row matches. */
   applicationStatus?: ApplicationStatus;
   onApplicationStatusChange?: (status: ApplicationStatus) => void;
@@ -233,6 +233,7 @@ export function ApplicationDocumentView({
   const activeSection = sections[activeIndex] ?? sections[0];
 
   const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
+  const revisionOf = (id: string) => doc.sections.find((s) => s.id === id)?.revision ?? 1;
   const isDirty = (id: string) => {
     const draft = drafts[id];
     return draft !== undefined && draft !== savedContentOf(id);
@@ -284,8 +285,9 @@ export function ApplicationDocumentView({
     setSavingId(id);
     setSaveError(null);
     try {
-      await applicationService.saveSection(doc.id, id, draft);
-      onSectionChange(id, draft);
+      const updated = await applicationService.saveSection(doc.id, id, draft, revisionOf(id));
+      const saved = updated.sections.find((section) => section.id === id);
+      onSectionChange(id, saved?.content ?? draft, saved?.revision ?? revisionOf(id) + 1);
       clearDraft(id);
       if (lastRewrite?.sectionId === id) setLastRewrite(null);
       forgetRestored(id);
@@ -310,12 +312,16 @@ export function ApplicationDocumentView({
     setRewritingId(section.id);
     setRewriteError(null);
     try {
+      const baseRevision = revisionOf(section.id);
       const next = await applicationService.rewriteSection(
         section.title,
         currentText,
         profile,
         grant,
         doc.id,
+        undefined,
+        undefined,
+        { baseRevision, persist: true },
       );
       setLastRewrite({
         sectionId: section.id,
@@ -323,9 +329,9 @@ export function ApplicationDocumentView({
         wasEditing: isEditingSection,
       });
       if (isEditingSection) {
-        setDrafts((prev) => ({ ...prev, [section.id]: next }));
+        setDrafts((prev) => ({ ...prev, [section.id]: next.content }));
       } else {
-        onSectionChange(section.id, next);
+        onSectionChange(section.id, next.content, next.revision ?? baseRevision + 1);
         flashSaved(section.id);
       }
     } catch (err) {
@@ -354,13 +360,32 @@ export function ApplicationDocumentView({
     void performRewrite(section);
   };
 
-  const undoRewrite = () => {
+  const undoRewrite = async () => {
     if (!lastRewrite) return;
     if (lastRewrite.wasEditing) {
       setDrafts((prev) => ({ ...prev, [lastRewrite.sectionId]: lastRewrite.previousText }));
     } else {
-      onSectionChange(lastRewrite.sectionId, lastRewrite.previousText);
-      flashSaved(lastRewrite.sectionId);
+      try {
+        const updated = await applicationService.saveSection(
+          doc.id,
+          lastRewrite.sectionId,
+          lastRewrite.previousText,
+          revisionOf(lastRewrite.sectionId),
+        );
+        const saved = updated.sections.find((section) => section.id === lastRewrite.sectionId);
+        onSectionChange(
+          lastRewrite.sectionId,
+          saved?.content ?? lastRewrite.previousText,
+          saved?.revision ?? revisionOf(lastRewrite.sectionId) + 1,
+        );
+        flashSaved(lastRewrite.sectionId);
+      } catch (err) {
+        setRewriteError({
+          sectionId: lastRewrite.sectionId,
+          message: err instanceof Error ? err.message : "The undo could not be saved.",
+        });
+        return;
+      }
     }
     setLastRewrite(null);
   };

@@ -22,7 +22,7 @@ function makeSections(grant: Grant, profile: OrganisationProfile): DocumentSecti
   const org = profile.organisationName || "Our organisation";
   const project = profile.projectTitle || "the proposed project";
   const programme = grantContext(grant);
-  return [
+  const sections = [
     {
       id: "organisation-overview",
       title: "Organisation Overview",
@@ -88,6 +88,7 @@ function makeSections(grant: Grant, profile: OrganisationProfile): DocumentSecti
         "Principal risks include technology adoption, partner availability, and regulatory change. Each is monitored with defined mitigation actions, owners, and review points throughout the project lifecycle.",
     },
   ];
+  return sections.map((section) => ({ ...section, revision: 1 }));
 }
 
 export class LocalApplicationService implements ApplicationService {
@@ -115,16 +116,19 @@ export class LocalApplicationService implements ApplicationService {
             id: "application-summary",
             title: "Application Summary",
             content: `${application.applicantOrganisation} is preparing an application for ${application.grantTitle} through ${application.grantOrganisation}.`,
+            revision: 1,
           },
           {
             id: "funding-and-deadline",
             title: "Funding and Deadline",
             content: `Funding requested: ${application.fundingAmount}\nDeadline: ${application.deadline}`,
+            revision: 1,
           },
           {
             id: "pipeline-status",
             title: "Pipeline Status",
             content: `Current status: ${application.status.replace(/_/g, " ")}. This local demo document is generated from the pipeline card.`,
+            revision: 1,
           },
         ],
       },
@@ -168,8 +172,20 @@ export class LocalApplicationService implements ApplicationService {
     writeLocalApplications(filtered);
   }
 
-  async saveSection(_applicationId: string, _sectionId: string, _content: string): Promise<void> {
+  async saveSection(
+    applicationId: string,
+    sectionId: string,
+    content: string,
+    baseRevision = 1,
+  ): Promise<ApplicationDocument> {
     await wait(50);
+    return {
+      id: applicationId,
+      grantId: applicationId,
+      grantTitle: "Local application",
+      sections: [{ id: sectionId, title: sectionId, content, revision: baseRevision + 1 }],
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   async findSavedApplication(_grantId: string): Promise<ApplicationDocument | undefined> {
@@ -315,7 +331,8 @@ export class LocalApplicationService implements ApplicationService {
     _documentId?: string,
     onProgress?: (event: SseEvent) => void,
     instruction?: string,
-  ): Promise<string> {
+    options?: { baseRevision?: number; persist?: boolean },
+  ): Promise<{ content: string; revision?: number; baseRevision?: number }> {
     onProgress?.({
       event: "thinking",
       stage: "rewrite",
@@ -366,7 +383,11 @@ export class LocalApplicationService implements ApplicationService {
     const instructionNote = instruction?.trim()
       ? `\n\n[Applied guidance: "${instruction.trim()}"]`
       : "";
-    return `${opener}\n\n${currentContent.trim()}${instructionNote}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`;
+    return {
+      content: `${opener}\n\n${currentContent.trim()}${instructionNote}\n\nThis revision sharpens the narrative for ${programme} evaluators and highlights fit with ${org}'s strengths.`,
+      revision: options?.persist === false ? undefined : (options?.baseRevision ?? 1) + 1,
+      baseRevision: options?.baseRevision,
+    };
   }
 }
 

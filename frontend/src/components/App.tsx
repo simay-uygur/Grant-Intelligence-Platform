@@ -1120,6 +1120,16 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             grantContext={askingAboutGrant}
             onClearGrantContext={() => setAskingAboutGrant(null)}
             onFindAlternatives={active?.profile ? handleRetryResearch : undefined}
+            conversationId={c.activeConversation?.backendConversationId || c.activeId || null}
+            uploadDocument={
+              applicationService.uploadDocument && !isMockMode
+                ? async (file, conversationId) => {
+                    await applicationService.uploadDocument?.(file, {
+                      ...(conversationId ? { conversationId } : {}),
+                    });
+                  }
+                : undefined
+            }
           />
         </div>
       </main>

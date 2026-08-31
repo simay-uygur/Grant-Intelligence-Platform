@@ -34,18 +34,15 @@ interface Props {
 }
 
 const ACCEPTED_FILE_TYPES =
-  ".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,image/png,image/jpeg";
+  ".pdf,.docx,.txt,.md,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/json";
 
 // The `accept` attribute above is only a hint to the OS file picker — most
 // pickers still let the user choose "All files", so this is genuinely
 // reachable and worth validating rather than trusting the browser alone.
-const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt", ".md", ".png", ".jpg", ".jpeg"];
+const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv", ".json"];
 
 // Matches the textarea's max-h-40 (10rem) Tailwind class below.
 const MAX_TEXTAREA_HEIGHT = 160;
-
-// Extensions the backend can extract text from (POST /api/v1/documents/upload).
-const BACKEND_SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md", ".csv", ".json"];
 
 interface PendingAttachment {
   file: File;
@@ -155,13 +152,13 @@ export function Composer({
     if (!ACCEPTED_EXTENSIONS.includes(extension)) {
       setAttachment(null);
       setAttachmentError(
-        `"${file.name}" isn't a supported file type. Choose a PDF, Word, text, or image file instead.`,
+        `"${file.name}" isn't a supported file type. Choose PDF, DOCX, TXT, MD, CSV, or JSON instead.`,
       );
       return;
     }
     setAttachmentError(null);
 
-    if (!uploadDocument || !BACKEND_SUPPORTED_EXTENSIONS.includes(extension)) {
+    if (!uploadDocument) {
       setAttachment({ file, status: "local" });
       return;
     }
@@ -334,7 +331,7 @@ export function Composer({
                   {attachment.status === "uploaded" &&
                     "Uploaded — the AI will use this document when drafting and answering questions."}
                   {attachment.status === "local" &&
-                    "Preview only — this file type can't be analysed automatically."}
+                    "Selected locally — backend upload is not available in this mode."}
                   {attachment.status === "failed" &&
                     (attachment.error ?? "Upload failed. Please try again.")}
                 </p>

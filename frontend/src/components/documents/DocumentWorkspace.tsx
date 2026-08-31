@@ -5,7 +5,9 @@ import {
   FileDown,
   FileText,
   ListOrdered,
+  Loader2,
   MessagesSquare,
+  Pencil,
   Send,
   Sparkles,
   Undo2,
@@ -49,19 +51,36 @@ function GoogleDocsSection({
   index,
   section,
   content,
+  draft,
+  dirty,
+  saving,
+  savedFlash,
+  saveError,
+  onStartEdit,
+  onChangeDraft,
+  onCancel,
+  onSave,
   revealText,
   onRevealComplete,
 }: {
   index: number;
   section: DocSection;
   content: string;
-  onAskAssistant?: () => void;
+  draft?: string;
+  dirty: boolean;
+  saving: boolean;
+  savedFlash: boolean;
+  saveError?: string;
+  onStartEdit: () => void;
+  onChangeDraft: (value: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
   revealText?: string;
   onRevealComplete?: () => void;
-  active?: boolean;
 }) {
+  const editing = draft !== undefined;
   const { revealed, streaming: revealing } = useProgressiveReveal(revealText, onRevealComplete);
-  const displayText = revealed ?? content;
+  const displayText = editing ? draft : (revealed ?? content);
   const words = wordCount(displayText);
 
   return (
@@ -70,7 +89,7 @@ function GoogleDocsSection({
       aria-labelledby={`workspace-section-title-${section.id}`}
       className="scroll-mt-8 py-4 first:pt-0"
     >
-      <div className="mb-2.5 flex items-baseline justify-between gap-4">
+      <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <h2
           id={`workspace-section-title-${section.id}`}
           className="text-lg sm:text-xl font-bold text-foreground tracking-tight"
@@ -78,20 +97,80 @@ function GoogleDocsSection({
           <span className="text-muted-foreground mr-2 font-medium">{index}.</span>
           <span>{section.title}</span>
         </h2>
-        <span className="text-xs text-muted-foreground font-normal tabular-nums shrink-0">
-          {words}w
-        </span>
+        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+          <span className="mr-1 text-xs text-muted-foreground font-normal tabular-nums shrink-0">
+            {words}w
+          </span>
+          {dirty && <span className="text-[11px] font-medium text-warning">Unsaved changes</span>}
+          {savedFlash && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
+              <Check className="h-3 w-3" />
+              Saved
+            </span>
+          )}
+          {!editing ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onStartEdit}
+              className="h-auto rounded-md px-2 py-1 text-[11px] font-medium"
+            >
+              <Pencil className="h-3 w-3" />
+              Edit
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onCancel}
+                disabled={saving}
+                className="h-auto rounded-md px-2 py-1 text-[11px] font-medium"
+              >
+                <X className="h-3 w-3" />
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={onSave}
+                disabled={saving || !dirty}
+                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-brand-foreground hover:bg-brand/90"
+              >
+                {saving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Check className="h-3 w-3" />
+                )}
+                Save
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed sm:leading-[1.8] text-foreground/90 font-normal [overflow-wrap:anywhere]">
-        {displayText}
-        {revealing && (
-          <span
-            aria-hidden="true"
-            className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[3px] bg-brand motion-safe:animate-pulse"
-          />
-        )}
-      </div>
+      {saveError && <InlineNotice tone="error">{saveError}</InlineNotice>}
+
+      {editing ? (
+        <Textarea
+          value={draft}
+          onChange={(event) => onChangeDraft(event.target.value)}
+          rows={10}
+          className="mt-2 min-h-[220px] w-full resize-y rounded-lg border-border bg-background text-sm leading-relaxed [overflow-wrap:anywhere] sm:text-base"
+        />
+      ) : (
+        <div className="whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed sm:leading-[1.8] text-foreground/90 font-normal [overflow-wrap:anywhere]">
+          {displayText}
+          {revealing && (
+            <span
+              aria-hidden="true"
+              className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[3px] bg-brand motion-safe:animate-pulse"
+            />
+          )}
+        </div>
+      )}
     </article>
   );
 }
@@ -241,15 +320,27 @@ function WorkspaceEditor({
   doc,
   profile,
   grant,
+  drafts,
+  savingId,
+  savedFlashId,
+  saveError,
   streamingSections,
   onRevealComplete,
   totalWords,
   showAssistant,
   onToggleAssistant,
+  onStartEdit,
+  onChangeDraft,
+  onCancelEdit,
+  onSaveSection,
 }: {
   doc: ApplicationDocument;
   profile: OrganisationProfile | undefined;
   grant: Grant | undefined;
+  drafts: Record<string, string>;
+  savingId: string | null;
+  savedFlashId: string | null;
+  saveError: { sectionId: string; message: string } | null;
   /** sectionId -> the full text an AI rewrite just produced for it, purely
    * for the progressive-reveal effect (see GoogleDocsSection). */
   streamingSections: Record<string, string>;
@@ -257,6 +348,10 @@ function WorkspaceEditor({
   totalWords: number;
   showAssistant: boolean;
   onToggleAssistant: (show: boolean) => void;
+  onStartEdit: (id: string) => void;
+  onChangeDraft: (id: string, value: string) => void;
+  onCancelEdit: (id: string) => void;
+  onSaveSection: (id: string) => void;
 }) {
   const reduceMotion = usePrefersReducedMotion();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
@@ -408,6 +503,15 @@ function WorkspaceEditor({
                   index={i + 1}
                   section={section}
                   content={section.content}
+                  draft={drafts[section.id]}
+                  dirty={drafts[section.id] !== undefined && drafts[section.id] !== section.content}
+                  saving={savingId === section.id}
+                  savedFlash={savedFlashId === section.id}
+                  saveError={saveError?.sectionId === section.id ? saveError.message : undefined}
+                  onStartEdit={() => onStartEdit(section.id)}
+                  onChangeDraft={(value) => onChangeDraft(section.id, value)}
+                  onCancel={() => onCancelEdit(section.id)}
+                  onSave={() => onSaveSection(section.id)}
                   revealText={streamingSections[section.id]}
                   onRevealComplete={() => onRevealComplete(section.id)}
                 />
@@ -442,6 +546,7 @@ interface ProposedEdit {
   sectionTitle: string;
   previousText: string;
   newText: string;
+  baseRevision: number;
   status: "pending" | "applied" | "discarded";
 }
 
@@ -717,7 +822,7 @@ function AssistantPanel({
   drafts: Record<string, string>;
   pinnedSectionId: string | null;
   onClearPinnedSection: () => void;
-  onApplyRewrite: (sectionId: string, text: string) => void;
+  onApplyRewrite: (sectionId: string, text: string, revision?: number) => void;
   onClose: () => void;
 }) {
   const [messages, setMessages] = useState<WorkspaceChatMessage[]>([]);
@@ -761,6 +866,8 @@ function AssistantPanel({
 
   const currentTextOf = (sectionId: string) =>
     drafts[sectionId] ?? doc.sections.find((s) => s.id === sectionId)?.content ?? "";
+  const revisionOf = (sectionId: string) =>
+    doc.sections.find((s) => s.id === sectionId)?.revision ?? 1;
 
   /** Auto-apply path: commits immediately. Returns the previous text on success, for the batch undo record. */
   const runRewrite = async (
@@ -768,6 +875,7 @@ function AssistantPanel({
     instruction: string,
   ): Promise<{ ok: true; previousText: string } | { ok: false }> => {
     const previousText = currentTextOf(section.id);
+    const baseRevision = revisionOf(section.id);
     try {
       // profile is guaranteed by the caller (send is disabled without one).
       const next = await applicationService.rewriteSection(
@@ -778,8 +886,9 @@ function AssistantPanel({
         doc.id,
         undefined,
         instruction,
+        { baseRevision, persist: true },
       );
-      onApplyRewrite(section.id, next);
+      onApplyRewrite(section.id, next.content, next.revision ?? baseRevision + 1);
       return { ok: true, previousText };
     } catch (err) {
       pushMessage(
@@ -794,6 +903,7 @@ function AssistantPanel({
   /** Review path: same call, but pushes a pending proposal instead of committing. */
   const proposeRewrite = async (section: DocSection, instruction: string): Promise<boolean> => {
     const previousText = currentTextOf(section.id);
+    const baseRevision = revisionOf(section.id);
     try {
       const next = await applicationService.rewriteSection(
         section.title,
@@ -803,12 +913,14 @@ function AssistantPanel({
         doc.id,
         undefined,
         instruction,
+        { baseRevision, persist: false },
       );
       pushProposal({
         sectionId: section.id,
         sectionTitle: section.title,
         previousText,
-        newText: next,
+        newText: next.content,
+        baseRevision,
         status: "pending",
       });
       return true;
@@ -898,10 +1010,34 @@ function AssistantPanel({
     setPending(false);
   };
 
-  const handleUndo = () => {
+  const handleUndo = async () => {
     if (!lastEdit) return;
-    for (const edit of lastEdit) {
-      onApplyRewrite(edit.sectionId, edit.previousText);
+    setPending(true);
+    try {
+      for (const edit of lastEdit) {
+        const updated = await applicationService.saveSection(
+          doc.id,
+          edit.sectionId,
+          edit.previousText,
+          revisionOf(edit.sectionId),
+        );
+        const saved = updated.sections.find((section) => section.id === edit.sectionId);
+        onApplyRewrite(
+          edit.sectionId,
+          saved?.content ?? edit.previousText,
+          saved?.revision ?? revisionOf(edit.sectionId) + 1,
+        );
+      }
+    } catch (error) {
+      pushMessage(
+        "assistant",
+        error instanceof Error
+          ? error.message
+          : "The last change could not be undone. Refresh and try again.",
+        "error",
+      );
+      setPending(false);
+      return;
     }
     const label =
       lastEdit.length === 1
@@ -909,19 +1045,44 @@ function AssistantPanel({
         : `${lastEdit.length} sections`;
     pushMessage("assistant", `Reverted ${label} to the text before that change.`);
     setLastEdit(null);
+    setPending(false);
   };
 
-  const handleApplyProposal = (messageId: string, proposal: ProposedEdit) => {
-    onApplyRewrite(proposal.sectionId, proposal.newText);
-    setLastEdit([{ sectionId: proposal.sectionId, previousText: proposal.previousText }]);
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId && m.kind === "proposal"
-          ? { ...m, proposal: { ...m.proposal, status: "applied" } }
-          : m,
-      ),
-    );
-    setAnnouncement(`Applied the proposed edit to "${proposal.sectionTitle}".`);
+  const handleApplyProposal = async (messageId: string, proposal: ProposedEdit) => {
+    setPending(true);
+    try {
+      const updated = await applicationService.saveSection(
+        doc.id,
+        proposal.sectionId,
+        proposal.newText,
+        proposal.baseRevision,
+      );
+      const saved = updated.sections.find((section) => section.id === proposal.sectionId);
+      onApplyRewrite(
+        proposal.sectionId,
+        saved?.content ?? proposal.newText,
+        saved?.revision ?? proposal.baseRevision + 1,
+      );
+      setLastEdit([{ sectionId: proposal.sectionId, previousText: proposal.previousText }]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId && m.kind === "proposal"
+            ? { ...m, proposal: { ...m.proposal, status: "applied" } }
+            : m,
+        ),
+      );
+      setAnnouncement(`Applied the proposed edit to "${proposal.sectionTitle}".`);
+    } catch (error) {
+      pushMessage(
+        "assistant",
+        error instanceof Error
+          ? error.message
+          : "The proposal could not be applied. Refresh and try again.",
+        "error",
+      );
+    } finally {
+      setPending(false);
+    }
   };
 
   const handleDiscardProposal = (messageId: string, proposal: ProposedEdit) => {
@@ -1152,16 +1313,85 @@ function DocumentWorkspaceContent({
   profile: OrganisationProfile | undefined;
   grant: Grant | undefined;
   pipelineStatus: ApplicationStatus | undefined;
-  onSectionChange: (sectionId: string, content: string) => void;
+  onSectionChange: (sectionId: string, content: string, revision?: number) => void;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [streamingSections, setStreamingSections] = useState<Record<string, string>>({});
   const [pinnedSectionId, setPinnedSectionId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedFlashId, setSavedFlashId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<{ sectionId: string; message: string } | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const applyAiRewrite = (id: string, text: string) => {
-    onSectionChange(id, text);
-    setDrafts((prev) => ({ ...prev, [id]: text }));
+  const revisionOf = (id: string) =>
+    doc.sections.find((section) => section.id === id)?.revision ?? 1;
+  const contentOf = (id: string) =>
+    doc.sections.find((section) => section.id === id)?.content ?? "";
+  const commitSection = (id: string, text: string, revision?: number) => {
+    onSectionChange(id, text, revision);
+    setDrafts((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+  const flashSaved = (id: string) => {
+    setSavedFlashId(id);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setSavedFlashId(null), 1600);
+  };
+
+  useEffect(
+    () => () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    },
+    [],
+  );
+
+  const startEdit = (id: string) => {
+    setDrafts((prev) => (prev[id] !== undefined ? prev : { ...prev, [id]: contentOf(id) }));
+    setSaveError(null);
+  };
+  const updateDraft = (id: string, value: string) => {
+    setDrafts((prev) => ({ ...prev, [id]: value }));
+  };
+  const cancelEdit = (id: string) => {
+    setDrafts((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    if (saveError?.sectionId === id) setSaveError(null);
+  };
+  const saveSection = async (id: string) => {
+    const draft = drafts[id];
+    if (draft === undefined) return;
+    setSavingId(id);
+    setSaveError(null);
+    try {
+      const updated = await applicationService.saveSection(doc.id, id, draft, revisionOf(id));
+      const saved = updated.sections.find((section) => section.id === id);
+      commitSection(id, saved?.content ?? draft, saved?.revision ?? revisionOf(id) + 1);
+      flashSaved(id);
+    } catch (error) {
+      setSaveError({
+        sectionId: id,
+        message:
+          error instanceof Error
+            ? error.message
+            : "The section could not be saved. Refresh and try again.",
+      });
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const applyAiRewrite = (id: string, text: string, revision?: number) => {
+    commitSection(id, text, revision);
     setStreamingSections((prev) => ({ ...prev, [id]: text }));
+    flashSaved(id);
   };
 
   const clearStreaming = (id: string) => {
@@ -1188,11 +1418,19 @@ function DocumentWorkspaceContent({
           doc={doc}
           profile={profile}
           grant={grant}
+          drafts={drafts}
+          savingId={savingId}
+          savedFlashId={savedFlashId}
+          saveError={saveError}
           streamingSections={streamingSections}
           onRevealComplete={clearStreaming}
           totalWords={totalWords}
           showAssistant={showAssistant}
           onToggleAssistant={setShowAssistant}
+          onStartEdit={startEdit}
+          onChangeDraft={updateDraft}
+          onCancelEdit={cancelEdit}
+          onSaveSection={saveSection}
         />
         {showAssistant && (
           <AssistantPanel
@@ -1234,7 +1472,7 @@ export function DocumentWorkspace({
   grant: Grant | undefined;
   /** Read-only pipeline status for the header pill; undefined when no matching row exists. */
   pipelineStatus?: ApplicationStatus | undefined;
-  onSectionChange: (sectionId: string, content: string) => void;
+  onSectionChange: (sectionId: string, content: string, revision?: number) => void;
   onGoToChat: () => void;
 }) {
   const goToChat = useCallback(() => onGoToChat(), [onGoToChat]);

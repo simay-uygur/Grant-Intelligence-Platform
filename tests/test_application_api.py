@@ -73,6 +73,69 @@ def _start_application(client: TestClient) -> dict:
     return response.json()
 
 
+def test_sections_default_to_revision_one(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "application_revisions.db", monkeypatch)
+
+    document = _start_application(client)
+
+    assert document["sections"][0]["revision"] == 1
+
+
+def test_section_save_increments_matching_revision(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "section_save_revision.db", monkeypatch)
+    document = _start_application(client)
+
+    response = client.put(
+        f"/api/v1/applications/{document['id']}/sections/executive-summary",
+        json={"content": "Manual edit.", "baseRevision": 1},
+    )
+
+    assert response.status_code == 200
+    section = response.json()["sections"][0]
+    assert section["content"] == "Manual edit."
+    assert section["revision"] == 2
+
+
+def test_section_save_rejects_stale_revision(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "section_save_conflict.db", monkeypatch)
+    document = _start_application(client)
+    client.put(
+        f"/api/v1/applications/{document['id']}/sections/executive-summary",
+        json={"content": "First edit.", "baseRevision": 1},
+    )
+
+    response = client.put(
+        f"/api/v1/applications/{document['id']}/sections/executive-summary",
+        json={"content": "Stale edit.", "baseRevision": 1},
+    )
+
+    assert response.status_code == 409
+    assert "changed since this edit started" in response.json()["detail"]
+
+
+def test_review_rewrite_does_not_persist_until_apply(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _build_client(tmp_path / "review_rewrite.db", monkeypatch)
+    document = _start_application(client)
+
+    response = client.patch(
+        f"/api/v1/documents/{document['id']}/sections/executive-summary",
+        json={
+            "sectionTitle": "Executive Summary",
+            "currentContent": "Draft for Northlight Robotics.",
+            "profile": PROFILE,
+            "grant": GRANT,
+            "baseRevision": 1,
+            "persist": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["content"].startswith("AI rewrite")
+    stored = client.get(f"/api/v1/applications/{document['id']}").json()
+    assert stored["sections"][0]["content"] == "Draft for Northlight Robotics."
+    assert stored["sections"][0]["revision"] == 1
+
+
 def test_started_application_is_persisted_for_dashboard(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,

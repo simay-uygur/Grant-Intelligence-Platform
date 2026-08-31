@@ -19,6 +19,7 @@ const documentSectionSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   content: z.string(),
+  revision: z.number().int().positive().default(1),
 });
 
 const applicationDocumentSchema = z.object({
@@ -88,6 +89,8 @@ const rewriteSectionResponseSchema = z.object({
   sectionId: z.string().min(1),
   title: z.string().min(1),
   content: z.string(),
+  revision: z.number().int().positive().optional().nullable(),
+  baseRevision: z.number().int().positive().optional().nullable(),
 });
 
 const applicationStatusSchema = z.enum([
@@ -200,16 +203,25 @@ export class ApiApplicationService implements ApplicationService {
     });
   }
 
-  async saveSection(applicationId: string, sectionId: string, content: string): Promise<void> {
+  async saveSection(
+    applicationId: string,
+    sectionId: string,
+    content: string,
+    baseRevision?: number,
+  ): Promise<ApplicationDocument> {
     const payload = await this.client.request<unknown>(
       `/api/v1/applications/${encodeURIComponent(applicationId)}/sections/${encodeURIComponent(sectionId)}`,
       {
         method: "PUT",
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({
+          content,
+          ...(baseRevision ? { baseRevision } : {}),
+        }),
       },
     );
     const result = storedApplicationSchema.safeParse(payload);
     if (!result.success) throw new ApplicationApiContractError();
+    return toApplicationDocument(result.data);
   }
 
   async deleteApplication(applicationId: string): Promise<void> {
@@ -320,7 +332,8 @@ export class ApiApplicationService implements ApplicationService {
     documentId?: string,
     onProgress?: (event: SseEvent) => void,
     instruction?: string,
-  ): Promise<string> {
+    options?: { baseRevision?: number; persist?: boolean },
+  ): Promise<{ content: string; revision?: number; baseRevision?: number }> {
     const sectionId = sectionTitle.toLowerCase().replace(/\s+/g, "-");
     const storedDocumentId = documentId ?? grant?.id ?? "active-document";
     const payload = await this.client.requestSse<unknown>(
@@ -333,13 +346,19 @@ export class ApiApplicationService implements ApplicationService {
           profile,
           grant,
           instruction,
+          ...(options?.baseRevision ? { baseRevision: options.baseRevision } : {}),
+          ...(options?.persist === false ? { persist: false } : {}),
         }),
       },
       onProgress,
     );
     const result = rewriteSectionResponseSchema.safeParse(payload);
     if (!result.success) throw new ApplicationApiContractError();
-    return result.data.content;
+    return {
+      content: result.data.content,
+      revision: result.data.revision ?? undefined,
+      baseRevision: result.data.baseRevision ?? undefined,
+    };
   }
 }
 
@@ -352,7 +371,10 @@ function toApplicationDocument(
     grantTitle: application.grantTitle,
     sourceUrl: application.sourceUrl ?? undefined,
     programme: application.programme ?? undefined,
-    sections: application.sections,
+    sections: application.sections.map((section) => ({
+      ...section,
+      revision: section.revision || 1,
+    })),
     ...(application.createdAt ? { createdAt: application.createdAt } : {}),
     updatedAt: application.updatedAt,
   };
