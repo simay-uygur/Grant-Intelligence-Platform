@@ -7,7 +7,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { LoginPage } from "@/components/auth/LoginPage";
-import { applicationService, grantService, isMockMode } from "@/services";
+import { applicationService, chatService, grantService, isMockMode } from "@/services";
+import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
 import type {
@@ -408,13 +409,148 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     [addApplication, askAssistant, c],
   );
 
+  const handleOpenApplication = useCallback(
+    async (applicationId: string) => {
+      const app = apps.applications.find((a) => a.id === applicationId);
+      if (!app) return;
+
+      // Check if there is an existing conversation that has this document
+      const matchingConv = c.conversations.find(
+        (conv) =>
+          conv.document?.grantId === app.grantId ||
+          conv.document?.grantTitle === app.grantTitle,
+      );
+      if (matchingConv) {
+        c.selectConversation(matchingConv.id);
+        setMainView("workspace");
+        return;
+      }
+
+      // If not, find the grant or synthesize one and start a new conversation with draft
+      const targetGrant =
+        MOCK_GRANTS.find((g) => g.id === app.grantId || g.title === app.grantTitle) ?? {
+          id: app.grantId || app.id,
+          programme: app.grantOrganisation,
+          title: app.grantTitle,
+          fundingAmount: app.fundingAmount,
+          deadline: app.deadline,
+          sourceUrl: "",
+          matchPercentage: 90,
+          eligibleCountries: ["EU Member States"],
+          organisationEligibility: ["SMEs", "Research"],
+          fundingType: "Grant",
+          description: `Application for ${app.grantTitle}`,
+          whyItMatches: "Pre-existing pipeline candidate",
+          matchReasons: [],
+          requirements: [],
+          tags: ["EU Funding"],
+        };
+
+      const defaultProfile: OrganisationProfile = {
+        organisationName: app.applicantOrganisation || "Applicant",
+        organisationType: "SME",
+        organisationDescription: "European innovation leader",
+        country: "Germany",
+        region: "Western Europe",
+        projectTitle: app.grantTitle,
+        projectDescription: `Proposal for ${app.grantTitle}`,
+        sector: "Technology & Industry",
+        fundingAmount: app.fundingAmount || "€1,000,000",
+        projectStartDate: "2027-01-01",
+        projectDuration: "24 months",
+        eligibilityConstraints: "None",
+      };
+
+      c.newConversation();
+      setBusy(true);
+      try {
+        const doc = await applicationService.startApplication(targetGrant, defaultProfile);
+        c.setProfile(defaultProfile);
+        c.setDocument(doc, targetGrant.id);
+        c.setStage("application");
+        setMainView("workspace");
+      } catch (err) {
+        askAssistant([
+          {
+            type: "error",
+            message: `Could not load application draft: ${err instanceof Error ? err.message : "Error"}`,
+          },
+        ]);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [apps.applications, askAssistant, c],
+  );
+
+  const handleStartApplicationFromSaved = useCallback(
+    async (grant: Grant) => {
+      let profile = c.activeConversation?.profile;
+      if (!profile) {
+        profile = {
+          organisationName: "Your Organisation",
+          organisationType: "SME",
+          organisationDescription: "European Innovation Partner",
+          country: "Germany",
+          region: "Western Europe",
+          projectTitle: grant.title,
+          projectDescription: `Proposal for ${grant.title}`,
+          sector: "Technology & Innovation",
+          fundingAmount: grant.fundingAmount || "€1,000,000",
+          projectStartDate: "2027-01-01",
+          projectDuration: "24 months",
+          eligibilityConstraints: "None",
+        };
+        c.newConversation();
+        c.setProfile(profile);
+      }
+      await handleStartApplication(grant);
+      setMainView("workspace");
+    },
+    [c, handleStartApplication],
+  );
+
   const handleUserSend = useCallback(
-    (text: string) => {
+    async (text: string) => {
       askUser([{ type: "text", text }]);
       const stage = c.activeConversation?.stage ?? "welcome";
+
       if (askingAboutGrant) {
         askAssistant(answerAboutGrant(text, askingAboutGrant));
-      } else if (stage === "welcome") {
+        return;
+      }
+
+      if (chatService && !isMockMode) {
+        setBusy(true);
+        try {
+          const profile = c.activeConversation?.profile;
+          const reply = await chatService.sendMessage({
+            conversationId: c.activeId || "conv-default",
+            sessionId: c.activeId || "conv-default",
+            userMessage: text,
+            profile,
+          });
+
+          const blocks = chatReplyBlocks(reply);
+          if (reply.nextStep === "collect_information" && stage === "welcome") {
+            c.setStage("collecting_information");
+            blocks.push({ type: "structured_form" });
+          }
+          askAssistant(blocks);
+
+          if (reply.nextStep === "show_results" && profile) {
+            await runResearch(profile);
+          }
+          return;
+        } catch (err) {
+          // Graceful fallback if backend call fails
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      // Local fallback handler
+      if (stage === "welcome") {
         c.setStage("collecting_information");
         askAssistant([
           { type: "text", text: openingAcknowledgement(text) },
@@ -436,7 +572,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         ]);
       }
     },
-    [askAssistant, askUser, askingAboutGrant, c],
+    [askAssistant, askUser, askingAboutGrant, c, runResearch],
   );
 
   const runDemo = useCallback(async () => {
@@ -771,7 +907,10 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
 
         {mainView === "saved" && (
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <SavedGrants onGoToChat={() => setMainView("chat")} />
+            <SavedGrants
+              onGoToChat={() => setMainView("chat")}
+              onStartApplication={handleStartApplicationFromSaved}
+            />
           </div>
         )}
 
@@ -798,6 +937,8 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
               hydrated={apps.hydrated}
               persistenceOk={apps.persistenceOk}
               updateStatus={apps.updateStatus}
+              deleteApplication={apps.deleteApplication}
+              onOpenApplication={handleOpenApplication}
               // Read-only, for working out which conversation a card links
               // back to; the open action reuses the same switch-to-chat +
               // activate handler the sidebar already uses.

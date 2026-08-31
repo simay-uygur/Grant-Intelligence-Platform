@@ -4,6 +4,7 @@ import {
   BookmarkCheck,
   ChevronRight,
   ExternalLink,
+  Globe2,
   MessageSquare,
   RefreshCw,
   Scale,
@@ -24,10 +25,14 @@ import {
 } from "@/components/ui/dialog";
 import { GrantDetailsSheet } from "./GrantDetailsSheet";
 import { DeadlineBadge } from "./DeadlineBadge";
-import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { useShortlist } from "@/hooks/useShortlist";
-import { MATCH_TIER_CLASSES, type MatchTier, matchTierFor } from "./grantPresentation";
+import {
+  MATCH_TIER_CLASSES,
+  type MatchTier,
+  matchTierFor,
+  getGrantSourceType,
+} from "./grantPresentation";
 import { formatDeadline } from "@/utils/deadline";
 
 interface Props {
@@ -46,16 +51,54 @@ interface Props {
 
 const MAX_COMPARE = 3;
 
-export function GrantResults({ grants, onAsk, onStart, onRetryResearch, startDisabled }: Props) {
+export function GrantResults({
+  grants,
+  allCandidates,
+  sourceSummary,
+  onAsk,
+  onStart,
+  onRetryResearch,
+  startDisabled,
+}: Props) {
   // Saved grants are durable (gi.shortlist.v1) and shared across every
   // GrantResults on screen; compare below stays deliberately ephemeral.
   const { isSaved, toggleSave } = useShortlist();
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
-  // Kept separate from `detailsOpen` so the sheet's exit animation still has
-  // a grant to render while it closes, instead of unmounting mid-slide.
   const [selectedGrant, setSelectedGrant] = useState<Grant | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showAllCandidates, setShowAllCandidates] = useState(false);
+  const [candidateFilter, setCandidateFilter] = useState<"all" | "eu_portal" | "web_discovery">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const candidatePool = useMemo(() => {
+    if (allCandidates && allCandidates.length > 0) return allCandidates;
+    return grants;
+  }, [allCandidates, grants]);
+
+  const euCount = useMemo(
+    () => candidatePool.filter((c) => getGrantSourceType(c) === "eu_portal").length,
+    [candidatePool],
+  );
+  const webCount = useMemo(
+    () => candidatePool.filter((c) => getGrantSourceType(c) === "web_discovery").length,
+    [candidatePool],
+  );
+
+  const filteredCandidates = useMemo(() => {
+    return candidatePool.filter((candidate) => {
+      const type = getGrantSourceType(candidate);
+      if (candidateFilter === "eu_portal" && type !== "eu_portal") return false;
+      if (candidateFilter === "web_discovery" && type !== "web_discovery") return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        candidate.title.toLowerCase().includes(q) ||
+        (candidate.description || "").toLowerCase().includes(q) ||
+        (candidate.programme || "").toLowerCase().includes(q)
+      );
+    });
+  }, [candidatePool, candidateFilter, searchQuery]);
 
   const openDetails = (grant: Grant) => {
     setSelectedGrant(grant);
@@ -106,7 +149,6 @@ export function GrantResults({ grants, onAsk, onStart, onRetryResearch, startDis
             Ranked by fit with your organisation profile.
           </p>
         </div>
-        <DemoBadge marker="demo-data" />
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -126,6 +168,110 @@ export function GrantResults({ grants, onAsk, onStart, onRetryResearch, startDis
           />
         ))}
       </div>
+
+      {candidatePool.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
+          <button
+            type="button"
+            onClick={() => setShowAllCandidates((prev) => !prev)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand/10 text-brand">
+                <Globe2 className="h-3.5 w-3.5" />
+              </span>
+              <div>
+                <span className="font-semibold text-xs sm:text-sm text-foreground">
+                  All Discovered Opportunities & Web Sources
+                </span>
+                <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground tabular-nums">
+                  {candidatePool.length} found
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-normal">
+              <span>{showAllCandidates ? "Hide list" : "Show all"}</span>
+              <ChevronRight
+                className={cn(
+                  "h-4 w-4 transition-transform duration-200",
+                  showAllCandidates && "rotate-90",
+                )}
+              />
+            </div>
+          </button>
+
+          {showAllCandidates && (
+            <div className="border-t border-border px-4 py-3.5 space-y-3 bg-muted/10">
+              {sourceSummary && (
+                <p className="text-[11px] text-muted-foreground">
+                  {sourceSummary}
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                {/* Source Filter Tabs */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    type="button"
+                    variant={candidateFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCandidateFilter("all")}
+                    className="h-7 text-xs rounded-full px-2.5"
+                  >
+                    All ({candidatePool.length})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={candidateFilter === "eu_portal" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCandidateFilter("eu_portal")}
+                    className="h-7 text-xs rounded-full px-2.5 gap-1"
+                  >
+                    <span>🇪🇺</span> EU Portal ({euCount})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={candidateFilter === "web_discovery" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCandidateFilter("web_discovery")}
+                    className="h-7 text-xs rounded-full px-2.5 gap-1"
+                  >
+                    <span>🌐</span> Web Discovery ({webCount})
+                  </Button>
+                </div>
+
+                {/* Search query input */}
+                {candidatePool.length > 3 && (
+                  <input
+                    type="text"
+                    placeholder="Filter by title / topic…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-7 w-full sm:w-44 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                )}
+              </div>
+
+              {/* Candidates List */}
+              <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
+                {filteredCandidates.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground">
+                    No discovered opportunities matched your filter.
+                  </div>
+                ) : (
+                  filteredCandidates.map((candidate) => (
+                    <CandidateItem
+                      key={candidate.id}
+                      grant={candidate}
+                      onAsk={onAsk}
+                      onViewDetails={openDetails}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Appears as soon as one grant is checked, not just at two — a user
           who checks a single box and sees nothing happen has no way to know
@@ -317,7 +463,6 @@ function GrantCard({
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium text-brand">
             <Sparkles className="h-3.5 w-3.5" />
             Why it matches
-            <DemoBadge marker="sample-result" compact className="ml-0.5" />
           </div>
           <p className="mt-1 line-clamp-3 break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">
             {grant.whyItMatches}
@@ -471,6 +616,104 @@ function MatchRing({ percentage, tier }: { percentage: number; tier: MatchTier }
       <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
         match
       </span>
+    </div>
+  );
+}
+
+function CandidateItem({
+  grant,
+  onAsk,
+  onViewDetails,
+}: {
+  grant: Grant;
+  onAsk: (grant: Grant) => void;
+  onViewDetails: (grant: Grant) => void;
+}) {
+  const isWeb = getGrantSourceType(grant) === "web_discovery";
+  const sourceLabel = isWeb
+    ? grant.programme || "Web Discovery"
+    : grant.programme || "Horizon Europe";
+  const identifier =
+    grant.id.startsWith("web-") || grant.id.startsWith("cand-") ? undefined : grant.id;
+
+  return (
+    <div
+      onClick={() => onViewDetails(grant)}
+      className="group cursor-pointer rounded-xl border border-border/80 bg-background/80 hover:border-brand/40 hover:bg-muted/40 p-3.5 transition-all space-y-2.5 shadow-2xs"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold",
+              isWeb
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                : "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20",
+            )}
+          >
+            {isWeb ? <Globe2 className="h-3 w-3" /> : <span>🇪🇺</span>}
+            {sourceLabel}
+          </span>
+          {identifier && (
+            <span className="text-[10px] text-muted-foreground/90 font-mono font-medium">
+              {identifier}
+            </span>
+          )}
+        </div>
+        {grant.deadline && <DeadlineBadge deadline={grant.deadline} compact />}
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-foreground group-hover:text-brand transition-colors line-clamp-2 leading-snug">
+          {grant.title}
+        </h4>
+        {grant.description && (
+          <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+            {grant.description}
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/40">
+        <div className="flex items-center gap-2">
+          {grant.sourceUrl && (
+            <a
+              href={grant.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline bg-brand/5 hover:bg-brand/10 border border-brand/20 rounded-md px-2 py-1 transition-colors"
+            >
+              <span>{isWeb ? "Visit Web Source" : "Official EU Portal Call"}</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails(grant);
+            }}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5"
+          >
+            <span>More info</span>
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAsk(grant);
+          }}
+          className="h-7 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground hover:bg-background"
+        >
+          <MessageSquare className="h-3 w-3" />
+          <span>Ask AI</span>
+        </Button>
+      </div>
     </div>
   );
 }

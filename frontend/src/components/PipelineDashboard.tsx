@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CalendarClock, Coins, FileText, MessagesSquare, Rows3, Users } from "lucide-react";
+import { CalendarClock, Coins, FileText, MessagesSquare, Rows3, Trash2, Users } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Conversation } from "@/types";
 import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications";
@@ -89,6 +89,7 @@ function ApplicationRow({
   application,
   onStatusChange,
   onOpenDetails,
+  onDelete,
   /** Rendering the row as it leaves its old group — visual only, never interactive. */
   ghost,
   /** Rendering the row as it arrives in its new group. */
@@ -99,6 +100,7 @@ function ApplicationRow({
   application: DemoApplication;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   onOpenDetails: () => void;
+  onDelete?: () => void;
   ghost?: boolean;
   entering?: boolean;
   celebrate?: boolean;
@@ -167,36 +169,51 @@ function ApplicationRow({
         </div>
       </dl>
 
-      {/* z-10 lifts the status control above the title button's stretched
+      {/* z-10 lifts the status and delete controls above the title button's stretched
           overlay, and stopPropagation keeps a click on it from ever being
           read as "open the details sheet". */}
-      <div className="relative z-10 w-40 shrink-0" onClick={(e) => e.stopPropagation()}>
-        {ghost ? (
-          // Stands in for the Select so the ghost keeps the row's exact
-          // silhouette while it fades — a shorter ghost would read as a jump.
-          <div className="h-8 rounded-md border border-input" />
-        ) : (
-          <Select
-            value={application.status}
-            onValueChange={(value) => {
-              // Radix hands back a plain string; only act on one of ours.
-              if (isStatus(value)) onStatusChange(application.id, value);
-            }}
-          >
-            <SelectTrigger
-              aria-label={`Change status for ${application.grantTitle}`}
-              className="h-8 px-2 text-xs transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+      <div className="relative z-10 flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="w-40 shrink-0">
+          {ghost ? (
+            // Stands in for the Select so the ghost keeps the row's exact
+            // silhouette while it fades — a shorter ghost would read as a jump.
+            <div className="h-8 rounded-md border border-input" />
+          ) : (
+            <Select
+              value={application.status}
+              onValueChange={(value) => {
+                // Radix hands back a plain string; only act on one of ours.
+                if (isStatus(value)) onStatusChange(application.id, value);
+              }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_ORDER.map((status) => (
-                <SelectItem key={status} value={status} className="text-xs">
-                  {STATUS_LABEL[status]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                aria-label={`Change status for ${application.grantTitle}`}
+                className="h-8 px-2 text-xs transition-colors hover:border-brand/50 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_ORDER.map((status) => (
+                  <SelectItem key={status} value={status} className="text-xs">
+                    {STATUS_LABEL[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {!ghost && onDelete && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            aria-label={`Delete ${application.grantTitle} application from pipeline`}
+            className="h-8 w-8 shrink-0 rounded-md text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         )}
       </div>
     </div>
@@ -231,6 +248,8 @@ function ApplicationDetailsSheet({
   onStatusChange,
   link,
   onOpenConversation,
+  onOpenApplication,
+  onDeleteApplication,
 }: {
   application: DemoApplication | null;
   open: boolean;
@@ -238,15 +257,31 @@ function ApplicationDetailsSheet({
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   link: ApplicationLink;
   onOpenConversation: (conversationId: string) => void;
+  onOpenApplication?: (applicationId: string) => void;
+  onDeleteApplication?: (applicationId: string) => void;
 }) {
   const reasonId = "application-actions-reason";
 
-  // Close before navigating: the pipeline unmounts on the view switch, and
-  // leaving an open sheet behind would strand focus on a gone trigger.
   const goToConversation = () => {
     if (!link.conversationId) return;
     onOpenChange(false);
     onOpenConversation(link.conversationId);
+  };
+
+  const handleOpenDraft = () => {
+    if (!application) return;
+    onOpenChange(false);
+    if (link.hasLiveDraft && link.conversationId) {
+      onOpenConversation(link.conversationId);
+    } else if (onOpenApplication) {
+      onOpenApplication(application.id);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!application) return;
+    onOpenChange(false);
+    onDeleteApplication?.(application.id);
   };
 
   return (
@@ -337,9 +372,7 @@ function ApplicationDetailsSheet({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={goToConversation}
-                    disabled={!link.hasLiveDraft}
-                    aria-describedby={link.hasLiveDraft ? undefined : reasonId}
+                    onClick={handleOpenDraft}
                     className="justify-start rounded-lg hover:bg-muted"
                   >
                     <FileText className="h-4 w-4" />
@@ -356,6 +389,17 @@ function ApplicationDetailsSheet({
                     <MessagesSquare className="h-4 w-4" />
                     Open source conversation
                   </Button>
+                  {onDeleteApplication && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDelete}
+                      className="justify-start rounded-lg border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete application from pipeline
+                    </Button>
+                  )}
                   {link.reason && (
                     <p id={reasonId} className="text-[11px] text-muted-foreground">
                       {link.reason}
@@ -392,6 +436,7 @@ function StatusGroup({
   applications,
   onStatusChange,
   onOpenDetails,
+  onDeleteApplication,
   ghost,
   enteringId,
   isDestination,
@@ -401,6 +446,7 @@ function StatusGroup({
   applications: DemoApplication[];
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   onOpenDetails: (applicationId: string) => void;
+  onDeleteApplication?: (applicationId: string) => void;
   /** A row leaving this group, still drawn in the slot it just vacated. */
   ghost?: { application: DemoApplication; index: number };
   /** The row that just arrived in this group. */
@@ -483,6 +529,9 @@ function StatusGroup({
                 application={application}
                 onStatusChange={onStatusChange}
                 onOpenDetails={() => onOpenDetails(application.id)}
+                onDelete={
+                  onDeleteApplication ? () => onDeleteApplication(application.id) : undefined
+                }
                 ghost={isGhost}
                 entering={!isGhost && application.id === enteringId}
                 celebrate={!isGhost && application.id === celebratingId}
@@ -533,17 +582,21 @@ export function PipelineDashboard({
   hydrated,
   persistenceOk,
   updateStatus,
+  deleteApplication,
   conversations,
   onOpenConversation,
+  onOpenApplication,
 }: {
   onGoToChat: () => void;
   applications: DemoApplication[];
   hydrated: boolean;
   persistenceOk: boolean;
   updateStatus: (applicationId: string, status: ApplicationStatus) => void;
+  deleteApplication?: (applicationId: string) => void;
   /** Read-only: used solely to work out what a card can link back to. */
   conversations: Conversation[];
   onOpenConversation: (conversationId: string) => void;
+  onOpenApplication?: (applicationId: string) => void;
 }) {
   const [move, setMove] = useState<CardMove | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -640,11 +693,6 @@ export function PipelineDashboard({
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Every application across all of your conversations, grouped by stage.
         </p>
-        {/* Same spot and style as before; the wording now reflects that
-            status changes are real but go no further than this browser. */}
-        <p className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning">
-          Demo data — status changes are saved locally in your browser.
-        </p>
         {!persistenceOk && (
           <p
             role="status"
@@ -688,6 +736,7 @@ export function PipelineDashboard({
               applications={grouped.get(status) ?? []}
               onStatusChange={handleStatusChange}
               onOpenDetails={openDetails}
+              onDeleteApplication={deleteApplication}
               ghost={
                 move?.fromStatus === status
                   ? { application: move.application, index: move.fromIndex }
@@ -706,6 +755,8 @@ export function PipelineDashboard({
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         onStatusChange={handleStatusChange}
+        onDeleteApplication={deleteApplication}
+        onOpenApplication={onOpenApplication}
         link={
           detailsApplication
             ? resolveApplicationLink(detailsApplication, conversations)

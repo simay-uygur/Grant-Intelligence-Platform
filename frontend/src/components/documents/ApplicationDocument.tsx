@@ -23,7 +23,7 @@ import type {
 } from "@/types";
 import type { ApplicationStatus } from "@/data/mockApplications";
 import { exportAsPdf, exportAsWord } from "@/utils/export";
-import { applicationService, isMockMode } from "@/services";
+import { applicationService } from "@/services";
 import { useDrafts } from "@/hooks/useDrafts";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -46,7 +46,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { InlineNotice } from "@/components/common/InlineNotice";
-import { DemoBadge } from "@/components/common/DemoBadge";
 import {
   STATUS_BADGE,
   STATUS_LABEL,
@@ -389,7 +388,6 @@ export function ApplicationDocumentView({
                   top, rather than on all twelve sections. */}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="text-[11px] font-medium text-brand">Grant application draft</span>
-                {isMockMode && <DemoBadge marker="mock-draft" compact />}
               </div>
               <h3 className="mt-1 break-words text-lg font-semibold text-foreground">
                 {doc.grantTitle}
@@ -791,9 +789,7 @@ function SectionEditor({
                 Saved
               </span>
             )}
-            {/* Shown exactly while a rewrite is undoable — i.e. while this
-                section's text is the one the mock rewriter just produced. */}
-            {isMockMode && canUndoRewrite && <DemoBadge marker="mock-draft" compact />}
+            {/* Shown exactly while a rewrite is undoable */}
           </div>
         </div>
 

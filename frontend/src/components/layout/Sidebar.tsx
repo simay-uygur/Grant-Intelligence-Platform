@@ -354,7 +354,7 @@ function SidebarContent({
         <div className="flex min-w-0 items-center gap-2 text-[11px] text-sidebar-foreground/50">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" />
           <span className="truncate">
-            {isMockMode === false ? "Connected · API mode" : "Demo mode — local data only"}
+            {isMockMode === false ? "Live · AI & Search Active" : "Workspace Ready"}
           </span>
         </div>
         {onSignOut && (

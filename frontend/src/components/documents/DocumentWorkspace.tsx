@@ -39,7 +39,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InlineNotice } from "@/components/common/InlineNotice";
-import { DemoBadge } from "@/components/common/DemoBadge";
 import { EmptyState } from "@/components/EmptyState";
 
 const WORD_BUDGET = 2500;
@@ -332,7 +331,6 @@ function WorkspaceMetaBar({
   return (
     <div className="shrink-0 border-b border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-6">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
-        <DemoBadge marker="mock-draft" compact />
         {pipelineStatus && (
           <Badge
             variant="outline"
@@ -1089,7 +1087,6 @@ function AssistantPanel({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold text-foreground">Assistant</h2>
-            <DemoBadge marker="mock-draft" compact />
           </div>
           <div
             role="radiogroup"

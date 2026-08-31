@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { DemoBadge } from "@/components/common/DemoBadge";
 import { isMockMode } from "@/services";
 
 interface Props {
@@ -75,7 +74,6 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
               marker has to stay true of the finished result too. */}
           <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-foreground">
             {hasError ? "Research failed" : allDone ? "Research complete" : "Researching grants…"}
-            {isMockMode && <DemoBadge marker="demo-data" compact />}
           </h3>
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
             {hasError
