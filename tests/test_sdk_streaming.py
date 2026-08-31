@@ -145,7 +145,7 @@ def test_sdk_agent_rewrite_section_stream():
         assert result["data"]["content"] == "Rewritten chunk 1 and chunk 2"
 
 
-def test_fallback_final_grants_returns_without_source_url():
+def test_fallback_final_grants_excludes_without_source_url():
     candidates = [
         {
             "id": "test-1",
@@ -160,14 +160,16 @@ def test_fallback_final_grants_returns_without_source_url():
             "programme": "Horizon Europe",
             "source": "EU Horizon API",
             "deadline": "2027-12-31",
+            "sourceUrl": "https://example.com/test2",
         },
     ]
     profile = {"organisationName": "Test", "sector": "ai"}
     result = _fallback_final_grants(candidates, profile, max_grants=2)
-    assert len(result) == 2, f"Expected 2 grants, got {len(result)}"
+    assert len(result) == 1, f"Expected 1 grant (only the one with sourceUrl), got {len(result)}"
+    assert result[0]["id"] == "test-2"
 
 
-def test_fallback_final_grants_returns_with_expired_deadline():
+def test_fallback_final_grants_excludes_expired_deadline():
     candidates = [
         {
             "id": "test-3",
@@ -175,11 +177,21 @@ def test_fallback_final_grants_returns_with_expired_deadline():
             "programme": "Horizon Europe",
             "source": "EU Horizon API",
             "deadline": "2020-01-01",
+            "sourceUrl": "https://example.com",
+        },
+        {
+            "id": "test-4",
+            "title": "Valid Grant",
+            "programme": "Horizon Europe",
+            "source": "EU Horizon API",
+            "deadline": "2027-12-31",
+            "sourceUrl": "https://example.com/valid",
         },
     ]
     profile = {"organisationName": "Test", "sector": "ai"}
-    result = _fallback_final_grants(candidates, profile, max_grants=1)
-    assert len(result) == 1, f"Expected 1 grant, got {len(result)}"
+    result = _fallback_final_grants(candidates, profile, max_grants=2)
+    assert len(result) == 1, f"Expected 1 grant (only the valid one), got {len(result)}"
+    assert result[0]["id"] == "test-4"
 
 
 def test_fallback_final_grants_excludes_by_id():

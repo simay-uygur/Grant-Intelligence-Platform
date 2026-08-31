@@ -58,6 +58,7 @@ def search_grants(profile, user_request=None, conversation_history=None, max_gra
                 profile=profile,
                 user_message=message,
                 conversation_history=conversation_history,
+                max_grants=max_grants,
                 excluded_grant_ids=excluded_grant_ids,
             )
         )
@@ -143,6 +144,7 @@ def search_grants_stream(profile, max_grants=3, excluded_grant_ids=None) -> Iter
             try:
                 async for ev in run_agent_stream_sdk(
                     profile,
+                    max_grants=max_grants,
                     excluded_grant_ids=excluded_grant_ids,
                 ):
                     event_queue.put(ev)

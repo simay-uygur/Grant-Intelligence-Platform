@@ -416,9 +416,9 @@ def _fallback_final_grants(
         if identity in excluded or title in excluded:
             continue
         if not _candidate_source_url(candidate):
-            pass
+            continue
         if not _candidate_deadline_is_open(candidate, today):
-            pass
+            continue
         scored.append((_score_candidate(candidate, terms, index), candidate))
 
     scored.sort(key=lambda item: item[0], reverse=True)
@@ -565,6 +565,7 @@ async def run_agent(
     conversation_history: Any | None = None,
     session_id: str | None = None,
     max_turns: int = 20,
+    max_grants: int = 3,
     excluded_grant_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """
@@ -575,7 +576,7 @@ async def run_agent(
     stats = _init_search_stats()
 
     if not HAS_CLAUDE_AGENT_SDK or query is None or ClaudeAgentOptions is None:
-        events = list(run_agent_stream(profile, user_message=user_message, conversation_history=conversation_history, session_id=session_id, excluded_grant_ids=excluded_grant_ids))
+        events = list(run_agent_stream(profile, user_message=user_message, conversation_history=conversation_history, session_id=session_id, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids))
         for ev in reversed(events):
             if ev.get("event") == "result" and "grants" in ev.get("data", {}):
                 d = ev["data"]
@@ -629,7 +630,7 @@ async def run_agent(
     candidate_values = list(stats["candidates"].values())
     final_grants = _result_holder_var.get() or []
     if not final_grants and candidate_values:
-        fallback_grants = _fallback_final_grants(candidate_values, profile, max_grants=3, excluded_grant_ids=excluded_grant_ids)
+        fallback_grants = _fallback_final_grants(candidate_values, profile, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids)
         if fallback_grants:
             await finalize_grant_recommendations({"grants_json": json.dumps(fallback_grants)})
             final_grants = _result_holder_var.get() or []
@@ -651,6 +652,7 @@ async def run_agent_stream_sdk(
     conversation_history: Any | None = None,
     session_id: str | None = None,
     max_turns: int = 8,
+    max_grants: int = 3,
     excluded_grant_ids: list[str] | None = None,
 ) -> Any:
     """
@@ -667,6 +669,7 @@ async def run_agent_stream_sdk(
             user_message=user_message,
             conversation_history=conversation_history,
             session_id=session_id,
+            max_grants=max_grants,
             excluded_grant_ids=excluded_grant_ids,
         ):
             yield event
@@ -819,7 +822,7 @@ async def run_agent_stream_sdk(
     candidate_values = list(stats["candidates"].values())
     final_grants = _result_holder_var.get() or []
     if not final_grants and candidate_values:
-        fallback_grants = _fallback_final_grants(candidate_values, profile, max_grants=3, excluded_grant_ids=excluded_grant_ids)
+        fallback_grants = _fallback_final_grants(candidate_values, profile, max_grants=max_grants, excluded_grant_ids=excluded_grant_ids)
         if fallback_grants:
             yield {
                 "event": "progress",
