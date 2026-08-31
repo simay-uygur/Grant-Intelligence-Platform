@@ -52,19 +52,15 @@ def _build_qa_prompt(
         attachment_block = f"\nAPPLICANT BACKGROUND MATERIAL (extracted from documents the applicant uploaded — ground your advice in these real facts):\n{attachments.strip()[:12000]}\n"
 
     return (
-        "You are an expert European Commission Grant Consultant and Proposal Evaluator.\n"
-        "Your role is to advise the applicant, critique their drafted proposal, ensure alignment "
-        "with EU Horizon call criteria, and suggest specific, high-impact improvements.\n\n"
+        "You are an expert European Commission Grant Consultant.\n"
+        "Provide a concise, direct, and actionable answer in under 120 words.\n\n"
         f"OFFICIAL GRANT CALL DETAILS:\n{grant_context}\n\n"
         f"CALL OBJECTIVES & PRIORITIES:\n{grant_summary or '(Refer to grant details)'}\n\n"
         f"APPLICANT PROFILE:\n{profile_context}\n{attachment_block}\n"
         f"DRAFTED APPLICATION DOCUMENT:\n{doc_context}\n{target_note}\n\n"
         f"USER QUESTION / CONSULTATION REQUEST:\n{question}\n\n"
-        "Provide a clear, authoritative, and actionable response. Specifically:\n"
-        "1. Directly answer the user's question or critique the relevant section.\n"
-        "2. Evaluate compliance against Horizon Europe / EU funding standards (e.g. excellence, impact, implementation, consortium feasibility).\n"
-        "3. Provide 2-4 concrete bullet points with actionable improvements or revisions.\n\n"
-        "Structure your response cleanly with markdown."
+        "Directly answer the question in 1-2 brief paragraphs, followed by 2-3 short, actionable bullet points. "
+        "Keep it concise, clear, and avoid generic boilerplate."
     )
 
 
