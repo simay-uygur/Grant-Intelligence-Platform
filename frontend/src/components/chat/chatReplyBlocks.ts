@@ -21,14 +21,9 @@ export function chatReplyBlocks(reply: ChatReply): ChatBlock[] {
 }
 
 /**
- * Older saved conversations may contain assistant text and question blocks
- * beside the blank onboarding form. The form already communicates the whole
- * next step, so keep only the card and any non-text status/error blocks.
+ * Retains all message blocks so natural conversational answers and guidance
+ * are always visible alongside interactive cards and widgets.
  */
 export function visibleChatBlocks(blocks: ChatBlock[]): ChatBlock[] {
-  const hasBlankProfileForm = blocks.some(
-    (block) => block.type === "structured_form" && block.profile === undefined,
-  );
-  if (!hasBlankProfileForm) return blocks;
-  return blocks.filter((block) => block.type !== "text" && block.type !== "question");
+  return blocks;
 }

@@ -9,7 +9,6 @@ import {
   KanbanSquare,
   Loader2,
   Pencil,
-  Sparkles,
   Undo2,
   X,
 } from "lucide-react";
@@ -701,7 +700,6 @@ export function ApplicationDocumentView({
                 savedFlash={savedFlashId === activeSection.id}
                 saving={savingId === activeSection.id}
                 canUndoRewrite={lastRewrite?.sectionId === activeSection.id}
-                rewriteAvailable={Boolean(profile)}
                 onStartEdit={() => startEdit(activeSection.id)}
                 onChangeDraft={(value) => updateDraft(activeSection.id, value)}
                 onCancel={() => cancelEdit(activeSection.id)}
@@ -767,7 +765,6 @@ function SectionEditor({
   savedFlash,
   saving,
   canUndoRewrite,
-  rewriteAvailable,
   onStartEdit,
   onChangeDraft,
   onCancel,
@@ -787,7 +784,6 @@ function SectionEditor({
   savedFlash: boolean;
   saving: boolean;
   canUndoRewrite: boolean;
-  rewriteAvailable: boolean;
   onStartEdit: () => void;
   onChangeDraft: (value: string) => void;
   onCancel: () => void;
@@ -837,27 +833,6 @@ function SectionEditor({
               </TooltipContent>
             </Tooltip>
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onRewrite}
-                disabled={rewriting || !rewriteAvailable}
-                className={TOOLBAR_BUTTON_CLS}
-              >
-                {rewriting ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3 w-3" />
-                )}
-                Rewrite with AI
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              Rewrite this section with the connected grant agent
-            </TooltipContent>
-          </Tooltip>
           {!editing ? (
             <Button
               type="button"

@@ -10,6 +10,7 @@ import {
   Pencil,
   Send,
   Sparkles,
+  Trash2,
   Undo2,
   X,
 } from "lucide-react";
@@ -28,6 +29,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -45,7 +54,7 @@ const WORD_BUDGET = 2500;
 
 /**
  * Continuous Google-Docs style section — integrated smoothly into the continuous document flow.
- * Direct text modifications are handled autonomously by the AI agent via the Assistant Panel.
+ * Direct text modifications can be made via top Edit mode, double clicking, or the AI Assistant Panel.
  */
 function GoogleDocsSection({
   index,
@@ -53,13 +62,10 @@ function GoogleDocsSection({
   content,
   draft,
   dirty,
-  saving,
   savedFlash,
   saveError,
   onStartEdit,
   onChangeDraft,
-  onCancel,
-  onSave,
   revealText,
   onRevealComplete,
 }: {
@@ -68,13 +74,10 @@ function GoogleDocsSection({
   content: string;
   draft?: string;
   dirty: boolean;
-  saving: boolean;
   savedFlash: boolean;
   saveError?: string;
-  onStartEdit: () => void;
+  onStartEdit?: () => void;
   onChangeDraft: (value: string) => void;
-  onCancel: () => void;
-  onSave: () => void;
   revealText?: string;
   onRevealComplete?: () => void;
 }) {
@@ -89,7 +92,7 @@ function GoogleDocsSection({
       aria-labelledby={`workspace-section-title-${section.id}`}
       className="scroll-mt-8 py-4 first:pt-0"
     >
-      <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-2.5 flex flex-col gap-1.5 sm:flex-row sm:items-baseline sm:justify-between">
         <h2
           id={`workspace-section-title-${section.id}`}
           className="text-lg sm:text-xl font-bold text-foreground tracking-tight"
@@ -97,57 +100,21 @@ function GoogleDocsSection({
           <span className="text-muted-foreground mr-2 font-medium">{index}.</span>
           <span>{section.title}</span>
         </h2>
-        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
-          <span className="mr-1 text-xs text-muted-foreground font-normal tabular-nums shrink-0">
-            {words}w
-          </span>
-          {dirty && <span className="text-[11px] font-medium text-warning">Unsaved changes</span>}
+        <div className="flex items-center gap-2">
+          {dirty && (
+            <span className="text-[11px] font-medium text-warning bg-warning/10 px-2 py-0.5 rounded-full">
+              Modified
+            </span>
+          )}
           {savedFlash && (
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
               <Check className="h-3 w-3" />
               Saved
             </span>
           )}
-          {!editing ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onStartEdit}
-              className="h-auto rounded-md px-2 py-1 text-[11px] font-medium"
-            >
-              <Pencil className="h-3 w-3" />
-              Edit
-            </Button>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onCancel}
-                disabled={saving}
-                className="h-auto rounded-md px-2 py-1 text-[11px] font-medium"
-              >
-                <X className="h-3 w-3" />
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={onSave}
-                disabled={saving || !dirty}
-                className="h-auto rounded-md bg-brand px-2 py-1 text-[11px] font-medium text-brand-foreground hover:bg-brand/90"
-              >
-                {saving ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Check className="h-3 w-3" />
-                )}
-                Save
-              </Button>
-            </>
-          )}
+          <span className="text-xs text-muted-foreground font-normal tabular-nums shrink-0">
+            {words}w
+          </span>
         </div>
       </div>
 
@@ -157,11 +124,15 @@ function GoogleDocsSection({
         <Textarea
           value={draft}
           onChange={(event) => onChangeDraft(event.target.value)}
-          rows={10}
-          className="mt-2 min-h-[220px] w-full resize-y rounded-lg border-border bg-background text-sm leading-relaxed [overflow-wrap:anywhere] sm:text-base"
+          rows={Math.max(6, Math.min(22, Math.ceil(displayText.length / 75)))}
+          className="mt-1 min-h-[160px] w-full resize-y rounded-xl border border-border/70 bg-muted/15 p-4 font-sans text-sm sm:text-base leading-relaxed sm:leading-[1.8] text-foreground transition-colors focus-visible:border-brand/40 focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-brand/40 [overflow-wrap:anywhere]"
         />
       ) : (
-        <div className="whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed sm:leading-[1.8] text-foreground/90 font-normal [overflow-wrap:anywhere]">
+        <div
+          onDoubleClick={() => onStartEdit?.()}
+          title="Double-click to edit this section"
+          className="whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed sm:leading-[1.8] text-foreground/90 font-normal [overflow-wrap:anywhere] cursor-text"
+        >
           {displayText}
           {revealing && (
             <span
@@ -177,31 +148,32 @@ function GoogleDocsSection({
 
 /**
  * The workspace's single header strip — full width, sitting directly below
- * the app's own header (see App.tsx) and styled to match it (same
- * border/blur/padding recipe), so the two read as one continuous header
- * region instead of two competing blocks. Deliberately does NOT repeat the
- * grant title: App's header already shows it as the page's `<h1>`, so
- * restating it here as a second, bigger heading is exactly the duplication
- * this bar exists to remove. Also deliberately has no theme control (the
- * app's own header carries the one, consistent toggle) and no Export
- * control (see `WorkspaceExportControl`, rendered by App.tsx next to that
- * same toggle) — kept down to a single glanceable status line so the
- * document's own header carries the least text possible: the honesty
- * badge, save state, and deadline. Word count and per-visit "Saved X ago"
- * are deliberately dropped here — they're still available per-section and
- * in the word-budget bar, so nothing is lost, just decluttered.
+ * the app's own header (see App.tsx) and styled to match it.
  */
 function WorkspaceMetaBar({
   doc,
   grant,
   pipelineStatus,
   drafts,
+  isEditingAny,
+  savingAll,
+  onStartEditAll,
+  onCancelAll,
+  onSaveAll,
+  onDeleteDocument,
 }: {
   doc: ApplicationDocument;
   grant: Grant | undefined;
   pipelineStatus: ApplicationStatus | undefined;
   drafts: Record<string, string>;
+  isEditingAny?: boolean;
+  savingAll?: boolean;
+  onStartEditAll?: () => void;
+  onCancelAll?: () => void;
+  onSaveAll?: () => void;
+  onDeleteDocument?: () => void;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const savedContentOf = (id: string) => doc.sections.find((s) => s.id === id)?.content ?? "";
   const dirtyCount = doc.sections.filter((s) => {
     const draft = drafts[s.id];
@@ -210,30 +182,124 @@ function WorkspaceMetaBar({
 
   return (
     <div className="shrink-0 border-b border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-6">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
-        {pipelineStatus && (
-          <Badge
-            variant="outline"
-            className={cn("shrink-0 whitespace-nowrap font-medium", STATUS_BADGE[pipelineStatus])}
-          >
-            <span className="sr-only">Pipeline status: </span>
-            {STATUS_LABEL[pipelineStatus]}
-          </Badge>
-        )}
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 font-medium",
-            dirtyCount > 0 ? "text-warning" : "text-success",
+      <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {pipelineStatus && (
+            <Badge
+              variant="outline"
+              className={cn("shrink-0 whitespace-nowrap font-medium", STATUS_BADGE[pipelineStatus])}
+            >
+              <span className="sr-only">Pipeline status: </span>
+              {STATUS_LABEL[pipelineStatus]}
+            </Badge>
           )}
-        >
           <span
-            className={cn("h-1.5 w-1.5 rounded-full", dirtyCount > 0 ? "bg-warning" : "bg-success")}
-          />
-          {dirtyCount > 0
-            ? `Unsaved changes in ${dirtyCount} section${dirtyCount === 1 ? "" : "s"}`
-            : "All changes saved"}
-        </span>
-        {grant?.deadline && <span>Deadline {formatDeadline(grant.deadline)}</span>}
+            className={cn(
+              "inline-flex items-center gap-1.5 font-medium",
+              dirtyCount > 0 ? "text-warning" : "text-success",
+            )}
+          >
+            <span
+              className={cn("h-1.5 w-1.5 rounded-full", dirtyCount > 0 ? "bg-warning" : "bg-success")}
+            />
+            {dirtyCount > 0
+              ? `Unsaved changes in ${dirtyCount} section${dirtyCount === 1 ? "" : "s"}`
+              : "All changes saved"}
+          </span>
+          {grant?.deadline && <span>Deadline {formatDeadline(grant.deadline)}</span>}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!isEditingAny ? (
+            onStartEditAll && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onStartEditAll}
+                className="h-7 gap-1.5 rounded-lg px-2.5 text-xs font-medium hover:bg-muted"
+                title="Edit sections in manual mode"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit document
+              </Button>
+            )
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onCancelAll}
+                disabled={savingAll}
+                className="h-7 gap-1.5 rounded-lg px-2 text-xs font-medium"
+              >
+                <X className="h-3.5 w-3.5" />
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={onSaveAll}
+                disabled={savingAll}
+                className="h-7 gap-1.5 rounded-lg bg-brand px-2.5 text-xs font-medium text-brand-foreground hover:bg-brand/90"
+              >
+                {savingAll ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )}
+                Save all
+              </Button>
+            </>
+          )}
+
+          {onDeleteDocument && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmOpen(true)}
+                className="h-7 gap-1.5 rounded-lg px-2 text-xs font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+                title="Delete this entire document draft"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete document
+              </Button>
+
+              <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Delete application draft?</DialogTitle>
+                    <DialogDescription>
+                      This will delete the entire proposal draft for &quot;{doc.grantTitle}&quot; and return you to your grant research in chat.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setConfirmOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => {
+                        setConfirmOpen(false);
+                        onDeleteDocument();
+                      }}
+                    >
+                      Delete draft
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -321,7 +387,6 @@ function WorkspaceEditor({
   profile,
   grant,
   drafts,
-  savingId,
   savedFlashId,
   saveError,
   streamingSections,
@@ -331,14 +396,11 @@ function WorkspaceEditor({
   onToggleAssistant,
   onStartEdit,
   onChangeDraft,
-  onCancelEdit,
-  onSaveSection,
 }: {
   doc: ApplicationDocument;
   profile: OrganisationProfile | undefined;
   grant: Grant | undefined;
   drafts: Record<string, string>;
-  savingId: string | null;
   savedFlashId: string | null;
   saveError: { sectionId: string; message: string } | null;
   /** sectionId -> the full text an AI rewrite just produced for it, purely
@@ -350,8 +412,6 @@ function WorkspaceEditor({
   onToggleAssistant: (show: boolean) => void;
   onStartEdit: (id: string) => void;
   onChangeDraft: (id: string, value: string) => void;
-  onCancelEdit: (id: string) => void;
-  onSaveSection: (id: string) => void;
 }) {
   const reduceMotion = usePrefersReducedMotion();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(
@@ -505,13 +565,10 @@ function WorkspaceEditor({
                   content={section.content}
                   draft={drafts[section.id]}
                   dirty={drafts[section.id] !== undefined && drafts[section.id] !== section.content}
-                  saving={savingId === section.id}
                   savedFlash={savedFlashId === section.id}
                   saveError={saveError?.sectionId === section.id ? saveError.message : undefined}
                   onStartEdit={() => onStartEdit(section.id)}
                   onChangeDraft={(value) => onChangeDraft(section.id, value)}
-                  onCancel={() => onCancelEdit(section.id)}
-                  onSave={() => onSaveSection(section.id)}
                   revealText={streamingSections[section.id]}
                   onRevealComplete={() => onRevealComplete(section.id)}
                 />
@@ -1308,12 +1365,14 @@ function DocumentWorkspaceContent({
   grant,
   pipelineStatus,
   onSectionChange,
+  onDeleteDocument,
 }: {
   doc: ApplicationDocument;
   profile: OrganisationProfile | undefined;
   grant: Grant | undefined;
   pipelineStatus: ApplicationStatus | undefined;
   onSectionChange: (sectionId: string, content: string, revision?: number) => void;
+  onDeleteDocument?: () => void;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [streamingSections, setStreamingSections] = useState<Record<string, string>>({});
@@ -1356,37 +1415,6 @@ function DocumentWorkspaceContent({
   const updateDraft = (id: string, value: string) => {
     setDrafts((prev) => ({ ...prev, [id]: value }));
   };
-  const cancelEdit = (id: string) => {
-    setDrafts((prev) => {
-      if (!(id in prev)) return prev;
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-    if (saveError?.sectionId === id) setSaveError(null);
-  };
-  const saveSection = async (id: string) => {
-    const draft = drafts[id];
-    if (draft === undefined) return;
-    setSavingId(id);
-    setSaveError(null);
-    try {
-      const updated = await applicationService.saveSection(doc.id, id, draft, revisionOf(id));
-      const saved = updated.sections.find((section) => section.id === id);
-      commitSection(id, saved?.content ?? draft, saved?.revision ?? revisionOf(id) + 1);
-      flashSaved(id);
-    } catch (error) {
-      setSaveError({
-        sectionId: id,
-        message:
-          error instanceof Error
-            ? error.message
-            : "The section could not be saved. Refresh and try again.",
-      });
-    } finally {
-      setSavingId(null);
-    }
-  };
 
   const applyAiRewrite = (id: string, text: string, revision?: number) => {
     commitSection(id, text, revision);
@@ -1410,16 +1438,80 @@ function DocumentWorkspaceContent({
 
   const [showAssistant, setShowAssistant] = useState(true);
 
+  const isEditingAny = Object.keys(drafts).length > 0;
+
+  const startEditAll = () => {
+    const allDrafts: Record<string, string> = {};
+    doc.sections.forEach((s) => {
+      allDrafts[s.id] = drafts[s.id] ?? s.content;
+    });
+    setDrafts(allDrafts);
+    setSaveError(null);
+  };
+
+  const cancelEditAll = () => {
+    setDrafts({});
+    setSaveError(null);
+  };
+
+  const saveAll = async () => {
+    const dirtySections = doc.sections.filter((s) => {
+      const draft = drafts[s.id];
+      return draft !== undefined && draft !== s.content;
+    });
+    if (dirtySections.length === 0) {
+      setDrafts({});
+      return;
+    }
+    setSavingId("all");
+    setSaveError(null);
+    try {
+      for (const section of dirtySections) {
+        const draft = drafts[section.id] ?? section.content;
+        const updated = await applicationService.saveSection(
+          doc.id,
+          section.id,
+          draft,
+          revisionOf(section.id),
+        );
+        const saved = updated.sections.find((s) => s.id === section.id);
+        commitSection(
+          section.id,
+          saved?.content ?? draft,
+          saved?.revision ?? revisionOf(section.id) + 1,
+        );
+      }
+      setDrafts({});
+    } catch (error) {
+      setSaveError({
+        sectionId: "all",
+        message: error instanceof Error ? error.message : "Some sections could not be saved.",
+      });
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspaceMetaBar doc={doc} grant={grant} pipelineStatus={pipelineStatus} drafts={drafts} />
+      <WorkspaceMetaBar
+        doc={doc}
+        grant={grant}
+        pipelineStatus={pipelineStatus}
+        drafts={drafts}
+        isEditingAny={isEditingAny}
+        savingAll={savingId === "all"}
+        onStartEditAll={startEditAll}
+        onCancelAll={cancelEditAll}
+        onSaveAll={saveAll}
+        onDeleteDocument={onDeleteDocument}
+      />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:overflow-hidden">
         <WorkspaceEditor
           doc={doc}
           profile={profile}
           grant={grant}
           drafts={drafts}
-          savingId={savingId}
           savedFlashId={savedFlashId}
           saveError={saveError}
           streamingSections={streamingSections}
@@ -1429,8 +1521,6 @@ function DocumentWorkspaceContent({
           onToggleAssistant={setShowAssistant}
           onStartEdit={startEdit}
           onChangeDraft={updateDraft}
-          onCancelEdit={cancelEdit}
-          onSaveSection={saveSection}
         />
         {showAssistant && (
           <AssistantPanel
@@ -1466,6 +1556,7 @@ export function DocumentWorkspace({
   pipelineStatus,
   onSectionChange,
   onGoToChat,
+  onDeleteDocument,
 }: {
   doc: ApplicationDocument | undefined;
   profile: OrganisationProfile | undefined;
@@ -1474,6 +1565,7 @@ export function DocumentWorkspace({
   pipelineStatus?: ApplicationStatus | undefined;
   onSectionChange: (sectionId: string, content: string, revision?: number) => void;
   onGoToChat: () => void;
+  onDeleteDocument?: () => void;
 }) {
   const goToChat = useCallback(() => onGoToChat(), [onGoToChat]);
 
@@ -1498,6 +1590,7 @@ export function DocumentWorkspace({
       grant={grant}
       pipelineStatus={pipelineStatus}
       onSectionChange={onSectionChange}
+      onDeleteDocument={onDeleteDocument}
     />
   );
 }

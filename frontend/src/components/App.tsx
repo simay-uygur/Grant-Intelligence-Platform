@@ -180,6 +180,7 @@ export function App() {
 
 function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const c = useConversations();
+  const active = c.activeConversation;
   // The single useApplications instance for the whole app. Both writers live
   // here — the chat (starting an application) and the pipeline (changing a
   // status) — so neither can overwrite the other with a stale array.
@@ -490,7 +491,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         askAssistant([
           {
             type: "success",
-            message: `Application draft created for ${grant.title}. Edit any section, or use Rewrite with AI.`,
+            message: `Application draft created for ${grant.title}.`,
           },
           { type: "document", documentId: doc.id },
         ]);
@@ -652,6 +653,20 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     [c, handleStartApplication],
   );
 
+  const handleDeleteDocument = useCallback(() => {
+    if (!active?.document) return;
+    const docId = active.document.id;
+    const app = apps.applications.find(
+      (a) => a.id === `app-${docId}` || a.grantId === active.document?.grantId,
+    );
+    if (app) {
+      apps.deleteApplication(app.id);
+    }
+    c.setDocument(undefined);
+    c.setStage("results");
+    setMainView("chat");
+  }, [active?.document, apps, c]);
+
   const handleUserSend = useCallback(
     async (text: string) => {
       if (c.activeConversation?.title === "New conversation") {
@@ -705,7 +720,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         askAssistant([
           {
             type: "text",
-            text: "You can edit any section directly, click Rewrite with AI to regenerate it, or export the whole document as PDF or Word.",
+            text: "You can edit any section directly, refine with the AI assistant, or export the whole document as PDF or Word.",
           },
         ]);
       } else {
@@ -906,8 +921,6 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
       handleSubmitProfile,
     ],
   );
-
-  const active = c.activeConversation;
 
   // Same lookup as callbacks.getGrantById (falls back to the mock catalogue
   // when the document's grant has fallen out of this conversation's current
@@ -1170,6 +1183,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
               pipelineStatus={workspacePipelineStatus}
               onSectionChange={c.updateDocumentSection}
               onGoToChat={() => setMainView("chat")}
+              onDeleteDocument={handleDeleteDocument}
             />
           </div>
         )}
