@@ -285,9 +285,9 @@ class DocumentService:
             )
 
         for event in stream_gen:
-            if event.get("event") == "result" and "document" in event.get("data", {}):
+            if isinstance(event, dict) and event.get("event") == "result" and "document" in event.get("data", {}):
                 document = event["data"]["document"]
-                if not document.get("error"):
+                if isinstance(document, dict) and not document.get("error"):
                     app_doc = ApplicationDocument.model_validate(document)
                     self.application_store.save_application(
                         app_doc,
@@ -312,6 +312,10 @@ class DocumentService:
     ) -> Iterator[dict[str, Any]]:
         self._ensure_rewrite_revision(document_id, section_id, payload, user_id)
         grant = _grant_to_dict(payload.grant)
+        accumulated_text = ""
+        saved_revision: int | None = None
+        has_result = False
+
         for event in self.agent_service.rewrite_section_stream(
             payload.sectionTitle,
             payload.currentContent,
@@ -319,9 +323,12 @@ class DocumentService:
             grant=grant,
             instruction=payload.instruction,
         ):
+            if event.get("event") == "token_delta":
+                accumulated_text = str(event.get("data", {}).get("accumulated") or accumulated_text)
+
             if event.get("event") == "result" and "content" in event.get("data", {}):
+                has_result = True
                 content = event["data"]["content"]
-                saved_revision: int | None = None
                 if payload.persist and self.application_store.get_application(document_id, user_id) is not None:
                     try:
                         application = self.application_store.update_section(
@@ -351,6 +358,35 @@ class DocumentService:
                 }
             yield event
 
+        if not has_result and accumulated_text:
+            content = accumulated_text.strip()
+            if payload.persist and self.application_store.get_application(document_id, user_id) is not None:
+                try:
+                    application = self.application_store.update_section(
+                        document_id,
+                        section_id,
+                        content,
+                        user_id,
+                        payload.baseRevision,
+                    )
+                    if application is not None:
+                        matching = next((section for section in application["sections"] if section["id"] == section_id), None)
+                        saved_revision = matching.get("revision") if matching else None
+                except Exception:
+                    pass
+            response = RewriteSectionResponse(
+                sectionId=section_id,
+                title=payload.sectionTitle,
+                content=content,
+                revision=saved_revision,
+                baseRevision=payload.baseRevision,
+            )
+            yield {
+                "event": "result",
+                "stage": "rewrite",
+                "data": response.model_dump(exclude_none=True),
+            }
+
     def document_qa_stream(
         self,
         document_id: str,
@@ -366,7 +402,7 @@ class DocumentService:
             section_id=payload.sectionId,
             attachments=attachments,
         ):
-            if event.get("event") == "result" and "answer" in event.get("data", {}):
+            if isinstance(event, dict) and event.get("event") == "result" and "answer" in event.get("data", {}):
                 validated = DocumentQAResponse.model_validate(event["data"])
                 event = {
                     **event,

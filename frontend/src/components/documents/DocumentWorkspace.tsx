@@ -943,6 +943,16 @@ function matchTargetSections(
     if (pinned) return { kind: "sections", sections: [pinned] };
   }
 
+  // 4. If instruction indicates editing/revision intent or is not an explicit question, target the document
+  const REWRITE_INTENT_PATTERN =
+    /\b(?:make|improve|rewrite|revise|shorten|expand|elaborate|add|change|rephrase|simplify|formal|concise|update|tone|fix|clarify|polish|strengthen|draft|tailor|more|less|better|edit|cut|reduce|extend|replace|enhance|emphasize|align|focus)\b/i;
+  const QUESTION_INTENT_PATTERN =
+    /^(?:what|why|how|is|are|can|could|should|who|when|where|tell me|explain|does)\b/i;
+
+  if (sections.length > 0 && (REWRITE_INTENT_PATTERN.test(q) || !QUESTION_INTENT_PATTERN.test(q))) {
+    return { kind: "all" };
+  }
+
   return { kind: "none" };
 }
 
@@ -1112,7 +1122,12 @@ function AssistantPanel({
           );
           let reply = res.answer;
           if (res.suggestions && res.suggestions.length > 0) {
-            reply += "\n\nKey Recommendations:\n" + res.suggestions.map((s) => `• ${s}`).join("\n");
+            reply +=
+              "\n\n**Key Recommendations:**\n" +
+              res.suggestions
+                .slice(0, 3)
+                .map((s) => `• ${s}`)
+                .join("\n");
           }
           pushMessage("assistant", reply);
         } else {

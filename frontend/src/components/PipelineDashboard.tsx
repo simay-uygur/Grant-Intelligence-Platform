@@ -280,10 +280,10 @@ function ApplicationDetailsSheet({
   const handleOpenDraft = () => {
     if (!application) return;
     onOpenChange(false);
-    if (link.hasLiveDraft && link.conversationId) {
-      onOpenConversation(link.conversationId);
-    } else if (onOpenApplication) {
+    if (onOpenApplication) {
       onOpenApplication(application.id);
+    } else if (link.hasLiveDraft && link.conversationId) {
+      onOpenConversation(link.conversationId);
     }
   };
 

@@ -61,7 +61,7 @@ class GrantSearchService:
             payload.to_agent_profile(),
             excluded_grant_ids=effective_excluded,
         ):
-            if event.get("event") == "result" and "grants" in event.get("data", {}):
+            if isinstance(event, dict) and event.get("event") == "result" and "grants" in event.get("data", {}):
                 grants_data = event["data"]["grants"]
                 all_candidates_data = event["data"].get("all_candidates")
                 if payload.conversation_id or user_id:

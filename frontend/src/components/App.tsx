@@ -366,7 +366,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
           state: {
             grantTitle: grant.title,
             percent: 0,
-            currentSectionTitle: "Analyzing grant requirements...",
+            currentSectionTitle: "Document is being written...",
             sectionIndex: 0,
             totalSections,
           },
@@ -517,10 +517,19 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
       const app = apps.applications.find((a) => a.id === applicationId);
       if (!app) return;
 
+      const link = resolveApplicationLink(app, c.conversations);
+      if (link.hasLiveDraft && link.conversationId) {
+        c.selectConversation(link.conversationId);
+        setMainView("workspace");
+        return;
+      }
+
       // Check if there is an existing conversation that has this document
       const matchingConv = c.conversations.find(
         (conv) =>
-          conv.document?.grantId === app.grantId || conv.document?.grantTitle === app.grantTitle,
+          conv.document?.id === (app.id.startsWith("app-") ? app.id.slice(4) : app.id) ||
+          conv.document?.grantId === app.grantId ||
+          conv.document?.grantTitle === app.grantTitle,
       );
       if (matchingConv) {
         c.selectConversation(matchingConv.id);
@@ -583,7 +592,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             state: {
               grantTitle: targetGrant.title,
               percent: 0,
-              currentSectionTitle: "Analyzing grant requirements...",
+              currentSectionTitle: "Document is being written...",
               sectionIndex: 0,
               totalSections: 12,
             },
