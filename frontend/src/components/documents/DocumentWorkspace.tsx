@@ -325,7 +325,9 @@ function WorkspaceEditor({
 
           <div className="border-t border-border/80 px-4 py-2.5 text-[11px] text-muted-foreground flex items-center justify-between">
             <span>{doc.sections.length} sections</span>
-            <span>{totalWords} / {WORD_BUDGET} words</span>
+            <span>
+              {totalWords} / {WORD_BUDGET} words
+            </span>
           </div>
         </aside>
       )}
@@ -370,60 +372,61 @@ function WorkspaceEditor({
         <div className="mx-auto max-w-4xl px-4 py-4 sm:px-8 lg:px-10 pb-16">
           {/* Continuous Google Docs "Paper" Sheet */}
           <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-12 md:p-16 shadow-lg ring-1 ring-border/30">
-          {/* Document Cover / Header */}
-          <header className="border-b border-border/70 pb-8 mb-8">
-            <div className="mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-brand">
-                {doc.programme || grant?.programme || "European Grant Proposal"}
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
-              {doc.grantTitle}
-            </h1>
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-              <span>
-                <strong>Applicant:</strong> {profile?.organisationName || "Applicant Organisation"}
-              </span>
-              {grant?.fundingAmount && (
-                <span>
-                  <strong>Funding:</strong> {grant.fundingAmount}
+            {/* Document Cover / Header */}
+            <header className="border-b border-border/70 pb-8 mb-8">
+              <div className="mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-brand">
+                  {doc.programme || grant?.programme || "European Grant Proposal"}
                 </span>
-              )}
-              {grant?.deadline && (
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
+                {doc.grantTitle}
+              </h1>
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                 <span>
-                  <strong>Deadline:</strong> {formatDeadline(grant.deadline)}
+                  <strong>Applicant:</strong>{" "}
+                  {profile?.organisationName || "Applicant Organisation"}
                 </span>
-              )}
-            </div>
-          </header>
+                {grant?.fundingAmount && (
+                  <span>
+                    <strong>Funding:</strong> {grant.fundingAmount}
+                  </span>
+                )}
+                {grant?.deadline && (
+                  <span>
+                    <strong>Deadline:</strong> {formatDeadline(grant.deadline)}
+                  </span>
+                )}
+              </div>
+            </header>
 
-          {/* Continuous Flow of All Sections */}
-          <div className="space-y-8">
-            {doc.sections.map((section, i) => (
-              <GoogleDocsSection
-                key={section.id}
-                index={i + 1}
-                section={section}
-                content={section.content}
-                revealText={streamingSections[section.id]}
-                onRevealComplete={() => onRevealComplete(section.id)}
-              />
-            ))}
+            {/* Continuous Flow of All Sections */}
+            <div className="space-y-8">
+              {doc.sections.map((section, i) => (
+                <GoogleDocsSection
+                  key={section.id}
+                  index={i + 1}
+                  section={section}
+                  content={section.content}
+                  revealText={streamingSections[section.id]}
+                  onRevealComplete={() => onRevealComplete(section.id)}
+                />
+              ))}
+            </div>
+
+            {/* Document Footer */}
+            <footer className="mt-12 pt-6 border-t border-border/70 flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                Total Length:{" "}
+                <span className="font-semibold text-foreground tabular-nums">{totalWords}</span> /{" "}
+                {WORD_BUDGET} words
+              </div>
+            </footer>
           </div>
-
-          {/* Document Footer */}
-          <footer className="mt-12 pt-6 border-t border-border/70 flex items-center justify-between">
-            <div className="text-xs text-muted-foreground">
-              Total Length:{" "}
-              <span className="font-semibold text-foreground tabular-nums">{totalWords}</span> /{" "}
-              {WORD_BUDGET} words
-            </div>
-          </footer>
         </div>
-      </div>
-    </section>
-  </div>
-);
+      </section>
+    </div>
+  );
 }
 
 interface TextMessage {
