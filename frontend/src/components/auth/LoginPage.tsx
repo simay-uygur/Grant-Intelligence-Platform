@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
-import { FileText, KanbanSquare, Landmark, Lock, Mail, MessagesSquare } from "lucide-react";
+import { FileText, KanbanSquare, Landmark, Loader2, Lock, Mail, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,12 +24,28 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (error) setError(null);
+  };
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    if (error) setError(null);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
       setError("Enter both an email and password to continue.");
       return;
     }
+    if (mode === "register" && password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
     setError(null);
     setBusy(true);
 
@@ -39,7 +55,7 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
         const response = await fetch(joinApiUrl(apiBaseUrl, endpoint), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim(), password }),
+          body: JSON.stringify({ email: cleanEmail, password }),
         });
         const payload = (await response.json()) as {
           token?: string;
@@ -48,7 +64,7 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
         };
         if (response.ok && payload.token) {
           localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
-          localStorage.setItem("gi.auth.email", payload.user?.email || email.trim());
+          localStorage.setItem("gi.auth.email", payload.user?.email || cleanEmail);
           onSignIn();
           setBusy(false);
           return;
@@ -65,6 +81,7 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
       }
     }
 
+    localStorage.setItem("gi.auth.email", cleanEmail);
     setBusy(false);
     onSignIn();
   };
@@ -142,10 +159,11 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
                   type="email"
                   autoComplete="email"
                   autoFocus
+                  disabled={busy}
                   placeholder="you@organisation.org"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-10 pl-9"
+                  onChange={(e) => handleEmailChange(e.target.value)}
+                  className="h-10 pl-9 disabled:opacity-60"
                 />
               </div>
             </div>
@@ -163,10 +181,11 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
                   id={passwordId}
                   type="password"
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  disabled={busy}
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-10 pl-9"
+                  onChange={(e) => handlePasswordChange(e.target.value)}
+                  className="h-10 pl-9 disabled:opacity-60"
                 />
               </div>
             </div>
@@ -178,7 +197,16 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
               disabled={busy}
               className="h-10 w-full rounded-lg bg-brand text-brand-foreground shadow-sm hover:bg-brand/90"
             >
-              {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+              {busy ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {mode === "login" ? "Signing in…" : "Creating account…"}
+                </span>
+              ) : mode === "login" ? (
+                "Sign in"
+              ) : (
+                "Create account"
+              )}
             </Button>
           </form>
 
@@ -188,11 +216,12 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
                 Don&apos;t have an account?{" "}
                 <button
                   type="button"
+                  disabled={busy}
                   onClick={() => {
                     setMode("register");
                     setError(null);
                   }}
-                  className="rounded font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                  className="rounded font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-50"
                 >
                   Create account
                 </button>
@@ -202,11 +231,12 @@ export function LoginPage({ onSignIn }: { onSignIn: () => void }) {
                 Already have an account?{" "}
                 <button
                   type="button"
+                  disabled={busy}
                   onClick={() => {
                     setMode("login");
                     setError(null);
                   }}
-                  className="rounded font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                  className="rounded font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-50"
                 >
                   Sign in
                 </button>

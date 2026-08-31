@@ -267,18 +267,6 @@ export class LocalApplicationService implements ApplicationService {
     onProgress?: (event: SseEvent) => void,
     options?: StartApplicationOptions,
   ): Promise<ApplicationDocument> {
-    onProgress?.({
-      event: "thinking",
-      stage: "draft",
-      message: `Analyzing grant requirements for '${grant.title}'...`,
-    });
-    await wait(150);
-    onProgress?.({
-      event: "tool_call",
-      stage: "draft",
-      message: "Drafting application sections...",
-    });
-    await wait(150);
     if (isMockScenario("generate-error")) {
       onProgress?.({
         event: "error",
@@ -304,6 +292,54 @@ export class LocalApplicationService implements ApplicationService {
           };
         })
       : defaultSections;
+
+    onProgress?.({
+      event: "thinking",
+      stage: "draft",
+      message: `Analyzing grant requirements for '${grant.title}'...`,
+      data: {
+        thought: `Aligning ${profile.organisationName || "applicant"} profile with grant priorities...`,
+        section_index: 0,
+        total_sections: sections.length,
+        progress_percent: 0,
+      },
+    });
+    await wait(30);
+
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections[i];
+      const idx = i + 1;
+      const percent = Math.round((idx / sections.length) * 100);
+      const words = s.content.split(/\s+/).filter(Boolean).length;
+
+      onProgress?.({
+        event: "section_chunk",
+        stage: "draft",
+        message: `Drafting Section ${idx}/${sections.length}: ${s.title}...`,
+        data: {
+          section_id: s.id,
+          section_title: s.title,
+          accumulated_content: s.content,
+          word_count: words,
+          section_index: idx,
+          total_sections: sections.length,
+          progress_percent: percent,
+          thought: `Writing ${s.title} (${words} words)...`,
+        },
+      });
+
+      onProgress?.({
+        event: "progress",
+        stage: "draft",
+        message: `Completed Section ${idx}/${sections.length}: ${s.title} (${percent}% complete)`,
+        data: {
+          section_index: idx,
+          total_sections: sections.length,
+          progress_percent: percent,
+          section: s,
+        },
+      });
+    }
 
     const doc: ApplicationDocument = {
       id: `doc-${grant.id}-${Date.now()}`,

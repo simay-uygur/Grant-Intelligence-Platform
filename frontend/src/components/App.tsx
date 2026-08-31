@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { applicationService, chatService, grantService, isMockMode } from "@/services";
+import type { SseEvent } from "@/services/apiClient";
 import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { cn } from "@/lib/utils";
 import { MOCK_GRANTS } from "@/data/mockGrants";
@@ -394,11 +395,81 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
       }
       setAskingAboutGrant(null);
       setBusy(true);
+
+      const totalSections = customSections?.length || 12;
+      const statusMessageId = askAssistant([
+        {
+          type: "draft_progress",
+          state: {
+            grantTitle: grant.title,
+            percent: 0,
+            currentSectionTitle: "Analyzing grant requirements...",
+            sectionIndex: 0,
+            totalSections,
+          },
+        },
+      ]);
+
+      const handleDraftProgress = (event: SseEvent) => {
+        if (!statusMessageId) return;
+        const data = event.data as Record<string, unknown> | undefined;
+        const sectionIdx = (data?.section_index as number | undefined) ?? 0;
+        const total = (data?.total_sections as number | undefined) ?? totalSections;
+        const percent =
+          (data?.progress_percent as number | undefined) ??
+          (sectionIdx ? Math.min(99, Math.round((sectionIdx / total) * 100)) : 0);
+        const chunkText =
+          (data?.accumulated_content as string | undefined) ?? (data?.chunk as string | undefined);
+        const wordCount = data?.word_count as number | undefined;
+        const thought = (data?.thought as string | undefined) ?? event.message;
+
+        let sectionTitle = data?.section_title as string | undefined;
+        if (!sectionTitle && event.message) {
+          const match = event.message.match(/Section \d+\/\d+: (.*?) \(/);
+          if (match && match[1]) {
+            sectionTitle = match[1];
+          } else if (event.message.includes("Analyzing")) {
+            sectionTitle = "Analyzing requirements...";
+          }
+        }
+
+        setBlocks(statusMessageId, () => [
+          {
+            type: "draft_progress",
+            state: {
+              grantTitle: grant.title,
+              currentSectionTitle: sectionTitle,
+              thought,
+              liveTextChunk: chunkText,
+              wordCount,
+              sectionIndex: sectionIdx,
+              totalSections: total,
+              percent,
+            },
+          },
+        ]);
+      };
+
       try {
-        const doc = await applicationService.startApplication(grant, profile, undefined, {
+        const doc = await applicationService.startApplication(grant, profile, handleDraftProgress, {
           conversationId: c.activeConversation?.backendConversationId || c.activeId || undefined,
           sections: customSections,
         });
+
+        // Mark 100% completed on the progress card
+        setBlocks(statusMessageId, () => [
+          {
+            type: "draft_progress",
+            state: {
+              grantTitle: grant.title,
+              currentSectionTitle: `Completed ${doc.sections.length} sections`,
+              sectionIndex: doc.sections.length,
+              totalSections: doc.sections.length,
+              percent: 100,
+            },
+          },
+        ]);
+
         c.setDocument(doc, grant.id);
         c.setStage("application");
         // The pipeline row is a SUMMARY: the draft body stays in
@@ -428,6 +499,17 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         }
         setMainView("workspace");
       } catch (err) {
+        setBlocks(statusMessageId, () => [
+          {
+            type: "draft_progress",
+            state: {
+              grantTitle: grant.title,
+              currentSectionTitle: "Drafting stopped",
+              error: err instanceof Error ? err.message : "The draft couldn't be generated.",
+              percent: 0,
+            },
+          },
+        ]);
         askAssistant([
           {
             type: "error",
@@ -438,7 +520,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         setBusy(false);
       }
     },
-    [addApplication, askAssistant, c],
+    [addApplication, askAssistant, c, setBlocks],
   );
 
   const handleStartApplication = useCallback(
@@ -854,7 +936,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     const hasGrantResults = Boolean(active.grants?.length);
     const researchCoveringIndicator =
       lastBlock?.type === "research_status" && !lastBlock.state.error && !hasGrantResults;
-    return !researchCoveringIndicator;
+    const draftingCoveringIndicator =
+      lastBlock?.type === "draft_progress" && !lastBlock.state.error && lastBlock.state.percent < 100;
+    return !researchCoveringIndicator && !draftingCoveringIndicator;
   }, [active, busy]);
 
   const { scrollContainerRef, scrollBottomRef, showScrollButton, scrollToBottom } =

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { CheckCircle2, Sparkles } from "lucide-react";
 import type { DraftProgressState } from "@/types";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -13,6 +14,13 @@ export function DraftProgressCard({ state }: Props) {
   const percent = Math.min(100, Math.max(0, state.percent));
   const current = state.sectionIndex ?? 1;
   const total = state.totalSections ?? 12;
+  const liveContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (liveContainerRef.current) {
+      liveContainerRef.current.scrollTop = liveContainerRef.current.scrollHeight;
+    }
+  }, [state.liveTextChunk]);
 
   return (
     <Card className="rounded-2xl border bg-card p-4 text-card-foreground shadow-sm sm:p-5">
@@ -56,11 +64,19 @@ export function DraftProgressCard({ state }: Props) {
               </span>
             )}
           </div>
+          {Boolean(state.thought) && (
+            <p className="text-[11px] text-muted-foreground line-clamp-2 italic">
+              {state.thought}
+            </p>
+          )}
         </div>
 
         {/* Live Streaming Text Preview Container */}
         {percent < 100 && Boolean(state.liveTextChunk) && (
-          <div className="max-h-36 overflow-y-auto rounded-xl border border-brand/20 bg-card p-3 font-sans text-xs leading-relaxed text-foreground shadow-sm">
+          <div
+            ref={liveContainerRef}
+            className="max-h-36 overflow-y-auto rounded-xl border border-brand/20 bg-card p-3 font-sans text-xs leading-relaxed text-foreground shadow-sm"
+          >
             <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-brand">
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-brand animate-ping" />
