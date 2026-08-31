@@ -200,7 +200,10 @@ function WorkspaceMetaBar({
             )}
           >
             <span
-              className={cn("h-1.5 w-1.5 rounded-full", dirtyCount > 0 ? "bg-warning" : "bg-success")}
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                dirtyCount > 0 ? "bg-warning" : "bg-success",
+              )}
             />
             {dirtyCount > 0
               ? `Unsaved changes in ${dirtyCount} section${dirtyCount === 1 ? "" : "s"}`
@@ -273,15 +276,12 @@ function WorkspaceMetaBar({
                   <DialogHeader>
                     <DialogTitle>Delete application draft?</DialogTitle>
                     <DialogDescription>
-                      This will delete the entire proposal draft for &quot;{doc.grantTitle}&quot; and return you to your grant research in chat.
+                      This will delete the entire proposal draft for &quot;{doc.grantTitle}&quot;
+                      and return you to your grant research in chat.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter className="gap-2 sm:gap-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setConfirmOpen(false)}
-                    >
+                    <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
                       Cancel
                     </Button>
                     <Button
