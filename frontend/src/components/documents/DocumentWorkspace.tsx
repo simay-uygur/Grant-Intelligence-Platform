@@ -49,6 +49,7 @@ import { applicationService } from "@/services";
 import { cn } from "@/lib/utils";
 import { InlineNotice } from "@/components/common/InlineNotice";
 import { EmptyState } from "@/components/EmptyState";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 
 const WORD_BUDGET = 2500;
 
@@ -636,16 +637,20 @@ function MessageBubble({ message }: { message: TextMessage }) {
   return (
     <div
       className={cn(
-        "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere]",
-        message.role === "user" && "bg-muted text-foreground",
+        "max-w-[85%] break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere]",
+        message.role === "user" && "bg-muted text-foreground whitespace-pre-wrap",
         message.role === "assistant" &&
           message.tone !== "error" &&
           "border border-border bg-muted/30 text-foreground",
         message.tone === "error" &&
-          "border border-destructive/30 bg-destructive/10 text-destructive",
+          "border border-destructive/30 bg-destructive/10 text-destructive whitespace-pre-wrap",
       )}
     >
-      {displayText}
+      {message.role === "assistant" && message.tone !== "error" ? (
+        <MarkdownMessage className="text-sm">{displayText}</MarkdownMessage>
+      ) : (
+        displayText
+      )}
       {streaming && (
         <span
           aria-hidden="true"
@@ -833,12 +838,78 @@ function matchTargetSections(
   sections: DocSection[],
   pinnedSectionId: string | null,
 ): SectionTarget {
-  const q = instruction.toLowerCase();
+  const q = instruction.toLowerCase().trim();
   if (WHOLE_DOCUMENT_PATTERN.test(q)) return { kind: "all" };
 
-  const matched = sections.filter((s) => SECTION_KEYWORDS[s.id]?.test(q));
-  if (matched.length > 0) return { kind: "sections", sections: matched };
+  // 1. Explicit section index/number references (e.g. "section 6", "part 6", "sec 6", "#6", "6.")
+  const numMatch =
+    q.match(/\b(?:section|part|sec|#)\s*([0-9]+)\b/) ||
+    q.match(/\b([0-9]+)(?:st|nd|rd|th)?\s+(?:section|part)\b/);
+  if (numMatch) {
+    const idx = parseInt(numMatch[1], 10) - 1;
+    if (idx >= 0 && idx < sections.length) {
+      return { kind: "sections", sections: [sections[idx]] };
+    }
+  }
 
+  // 2. Score matches across all sections dynamically based on title words, id, and keyword patterns
+  const scoredMatches: { section: DocSection; score: number }[] = [];
+
+  for (let idx = 0; idx < sections.length; idx++) {
+    const s = sections[idx];
+    let score = 0;
+    const cleanTitle = s.title
+      .replace(/^\d+[.\s\-:]+/, "")
+      .toLowerCase()
+      .trim();
+
+    // Check hardcoded regex against s.id, clean title, or original title
+    for (const [key, pattern] of Object.entries(SECTION_KEYWORDS)) {
+      if (
+        (s.id.includes(key) ||
+          key.includes(s.id) ||
+          pattern.test(cleanTitle) ||
+          pattern.test(s.title.toLowerCase())) &&
+        pattern.test(q)
+      ) {
+        score += 8;
+      }
+    }
+
+    // Dynamic title word matching (extract meaningful words > 3 chars)
+    const titleWords = cleanTitle
+      .split(/[\s,–—\-_/&]+/)
+      .map((w) => w.replace(/[^a-z0-9]/g, ""))
+      .filter((w) => w.length > 3);
+
+    for (const word of titleWords) {
+      if (q.includes(word)) {
+        score += 4;
+      }
+    }
+
+    // Substring matches
+    if (cleanTitle.length > 4 && q.includes(cleanTitle)) {
+      score += 10;
+    }
+    if (s.id.length > 3 && q.includes(s.id.toLowerCase())) {
+      score += 8;
+    }
+
+    if (score > 0) {
+      scoredMatches.push({ section: s, score });
+    }
+  }
+
+  if (scoredMatches.length > 0) {
+    scoredMatches.sort((a, b) => b.score - a.score);
+    const topScore = scoredMatches[0].score;
+    // Take highest scoring section(s)
+    const topSections = scoredMatches.filter((m) => m.score >= topScore).map((m) => m.section);
+    return { kind: "sections", sections: topSections };
+  }
+
+  // 3. Fallback to pinned section if any
   if (pinnedSectionId) {
     const pinned = sections.find((s) => s.id === pinnedSectionId);
     if (pinned) return { kind: "sections", sections: [pinned] };
@@ -1005,11 +1076,39 @@ function AssistantPanel({
     if (pinnedSectionId) onClearPinnedSection();
 
     if (target.kind === "none") {
-      // Honest, not a guess: never falls back to "just edit section 1".
-      pushMessage(
-        "assistant",
-        'Which section should I change? For example: "make the project summary more concise".',
-      );
+      setPending(true);
+      try {
+        if (applicationService.documentQa) {
+          const res = await applicationService.documentQa(
+            doc.id,
+            instruction,
+            pinnedSectionId ?? undefined,
+            doc,
+            grant,
+            profile,
+          );
+          let reply = res.answer;
+          if (res.suggestions && res.suggestions.length > 0) {
+            reply += "\n\nKey Recommendations:\n" + res.suggestions.map((s) => `• ${s}`).join("\n");
+          }
+          pushMessage("assistant", reply);
+        } else {
+          pushMessage(
+            "assistant",
+            `Here is guidance regarding "${instruction}": Ensure objectives directly address EU call criteria, emphasize innovation beyond state-of-the-art, and include quantifiable KPIs.`,
+          );
+        }
+      } catch (err) {
+        pushMessage(
+          "assistant",
+          err instanceof Error
+            ? err.message
+            : "Unable to consult on the document at the moment. Please try again.",
+          "error",
+        );
+      } finally {
+        setPending(false);
+      }
       return;
     }
     const targetSections = target.kind === "all" ? doc.sections : target.sections;

@@ -93,6 +93,12 @@ const rewriteSectionResponseSchema = z.object({
   baseRevision: z.number().int().positive().optional().nullable(),
 });
 
+const documentQaResponseSchema = z.object({
+  answer: z.string(),
+  sectionId: z.string().optional().nullable(),
+  suggestions: z.array(z.string()).default([]),
+});
+
 const applicationStatusSchema = z.enum([
   "drafting",
   "submitted",
@@ -358,6 +364,49 @@ export class ApiApplicationService implements ApplicationService {
       content: result.data.content,
       revision: result.data.revision ?? undefined,
       baseRevision: result.data.baseRevision ?? undefined,
+    };
+  }
+
+  async documentQa(
+    documentId: string,
+    question: string,
+    sectionId?: string,
+    document?: ApplicationDocument,
+    grant?: Grant,
+    profile?: OrganisationProfile,
+  ): Promise<{ answer: string; sectionId?: string; suggestions: string[] }> {
+    const payload = await this.client.request<unknown>(
+      `/api/v1/documents/${encodeURIComponent(documentId)}/qa`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          question,
+          ...(sectionId ? { sectionId } : {}),
+          ...(document ? { document } : {}),
+          ...(grant ? { grant } : {}),
+          ...(profile ? { profile } : {}),
+        }),
+      },
+    );
+    const result = documentQaResponseSchema.safeParse(payload);
+    if (!result.success) {
+      const record =
+        typeof payload === "object" && payload !== null
+          ? (payload as Record<string, unknown>)
+          : undefined;
+      return {
+        answer:
+          typeof record?.answer === "string" ? record.answer : "Consultation response received.",
+        sectionId: typeof record?.sectionId === "string" ? record.sectionId : undefined,
+        suggestions: Array.isArray(record?.suggestions)
+          ? record.suggestions.filter((s): s is string => typeof s === "string")
+          : [],
+      };
+    }
+    return {
+      answer: result.data.answer,
+      sectionId: result.data.sectionId ?? undefined,
+      suggestions: result.data.suggestions,
     };
   }
 }

@@ -1,24 +1,13 @@
 import { useCallback, useRef, useState } from "react";
-import { grantService, isMockMode } from "@/services";
+import { grantService } from "@/services";
 import type { SseEvent } from "@/services/apiClient";
 import type { ChatBlock, Grant, OrganisationProfile, ResearchState } from "@/types";
 
-/** Steps shown while streaming live results from the backend agent. */
+/** Steps shown while streaming results from the agent. */
 const LIVE_RESEARCH_STEPS = [
   "Generating search keywords",
   "Parallel multi-source search (EU Portal & Web Discovery)",
   "Filtering & ranking best matches",
-];
-
-/** Steps shown in mock / local mode. */
-const MOCK_RESEARCH_STEPS = [
-  "Understanding organisation profile",
-  "Analysing funding requirements",
-  "Checking geographical eligibility",
-  "Searching European grant programmes",
-  "Comparing funding amounts",
-  "Reviewing deadlines",
-  "Ranking the strongest matches",
 ];
 
 interface UseGrantSearchOptions {
@@ -82,9 +71,8 @@ export function useGrantSearch({
       setStage("researching");
       setLastProfile(profile);
 
-      const researchSteps = isMockMode ? MOCK_RESEARCH_STEPS : LIVE_RESEARCH_STEPS;
       const initialState: ResearchState = {
-        steps: researchSteps.map((label, i) => ({
+        steps: LIVE_RESEARCH_STEPS.map((label, i) => ({
           label,
           status: i === 0 ? ("active" as const) : ("pending" as const),
         })),
@@ -149,6 +137,7 @@ export function useGrantSearch({
               ? {
                   type: "research_status" as const,
                   state: {
+                    ...block.state,
                     steps: block.state.steps.map((step) => ({ ...step, status: "done" as const })),
                   },
                 }

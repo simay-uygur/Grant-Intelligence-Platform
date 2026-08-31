@@ -425,6 +425,28 @@ export class LocalApplicationService implements ApplicationService {
       baseRevision: options?.baseRevision,
     };
   }
+
+  async documentQa(
+    _documentId: string,
+    _question: string,
+    sectionId?: string,
+    document?: ApplicationDocument,
+    grant?: Grant,
+    profile?: OrganisationProfile,
+  ): Promise<{ answer: string; sectionId?: string; suggestions: string[] }> {
+    await wait(300);
+    const org = profile?.organisationName || "The applicant";
+    const prog = grant?.programme || grant?.title || "EU Horizon";
+    return {
+      answer: `Based on an analysis of "${document?.grantTitle || prog}", ${org}'s application demonstrates strong structural alignment with call criteria. Key emphasis areas: ensure TRL milestones are explicitly articulated, quantify direct societal impacts, and confirm consortium partner obligations.`,
+      sectionId,
+      suggestions: [
+        "Include quantifiable KPI targets (e.g. % efficiency gain, number of pilots).",
+        "Clarify gender dimension and open access data management strategy.",
+        "Strengthen work package risk mitigation measures.",
+      ],
+    };
+  }
 }
 
 function isLocalApplication(value: unknown): value is DemoApplication {

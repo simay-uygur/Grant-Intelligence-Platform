@@ -213,6 +213,8 @@ class GrantSearchResponse(BaseModel):
     normalized_filters_applied: dict[str, Any] = Field(description="Final profile values sent to the agent.")
     batch_id: str | None = Field(default=None, description="Persisted search batch ID if linked to a conversation/user.")
     batch_index: int | None = Field(default=None, description="Sequential search batch number in the conversation.")
+    eu_count: int | None = Field(default=None, description="Count of EU candidates discovered.")
+    web_count: int | None = Field(default=None, description="Count of web candidates discovered.")
 
     model_config = {
         "json_schema_extra": {

@@ -109,8 +109,8 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
               step.webCount !== undefined;
             const showParallelPanel =
               isParallelSearchStep && (step.status === "active" || step.status === "done");
-            const euCount = step.euCount ?? 14;
-            const webCount = step.webCount ?? 8;
+            const euCount = step.euCount ?? state.euCount;
+            const webCount = step.webCount ?? state.webCount;
 
             return (
               <li
@@ -166,9 +166,11 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
-                          +{euCount}
-                        </span>
+                        {euCount !== undefined && (
+                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
+                            +{euCount}
+                          </span>
+                        )}
                         {step.status === "active" ? (
                           <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
                         ) : (
@@ -199,9 +201,11 @@ export function ResearchStatus({ state, onRetry, hasResults }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                          +{webCount}
-                        </span>
+                        {webCount !== undefined && (
+                          <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                            +{webCount}
+                          </span>
+                        )}
                         {step.status === "active" ? (
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         ) : (

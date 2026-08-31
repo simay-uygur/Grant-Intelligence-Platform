@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowDown, Menu, MessageSquarePlus, Play } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useConversations } from "@/hooks/useConversations";
@@ -7,8 +7,9 @@ import { useShortlist } from "@/hooks/useShortlist";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useStickToBottomScroll } from "@/hooks/useStickToBottomScroll";
+import { useGrantSearch } from "@/hooks/useGrantSearch";
 import { LoginPage } from "@/components/auth/LoginPage";
-import { applicationService, chatService, grantService, isMockMode } from "@/services";
+import { applicationService, chatService, isMockMode } from "@/services";
 import type { SseEvent } from "@/services/apiClient";
 import { chatReplyBlocks } from "@/components/chat/chatReplyBlocks";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,6 @@ import type {
   Grant,
   OrganisationProfile,
   OutlineSection,
-  ResearchState,
 } from "@/types";
 import { Sidebar, MobileSidebar, type MainView } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -46,16 +46,6 @@ const COMPOSER_PLACEHOLDERS: Record<ApplicationStage, string> = {
   results: "Ask about one of these grants…",
   application: "Ask to revise, expand, or improve this application…",
 };
-
-const RESEARCH_STEPS = [
-  "Understanding organisation profile",
-  "Analysing funding requirements",
-  "Checking geographical eligibility",
-  "Searching European grant programmes",
-  "Comparing funding amounts",
-  "Reviewing deadlines",
-  "Ranking the strongest matches",
-];
 
 // Grant Q&A is answered locally by matching simple keywords against the
 // question and quoting the matching Grant field(s) — never invented, never
@@ -202,7 +192,6 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
   const [composerValue, setComposerValue] = useState("");
   const [askingAboutGrant, setAskingAboutGrant] = useState<Grant | null>(null);
   const [outlineModalGrant, setOutlineModalGrant] = useState<Grant | null>(null);
-  const researchInFlight = useRef(false);
   const isMobile = useIsMobile();
 
   // If the viewport grows past the mobile breakpoint while the sheet is open
@@ -252,79 +241,46 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
     [appendMessage, uid],
   );
 
-  const runResearch = useCallback(
-    async (profile: OrganisationProfile, initialError?: boolean) => {
-      if (researchInFlight.current) return;
-      researchInFlight.current = true;
-      setBusy(true);
-      c.setStage("researching");
-
-      const state: ResearchState = {
-        steps: RESEARCH_STEPS.map((label, i) => ({
-          label,
-          status: i === 0 ? "active" : "pending",
-        })),
-      };
-      const messageId = askAssistant([{ type: "research_status", state }]);
-
-      try {
-        for (let i = 0; i < RESEARCH_STEPS.length; i++) {
-          await new Promise((r) => setTimeout(r, 450));
-          setBlocks(messageId, (blocks) =>
-            blocks.map((b) => {
-              if (b.type !== "research_status") return b;
-              const steps = b.state.steps.map((s, idx) => {
-                if (idx < i + 1) return { ...s, status: "done" as const };
-                if (idx === i + 1) return { ...s, status: "active" as const };
-                return { ...s, status: "pending" as const };
-              });
-              return { type: "research_status", state: { steps } };
-            }),
-          );
-        }
-
-        if (initialError) throw new Error("Simulated network error");
-
-        const searchResult = await grantService.searchGrants(profile);
-        const grants = searchResult.grants;
-        c.setGrants(grants);
-        c.setStage("results");
-        askAssistant([
-          {
-            type: "text",
-            text:
-              grants.length === 0
-                ? `I couldn't find anything matching ${profile.organisationName || "your organisation"} on every criterion. Here's what usually helps:`
-                : `I found ${grants.length} strong matches for ${profile.organisationName || "your organisation"}. Here are the top three, ranked by fit:`,
-          },
-          // Sent even when empty: GrantResults owns the no-match state and
-          // the "search again" action, so the answer isn't a dead end.
-          {
-            type: "grant_results",
-            grants,
-            allCandidates: searchResult.allCandidates,
-            sourceSummary: searchResult.sourceSummary,
-          },
-        ]);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Research failed";
-        setBlocks(messageId, (blocks) =>
-          blocks.map((b) =>
-            b.type === "research_status"
-              ? {
-                  type: "research_status",
-                  state: { ...b.state, error: message },
-                }
-              : b,
-          ),
-        );
-      } finally {
-        researchInFlight.current = false;
-        setBusy(false);
-      }
+  const { runResearch, handleRetryResearch: executeRetryResearch } = useGrantSearch({
+    onResearchStart: (initialState) =>
+      askAssistant([{ type: "research_status", state: initialState }]),
+    onResearchProgress: (messageId, updater) => setBlocks(messageId, updater),
+    onResearchComplete: (grants, sourceSummary, profile, allCandidates) => {
+      askAssistant([
+        {
+          type: "text",
+          text:
+            grants.length === 0
+              ? `I couldn't find anything matching ${profile.organisationName || "your organisation"} on every criterion. Here's what usually helps:`
+              : `I found ${grants.length} strong matches for ${profile.organisationName || "your organisation"}. Here are the top three, ranked by fit:`,
+        },
+        {
+          type: "grant_results",
+          grants,
+          allCandidates,
+          sourceSummary,
+        },
+      ]);
     },
-    [askAssistant, c, setBlocks],
-  );
+    onResearchError: (messageId, error) => {
+      setBlocks(messageId, (blocks) =>
+        blocks.map((b) =>
+          b.type === "research_status"
+            ? {
+                type: "research_status",
+                state: { ...b.state, error },
+              }
+            : b,
+        ),
+      );
+    },
+    setBusy,
+    setStage: c.setStage,
+    setGrants: c.setGrants,
+    getExcludedGrantIds: () => c.activeConversation?.grants?.map((g) => g.id) ?? [],
+    getConversationId: () =>
+      c.activeConversation?.backendConversationId || c.activeConversation?.id,
+  });
 
   const handleSubmitProfile = useCallback(
     (profile: OrganisationProfile) => {
@@ -354,9 +310,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
           text: "Find alternative grants matching my organisation profile.",
         },
       ]);
-      void runResearch(c.activeConversation.profile);
+      executeRetryResearch();
     }
-  }, [askUser, c.activeConversation, runResearch]);
+  }, [askUser, c.activeConversation, executeRetryResearch]);
 
   const handleAskGrant = useCallback(
     (grant: Grant) => {
@@ -702,7 +658,7 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
             await runResearch(profile);
           }
           return;
-        } catch (err) {
+        } catch {
           // Graceful fallback if backend call fails
         } finally {
           setBusy(false);

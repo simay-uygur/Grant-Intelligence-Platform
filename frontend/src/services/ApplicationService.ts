@@ -39,6 +39,12 @@ export interface RewriteSectionResult {
   baseRevision?: number;
 }
 
+export interface DocumentQaResult {
+  answer: string;
+  sectionId?: string;
+  suggestions?: string[];
+}
+
 export interface ApplicationService {
   listApplications(): Promise<DemoApplication[]>;
   getApplication(applicationId: string): Promise<OpenedApplication>;
@@ -77,4 +83,12 @@ export interface ApplicationService {
     instruction?: string,
     options?: RewriteSectionOptions,
   ): Promise<RewriteSectionResult>;
+  documentQa?(
+    documentId: string,
+    question: string,
+    sectionId?: string,
+    document?: ApplicationDocument,
+    grant?: Grant,
+    profile?: OrganisationProfile,
+  ): Promise<DocumentQaResult>;
 }

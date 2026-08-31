@@ -84,6 +84,8 @@ class GrantSearchService:
                     normalized_filters_applied=payload.to_agent_profile() | {"limit": payload.limit},
                     batch_id=batch_id,
                     batch_index=batch_index,
+                    eu_count=event["data"].get("eu_count"),
+                    web_count=event["data"].get("web_count"),
                 )
                 event = {
                     **event,

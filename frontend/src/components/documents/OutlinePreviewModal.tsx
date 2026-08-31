@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -55,20 +55,24 @@ export function OutlinePreviewModal({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const effectiveProfile: OrganisationProfile = profile ?? {
-    organisationName: "Your Organisation",
-    organisationType: "SME",
-    organisationDescription: "European Innovation Partner",
-    country: "Germany",
-    region: "Western Europe",
-    projectTitle: grant?.title ?? "Grant Proposal",
-    projectDescription: `Proposal for ${grant?.title ?? "Grant"}`,
-    sector: "Technology & Innovation",
-    fundingAmount: grant?.fundingAmount || "€1,000,000",
-    projectStartDate: "2027-01-01",
-    projectDuration: "24 months",
-    eligibilityConstraints: "None",
-  };
+  const effectiveProfile: OrganisationProfile = useMemo(
+    () =>
+      profile ?? {
+        organisationName: "Your Organisation",
+        organisationType: "SME",
+        organisationDescription: "European Innovation Partner",
+        country: "Germany",
+        region: "Western Europe",
+        projectTitle: grant?.title ?? "Grant Proposal",
+        projectDescription: `Proposal for ${grant?.title ?? "Grant"}`,
+        sector: "Technology & Innovation",
+        fundingAmount: grant?.fundingAmount || "€1,000,000",
+        projectStartDate: "2027-01-01",
+        projectDuration: "24 months",
+        eligibilityConstraints: "None",
+      },
+    [grant?.fundingAmount, grant?.title, profile],
+  );
 
   useEffect(() => {
     if (!open || !grant) return;
@@ -146,7 +150,7 @@ export function OutlinePreviewModal({
     return () => {
       isCurrent = false;
     };
-  }, [open, grant, profile, conversationId]);
+  }, [open, grant, effectiveProfile, conversationId]);
 
   if (!grant) return null;
 
