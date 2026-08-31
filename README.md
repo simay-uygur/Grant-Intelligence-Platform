@@ -4,7 +4,7 @@ An intelligent grant discovery, matchmaking, and application-drafting platform d
 
 ---
 
-## Project Team
+## Project Team - DBS Team
 
 * **Dea Berisha**
 * **Bleron Bajraktari**
@@ -106,7 +106,7 @@ Key variables:
 | `VITE_API_MODE` | `api` (live backend) or `mock` (frontend-only demo) | `api` |
 | `VITE_API_URL` | Backend origin for the frontend client | `http://127.0.0.1:8000` |
 | `DEBUG` | FastAPI debug mode (keep `false` outside development) | `false` |
-| `SESSION_STORAGE_TYPE` | `local` (SQLite) or `hosted` (RDS) | `local` |
+| `SESSION_STORAGE_TYPE` | `local` (SQLite) or `hosted` (AWS LightSail Database) | `local` |
 | `AUTH_REQUIRED` | Enable JWT authentication (`true` in production) | `false` |
 | `AUTH_SECRET_KEY` | JWT signing secret — **required when auth is enabled** (min 32 chars) | dev placeholder |
 | `USE_MOCK_BEDROCK` | Bypass Bedrock calls for offline testing | `false` |
@@ -124,7 +124,7 @@ Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`)
 # Option B: Frontend Connected to Local Backend API (Recommended for local dev)
 ./scripts/set_env_mode.sh --fe-deployed-db-local
 
-# Option C: Both Deployed / Hosted (Frontend API + AWS RDS Database)
+# Option C: Both Deployed / Hosted (Frontend API + AWS  LightSail Database)
 ./scripts/set_env_mode.sh --both-deployed
 ```
 
@@ -288,7 +288,7 @@ Instead of using heavy ORM sessions, the platform utilizes **SQLAlchemy Core**:
 
 ### Database Migrations (Alembic)
 
-Database schema revisions are version-controlled in `backend/migrations/versions/`.
+Database schema revisions are version-controlled in `backend/migrations/versions/`. In production / Docker deployments, migrations run automatically on container startup (`alembic upgrade head`).
 
 ```bash
 # Run all pending migrations
@@ -299,7 +299,11 @@ alembic upgrade head
 alembic current
 ```
 
-*(Note: Local SQLite databases created during development automatically apply baseline tables and column safety checks on server startup.)*
+#### Why SQLite-Specific Code Exists in `ApplicationStore`
+You may notice helper methods (`_ensure_table_columns` and `_migrate_legacy_status_values`) in [`backend/services/application_store.py`](backend/services/application_store.py). These exist alongside Alembic for two reasons:
+1. **Zero-Config Local Dev & Pytest:** When running local tests (`pytest`) or developing locally without Docker, developers don't need to manually run `alembic upgrade head` — the store auto-checks and patches the local SQLite file on boot.
+2. **SQLite DDL Limitations:** Unlike PostgreSQL (which supports full `ALTER TABLE` and modifying constraints directly), SQLite cannot alter existing `CHECK` constraints (such as adding new status enums) without creating a temporary table and copying data over. That code is solely a fallback for older local SQLite test databases. Alembic remains the source of truth for managed PostgreSQL environments.
+
 
 ### Inspecting the Database
 
