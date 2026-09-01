@@ -462,7 +462,6 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
         if (c.activeConversation?.title === "New conversation") {
           c.renameConversation(c.activeConversation.id, grant.title);
         }
-        setMainView("workspace");
       } catch (err) {
         setBlocks(statusMessageId, () => [
           {

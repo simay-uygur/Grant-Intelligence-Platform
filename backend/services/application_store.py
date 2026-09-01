@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.engine import Engine
 
 from backend.core.database import (
@@ -198,7 +198,8 @@ class ApplicationStore:
         return [self._summary_from_row(row) for row in rows], int(total)
 
     def get_application(self, application_id: str, user_id: str | None = None) -> dict | None:
-        stmt = _application_select().where(applications_table.c.id == application_id)
+        clean_id = application_id.removeprefix("app-")
+        stmt = _application_select().where(or_(applications_table.c.id == application_id, applications_table.c.id == clean_id))
         if user_id is not None:
             stmt = stmt.where(applications_table.c.user_id == user_id)
         with self.engine.begin() as connection:
@@ -221,7 +222,8 @@ class ApplicationStore:
         user_id: str | None = None,
     ) -> dict | None:
         timestamp = self._timestamp()
-        stmt = update(applications_table).where(applications_table.c.id == application_id).values(status=str(status), updated_at=timestamp)
+        clean_id = application_id.removeprefix("app-")
+        stmt = update(applications_table).where(or_(applications_table.c.id == application_id, applications_table.c.id == clean_id)).values(status=str(status), updated_at=timestamp)
         if user_id is not None:
             stmt = stmt.where(applications_table.c.user_id == user_id)
         with self.engine.begin() as connection:
@@ -232,7 +234,8 @@ class ApplicationStore:
         return self.get_application(application_id, user_id)
 
     def delete_application(self, application_id: str, user_id: str | None = None) -> bool:
-        stmt = delete(applications_table).where(applications_table.c.id == application_id)
+        clean_id = application_id.removeprefix("app-")
+        stmt = delete(applications_table).where(or_(applications_table.c.id == application_id, applications_table.c.id == clean_id))
         if user_id is not None:
             stmt = stmt.where(applications_table.c.user_id == user_id)
         with self.engine.begin() as connection:
