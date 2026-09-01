@@ -150,6 +150,10 @@ export class ApplicationApiContractError extends Error {
   }
 }
 
+function cleanApplicationId(id: string): string {
+  return id.replace(/^app-/, "");
+}
+
 export class ApiApplicationService implements ApplicationService {
   private readonly client: ApiClient;
 
@@ -167,8 +171,9 @@ export class ApiApplicationService implements ApplicationService {
   }
 
   async getApplication(applicationId: string): Promise<OpenedApplication> {
+    const cleanId = cleanApplicationId(applicationId);
     const payload = await this.client.request<unknown>(
-      `/api/v1/applications/${encodeURIComponent(applicationId)}`,
+      `/api/v1/applications/${encodeURIComponent(cleanId)}`,
     );
     const result = storedApplicationSchema.safeParse(payload);
     if (!result.success) throw new ApplicationApiContractError();
@@ -185,8 +190,9 @@ export class ApiApplicationService implements ApplicationService {
     applicationId: string,
     status: ApplicationStatus,
   ): Promise<DemoApplication> {
+    const cleanId = cleanApplicationId(applicationId);
     const payload = await this.client.request<unknown>(
-      `/api/v1/applications/${encodeURIComponent(applicationId)}`,
+      `/api/v1/applications/${encodeURIComponent(cleanId)}`,
       {
         method: "PATCH",
         body: JSON.stringify({ status }),
@@ -198,7 +204,7 @@ export class ApiApplicationService implements ApplicationService {
       throw new ApplicationApiContractError();
     }
     return toDemoApplication({
-      id: result.data.id,
+      id: applicationId,
       grantId: result.data.grantId,
       grantTitle: result.data.grantTitle,
       grantOrganisation: grantOrganisation(result.data.grant),
@@ -216,8 +222,9 @@ export class ApiApplicationService implements ApplicationService {
     content: string,
     baseRevision?: number,
   ): Promise<ApplicationDocument> {
+    const cleanId = cleanApplicationId(applicationId);
     const payload = await this.client.request<unknown>(
-      `/api/v1/applications/${encodeURIComponent(applicationId)}/sections/${encodeURIComponent(sectionId)}`,
+      `/api/v1/applications/${encodeURIComponent(cleanId)}/sections/${encodeURIComponent(sectionId)}`,
       {
         method: "PUT",
         body: JSON.stringify({
@@ -232,7 +239,8 @@ export class ApiApplicationService implements ApplicationService {
   }
 
   async deleteApplication(applicationId: string): Promise<void> {
-    await this.client.request<void>(`/api/v1/applications/${encodeURIComponent(applicationId)}`, {
+    const cleanId = cleanApplicationId(applicationId);
+    await this.client.request<void>(`/api/v1/applications/${encodeURIComponent(cleanId)}`, {
       method: "DELETE",
     });
   }
