@@ -254,7 +254,9 @@ function AppShell({ onSignOut }: { onSignOut: () => void }) {
               ? allCandidates && allCandidates.length > 0
                 ? `I found source opportunities for ${profile.organisationName || "your organisation"}, but none were strong enough to recommend on every criterion. You can inspect the discovered opportunities below or broaden the profile and search again.`
                 : `I couldn't find any grant opportunities matching ${profile.organisationName || "your organisation"} on every criterion. Here's what usually helps:`
-              : `I found ${grants.length} strong matches for ${profile.organisationName || "your organisation"}. Here are the top three, ranked by fit:`,
+              : grants.length === 1
+                ? `I found 1 strong match for ${profile.organisationName || "your organisation"}. Here it is, ranked by fit:`
+                : `I found ${grants.length} strong matches for ${profile.organisationName || "your organisation"}. Here they are, ranked by fit:`,
         },
         {
           type: "grant_results",
