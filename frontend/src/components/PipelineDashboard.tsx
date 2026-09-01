@@ -6,6 +6,7 @@ import type { ApplicationStatus, DemoApplication } from "@/data/mockApplications
 import { formatDeadline } from "@/utils/deadline";
 import { type ApplicationLink, resolveApplicationLink } from "@/utils/applicationLink";
 import { cn } from "@/lib/utils";
+import { isMockMode } from "@/services";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 // The shared deadline badge, reused so grant results and pipeline cards can't
@@ -317,7 +318,8 @@ function ApplicationDetailsSheet({
               </div>
               <SheetTitle className="text-base leading-snug">{application.grantTitle}</SheetTitle>
               <SheetDescription>
-                Application summary. Status changes are saved locally in your browser.
+                Application summary. Status changes are{" "}
+                {isMockMode ? "saved locally in your browser" : "saved to the server"}.
               </SheetDescription>
             </SheetHeader>
 
@@ -708,8 +710,9 @@ export function PipelineDashboard({
             aria-live="polite"
             className="mt-2 flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive"
           >
-            Status changes can&apos;t be saved right now — local storage may be full or unavailable
-            (for example, in private browsing). They&apos;ll be lost when you reload.
+            {isMockMode
+              ? "Status changes can\u2019t be saved right now \u2014 local storage may be full or unavailable (for example, in private browsing). They\u2019ll be lost when you reload."
+              : "Status changes can\u2019t be saved right now \u2014 the server returned an error. Check your connection and try again; the change has been rolled back."}
           </p>
         )}
       </header>
