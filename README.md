@@ -131,11 +131,11 @@ AWS credentials are resolved through your AWS profile / environment (`AWS_PROFIL
 Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`) and Backend (`SESSION_STORAGE_TYPE`):
 
 ```bash
-# Option A: Both Local (Frontend Mock + Backend SQLite)
-./scripts/set_env_mode.sh --both-local
+# Option A: Full-Stack Local API (Frontend API + Backend Local SQLite) — Recommended
+./scripts/set_env_mode.sh --fe-api --db-local
 
-# Option B: Frontend Connected to Local Backend API (Recommended for local dev)
-./scripts/set_env_mode.sh --fe-deployed-db-local
+# Option B: Offline Frontend Mock (100% in-browser with localStorage, no backend needed)
+./scripts/set_env_mode.sh --fe-mock
 
 # Option C: Both Deployed / Hosted (Frontend API + AWS RDS Database)
 ./scripts/set_env_mode.sh --both-deployed
@@ -145,97 +145,77 @@ Use the built-in environment mode script to configure Frontend (`VITE_API_MODE`)
 
 ## Running Locally
 
-> **Recommended:** run the backend and frontend directly with the commands below.
-> No Docker is needed for day-to-day development.
+You can run the platform either using **Docker Compose (Recommended)** or via **Native Dev Servers**.
 
-### Method 1: Single Command (Recommended)
+### Method 1: Docker Compose (RECOMMENDED — Easy to Run & Mirrors Production)
 
-Run both backend and frontend dev servers together:
-
-```bash
-./scripts/run_dev.sh
-```
-
-### Method 2: Two-Terminal Workflow
-
-**Terminal 1 — Backend:**
-
-```bash
-source .venv/bin/activate
-
-# Configure AWS profile and Bedrock environment
-export AWS_PROFILE=grant-platform
-export AWS_REGION=us-east-1
-export CLAUDE_CODE_USE_BEDROCK=1
-
-# Start FastAPI server on port 8000 (--host 127.0.0.1 = local access only)
-uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-The backend server starts on `http://127.0.0.1:8000` — open `http://127.0.0.1:8000/docs`
-for the interactive API docs. (Note: always browse to `127.0.0.1` or `localhost`;
-`0.0.0.0` is a server bind address, not a clickable URL.)
-
-**Terminal 2 — Frontend:**
-
-```bash
-cd frontend
-bun run dev
-```
-
-The frontend development server starts on `http://localhost:8080`.
-
-### Docker (Optional)
-
-Docker Compose is only needed to mirror the production Lightsail setup locally
-(nginx reverse proxy in front of both services).
-
-**Prerequisite — AWS profile:** the backend container needs Amazon Bedrock access.
-It mounts your local `~/.aws` directory read-only and uses the `grant-platform`
-profile (override with `AWS_PROFILE=<name>`). Create it once if you don't have it:
-
-```bash
-# Option A: long-lived access keys
-aws configure --profile grant-platform
-# Enter your AWS Access Key ID, Secret Access Key, and region (us-east-1)
-
-# Option B: SSO (if your organisation uses AWS IAM Identity Center)
-aws configure sso --profile grant-platform
-aws sso login --profile grant-platform   # refresh before each dev session
-
-# Verify it works:
-aws sts get-caller-identity --profile grant-platform
-```
-
-> **Troubleshooting:**
-> - **No `~/.aws` directory?** The container still starts, but Bedrock calls run in
->   degraded mode (fallback keywords/scores) until a profile is created.
-> - **`Unable to locate credentials` after a break?** Your SSO token likely expired —
->   run `aws sso login --profile grant-platform`, then restart the backend container
->   (`docker compose -f deploy/lightsail/docker-compose.local.yml restart backend`).
-
-Then run:
+Running with Docker Compose is the easiest and most reliable way to test the full application. It mirrors the production Lightsail multi-container architecture out of the box with zero manual configuration.
 
 ```bash
 docker compose -f deploy/lightsail/docker-compose.local.yml up --build
 ```
 
-Once all containers are up, open:
+Once all containers are up, open your browser to:
 
 > **http://localhost:8080**
 
-That is the only public address — nginx (host port `8080`) proxies `/` to the
-frontend container and `/api/*` to the backend container. The individual
-frontend (`3000`) and backend (`8000`) ports are internal to Docker's network
-and are **not** reachable from your browser by design.
+#### Here is what happens inside Docker:
+* **Mounted Local Storage (Data Persistence):** The backend SQLite database is volume-mounted to `./storage/backend.db` on your local host machine. Any applications you start, grant drafts you write, or pipeline status changes persist even when you stop, restart, or rebuild containers.
+* **No Authentication Barrier:** Local Docker runs with `VITE_AUTH_REQUIRED=false`, so you will not experience session timeouts or `401 Unauthorized` token issues.
+* **Reverse Proxy Networking:** Nginx (port `8080`) automatically routes frontend requests and proxies `/api/*` requests to the FastAPI backend, eliminating CORS problems.
+* **AWS Bedrock Access:** Mounts your local `~/.aws` read-only so Claude Sonnet 4.6 Bedrock generation works seamlessly.
 
-Useful commands while it runs:
-
+**Useful Docker commands:**
 ```bash
-docker ps                                            # verify the 8080->80 port mapping
-docker compose -f deploy/lightsail/docker-compose.local.yml logs -f   # follow logs
-# Ctrl+C to stop, then:
-docker compose -f deploy/lightsail/docker-compose.local.yml down      # remove containers
+# View running containers and port mappings
+docker ps
+
+# Follow container logs
+docker compose -f deploy/lightsail/docker-compose.local.yml logs -f
+
+# Stop and remove containers
+docker compose -f deploy/lightsail/docker-compose.local.yml down
+```
+
+---
+
+### Method 2: Native Dev Servers (Two-Terminal Workflow)
+
+If you prefer running without Docker for rapid local development:
+
+#### 1. Set mode to API:
+```bash
+./scripts/set_env_mode.sh --fe-api --db-local
+```
+
+#### 2. Terminal 1 — Backend:
+```bash
+source .venv/bin/activate
+
+# Configure AWS profile for Bedrock access
+export AWS_PROFILE=grant-platform
+export AWS_REGION=us-east-1
+export CLAUDE_CODE_USE_BEDROCK=1
+
+# Start FastAPI server on port 8000
+uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
+The backend server starts on `http://127.0.0.1:8000` (API docs at `http://127.0.0.1:8000/docs`).
+
+#### 3. Terminal 2 — Frontend:
+```bash
+cd frontend
+bun run dev
+```
+The frontend dev server starts on `http://localhost:5173`.
+
+---
+
+### Method 3: Single-Command Runner
+
+Alternatively, launch both native dev servers together in one terminal:
+```bash
+./scripts/run_dev.sh
 ```
 
 ---
